@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+
 import { setupCLI } from './cli';
 
 async function main() {
