@@ -29,6 +29,7 @@
     "remark": "^15.0.1",
     "remark-parse": "^11.0.0",
     "unist-util-visit": "^5.1.0",
+    "unist-util-visit-parents": "^6.0.2",
     "yaml": "^2.8.2"
   }
 }
