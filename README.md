@@ -69,7 +69,32 @@ Currently, Lync supports straightforward one-to-one compilation from your `.src.
 lync build main.src.md -o main.md
 ```
 
-*(Note: Batch workspace compilation via `lync-build.yaml` is also available).*
+### 🗂️ Advanced: Workspace Compilation
+
+For larger projects, Lync supports automated batch compilation using a `lync-build.yaml` configuration. This allows you to construct complex routing rules using Glob patterns.
+
+Create a `lync-build.yaml` in your workspace root:
+
+```yaml
+# Which files should the compiler scan?
+includes:
+  - "src/**/*.src.md"
+
+# Where should unmatched files go by default?
+outDir: "./dist"
+
+# Advanced Routing Interceptors
+routing:
+  - match: "src/agents/*.src.md"
+    dest: "./dist/agents/"
+  - match: "src/prompts/core.src.md"
+    dest: "./dist/core-prompt.md"
+```
+
+Then, simply execute the parameterless build command:
+```bash
+lync build
+```
 
 ---
 
@@ -139,4 +164,31 @@ lync sync
 lync build main.src.md -o main.md
 ```
 
-*（注：也支持通过配置 `lync-build.yaml` 实现工作区目录的批量路由和编译）。*
+### 🗂️ 进阶用法：工作区批量编译
+
+对于大型项目，Lync 支持通过 `lync-build.yaml` 配置文件进行自动化的批量编译。这允许你使用 Glob 模式构建复杂的路由和分发规则。
+
+在你的项目根目录下创建 `lync-build.yaml`：
+
+```yaml
+# 编译器需要扫描哪些源文件？
+includes:
+  - "src/**/*.src.md"
+
+# 默认的输出目录在哪？
+outDir: "./dist"
+
+# 高阶路由拦截器
+routing:
+  - match: "src/agents/*.src.md"
+    dest: "./dist/agents/"
+  - match: "src/prompts/core.src.md"
+    dest: "./dist/core-prompt.md"
+```
+
+配置完毕后，只需无参数执行 build 指令即可自动完成全项目的批量组装：
+```bash
+lync build
+```
+
+---

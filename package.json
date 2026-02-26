@@ -1,7 +1,7 @@
 {
   "name": "lync-md",
   "version": "1.0.0",
-  "description": "",
+  "description": "A decentralized Markdown package manager and compiler tailored for LLM contexts.",
   "main": "dist/index.js",
   "bin": {
     "lync": "./dist/index.js"
@@ -9,8 +9,18 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "markdown",
+    "compiler",
+    "package-manager",
+    "llm",
+    "prompt-engineering"
+  ],
+  "author": "glenzli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/glenzli/lync.git"
+  },
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
