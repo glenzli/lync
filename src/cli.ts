@@ -1,6 +1,10 @@
 import { Command } from 'commander';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile } from './config';
+import { runWorkspaceBuild } from './build';
+import { compileFile } from './compiler';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export function setupCLI(): Command {
     const program = new Command();
@@ -91,6 +95,45 @@ export function setupCLI(): Command {
 
             saveLockfile(lock);
             await syncDependencies();
+        });
+
+    program
+        .command('build [entry]')
+        .description('Compile a specific file or run workspace build via lync-build.yaml')
+        .option('-o, --out-dir <dir>', 'Specify output directory for single file entry')
+        .action(async (entry?: string, options?: { outDir?: string }) => {
+            if (entry) {
+                // Compile single file
+                const absoluteEntry = path.resolve(process.cwd(), entry);
+                if (!fs.existsSync(absoluteEntry)) {
+                    console.error(`[ERROR] Entry file not found: ${absoluteEntry}`);
+                    process.exit(1);
+                }
+
+                let finalDest;
+                if (options && options.outDir) {
+                    const outName = path.basename(entry).replace(/\.src\.md$/, '.md');
+                    finalDest = path.resolve(process.cwd(), options.outDir, outName);
+                } else {
+                    finalDest = absoluteEntry.replace(/\.src\.md$/, '.md');
+                    if (finalDest === absoluteEntry) {
+                        finalDest = finalDest + '.compiled.md'; // Fallback to avoid destroying entry
+                    }
+                }
+
+                try {
+                    const content = await compileFile(absoluteEntry, finalDest);
+                    const dir = path.dirname(finalDest);
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(finalDest, content, 'utf8');
+                    console.log(`[BUILD] ✅ Compiled ${entry} -> ${path.relative(process.cwd(), finalDest)}`);
+                } catch (e: any) {
+                    console.error(`[BUILD] ❌ Failed to compile ${entry}: ${e.message}`);
+                }
+            } else {
+                // Run workspace build
+                await runWorkspaceBuild();
+            }
         });
 
     return program;

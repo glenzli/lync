@@ -1,0 +1,6 @@
+version: 1
+dependencies:
+  glob-docs:
+    url: https://raw.githubusercontent.com/isaacs/node-glob/main/README.md
+    hash: 5f321b257e33017370ee9b826400a9a356330eb0b15359743eff0b4e30fdbcc2
+    fetchedAt: 2026-02-26T15:20:06.180Z

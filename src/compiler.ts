@@ -3,16 +3,13 @@ import * as path from 'path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { toMarkdown } from 'mdast-util-to-markdown';
-import { visit } from 'unist-util-visit';
+import { visitParents } from 'unist-util-visit-parents';
 import { loadLockfile } from './config';
-import { Root, Link } from 'mdast';
+import { Root, Link, Parent } from 'mdast';
 
 /**
  * Compiles a specific `.src.md` file.
  * Expands `@import:inline` nodes and rewrites `@import:link` nodes.
- * @param filePath The absolute path to the source file.
- * @param outPath The absolute path where the final file will be written (used for relative link calculation).
- * @param callStack A set tracking the current compilation chain to prevent circular references.
  */
 export async function compileFile(filePath: string, outPath?: string, callStack: Set<string> = new Set()): Promise<string> {
     if (callStack.has(filePath)) {
@@ -22,26 +19,22 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     const rawContent = fs.readFileSync(filePath, 'utf8');
 
-    // Parse original file into an AST
     const processor = unified().use(remarkParse);
     const ast = processor.parse(rawContent) as Root;
 
     const lock = loadLockfile(process.cwd());
 
-    // Deep clone to prevent unintended side effects if needed (though we rewrite in-place here)
-
-    // We need to support async visitor because inline expansion requires parsing the sub-file asynchronously.
-    // unist-util-visit is synchronous. We must collect nodes to modify first.
-    const inlineNodes: { parent: any, index: number, link: Link }[] = [];
+    const inlineNodes: { ancestors: Parent[], link: Link }[] = [];
     const linkNodes: { link: Link }[] = [];
 
-    visit(ast, 'link', (node: Link, index, parent) => {
+    visitParents(ast, 'link', (node: Link, ancestors: Parent[]) => {
         if (node.url && node.url.startsWith('lync:')) {
             const alias = node.url.replace('lync:', '');
             const directive = node.title || '';
 
             if (directive.includes('@import:inline')) {
-                inlineNodes.push({ parent, index: index!, link: node });
+                // clone ancestors array
+                inlineNodes.push({ ancestors: [...ancestors], link: node });
             } else if (directive.includes('@import:link')) {
                 linkNodes.push({ link: node });
             } else {
@@ -50,7 +43,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         }
     });
 
-    // 1. Process @import:link (Synchronously simple)
+    // 1. Process @import:link
     for (const item of linkNodes) {
         const alias = item.link.url.replace('lync:', '');
         const lockedDep = lock.dependencies[alias];
@@ -62,14 +55,12 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             ? path.resolve(process.cwd(), lockedDep.dest)
             : path.resolve(process.cwd(), '.lync', alias + '.md');
 
-        // Rewrite URL relative to the output path (or current working directory if not specified)
         const relativeFrom = outPath ? path.dirname(outPath) : process.cwd();
         let relativeUrl = path.relative(relativeFrom, lockedDestPath);
         if (!relativeUrl.startsWith('.')) {
             relativeUrl = './' + relativeUrl;
         }
 
-        // Clear title if it solely contained the directive.
         if (item.link.title === '@import:link') {
             item.link.title = null;
         } else if (item.link.title) {
@@ -78,8 +69,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         item.link.url = relativeUrl;
     }
 
-    // 2. Process @import:inline (Asynchronous/Recursive step)
-    // We process in reverse order to not mess up indices if we insert multiple nodes.
+    // 2. Process @import:inline
     for (let i = inlineNodes.length - 1; i >= 0; i--) {
         const item = inlineNodes[i];
         const alias = item.link.url.replace('lync:', '');
@@ -97,22 +87,40 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             throw new Error(`[FATAL] Missing physical file for '${alias}'. Did you forget to 'lync sync'?`);
         }
 
-        // Recursively compile the dependency. Pass down the callStack!
-        // Since we are compiling a dependency for inline expansion, we don't care about its outPath for link resolution,
-        // assuming inline content should be entirely flattened raw text.
-        // However, if the inline text itself contains @import:link, they will be relative to THIS file's outPath!
         const expandedText = await compileFile(lockedDestPath, outPath, callStack);
-
-        // Parse the expanded text into a subtree
         const subAst = processor.parse(expandedText) as Root;
 
-        // Inject children of the subtree into the parent at the link's index
-        item.parent.children.splice(item.index, 1, ...subAst.children);
+        // Determine how to inject the subAst into the parent.
+        // If the immediate parent is a paragraph, replacing the Link with Blocks (like deep headers) might cause mdast serialization failure.
+        // So we find the block-level parent (e.g. paragraph) and its parent (e.g. root) to swap it completely.
+        const immediateParent = item.ancestors[item.ancestors.length - 1];
+        const grandParent = item.ancestors.length > 1 ? item.ancestors[item.ancestors.length - 2] : null;
+
+        if (immediateParent.type === 'paragraph' && grandParent) {
+            // Is the link the only meaningful content in the paragraph?
+            const siblingNodes = immediateParent.children.filter(c => c.type !== 'text' || (c as any).value.trim() !== '');
+            if (siblingNodes.length === 1 && siblingNodes[0] === item.link) {
+                // Replace the entire paragraph with the injected blocks
+                const pIndex = grandParent.children.indexOf(immediateParent as any);
+                if (pIndex !== -1) {
+                    grandParent.children.splice(pIndex, 1, ...subAst.children as any);
+                }
+            } else {
+                // Inline injection inside paragraph (might break if subAst has Blocks)
+                const lIndex = immediateParent.children.indexOf(item.link as any);
+                if (lIndex !== -1) {
+                    immediateParent.children.splice(lIndex, 1, ...subAst.children as any);
+                }
+            }
+        } else {
+            // Fallback inline injection
+            const lIndex = immediateParent.children.indexOf(item.link as any);
+            if (lIndex !== -1) {
+                immediateParent.children.splice(lIndex, 1, ...subAst.children as any);
+            }
+        }
     }
 
-    // Backtrack call stack after fully parsing this file's tree
     callStack.delete(filePath);
-
-    // Serialize back to raw text
     return toMarkdown(ast);
 }
