@@ -20,8 +20,12 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/minimatch": "^5.1.2",
     "commander": "^14.0.3",
+    "glob": "^13.0.6",
     "mdast-util-to-markdown": "^2.1.2",
+    "minimatch": "^10.2.4",
     "remark": "^15.0.1",
     "remark-parse": "^11.0.0",
     "unist-util-visit": "^5.1.0",
