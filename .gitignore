@@ -1,8 +1,5 @@
 node_modules/
 dist/
-.lync/
-lync-lock.yaml
-lync.yaml
 *.log
 *.tgz
 .DS_Store
