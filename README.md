@@ -63,10 +63,13 @@ According to the [Company Development Guidelines](lync:company-rules "@import:in
 (The compiler will replace this link with the raw text)
 ```
 
-**5. Compilation**
+**5. Compilation (Simple One-to-One)**
+Currently, Lync supports straightforward one-to-one compilation from your `.src.md` mapped to an output `.md` file:
 ```bash
 lync build main.src.md -o main.md
 ```
+
+*(Note: Batch workspace compilation via `lync-build.yaml` is also available).*
 
 ---
 
@@ -130,8 +133,10 @@ lync sync
 (原始链接被移除，并在原位置插入完整文本内容)
 ```
 
-**5. 执行编译**
-输出完美的纯净 `.md` 产物供 LLM 消费：
+**5. 执行编译（简单一对一）**
+目前 Lync 支持直接的一对一编译，将你的 `.src.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费：
 ```bash
 lync build main.src.md -o main.md
 ```
+
+*（注：也支持通过配置 `lync-build.yaml` 实现工作区目录的批量路由和编译）。*
