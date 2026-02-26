@@ -41,25 +41,25 @@ When installing via the CLI `lync add <url>`, the CLI automatically deduces and 
 
 Once a package is declared and installed via `lync.yaml`, it can be imported into your `.src.md` files using a custom URI scheme: `lync:{alias}`. 
 
-The core philosophy remains **graceful degradation**: Compilation directives are hidden within standard Markdown link titles.
+The core design principle is **graceful degradation**: Compilation directives are encoded within standard Markdown link titles to ensure uncompiled source files remain readable in generic viewers.
 
 ### The Import Syntax
 
-`[Human Readable Name](lync:alias "@lync-directive")`
+`[Link Text](lync:alias "@lync-directive")`
 
 *   **Link Mode (`@import:link`)**: 
-    Simply rewrites the `lync:alias` to the physical relative path of the downloaded file. This maintains a clickable structure in the final compiled Markdown.
+    The compiler replaces the `lync:alias` URI with the local relative physical path of the target file, preserving the hyperlink structure.
     ```markdown
     Please refer to the [Coding Assistant Skill](lync:coder-skill "@import:link").
     ```
     *Compiled Output*: `Please refer to the [Coding Assistant Skill](./skills/coder.md).`
 
 *   **Inline Mode (`@import:inline`)**:
-    Used to literally expand/paste the contents of the aliased module at the current position. Perfect for flatting prompts.
+    The compiler reads the raw text content of the target file and replaces the entire hyperlink with this content. This is primarily used for assembling large prompt contexts.
     ```markdown
     According to the [Company Development Guidelines](lync:company-rules "@import:inline"):
     ```
-    *Compiled Output*: The link is entirely replaced by the raw text of `guidelines.md`.
+    *Compiled Output*: The original link is removed and the complete text content of `guidelines.md` is inserted at its position.
 
 ---
 

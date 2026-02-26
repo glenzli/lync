@@ -21,6 +21,7 @@
     "mdast-util-to-markdown": "^2.1.2",
     "remark": "^15.0.1",
     "remark-parse": "^11.0.0",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "yaml": "^2.8.2"
   }
 }

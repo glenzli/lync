@@ -1,27 +1,27 @@
-# Lync 协议与编译器规范 (草案)
+# Lync 协议与编译器规范
 
-考虑到 Markdown 已经成为大语言模型 (LLM) 时代实际意义上的逻辑控制语言（例如用于编写 Prompt、System Instruction 等），Markdown 实际上已经演变为了**源代码**。
+考虑到 Markdown 已经成为大语言模型 (LLM) 时代实际意义上的逻辑控制语言（例如用于编写 Prompt、System Instruction 等），Markdown 在特定工作流中已具备源代码的属性。
 
-Lync 是一个专为 LLM 时代设计的、轻量级、去中心化的 Markdown 包管理器与编译器。它将 Markdown 视为源代码，提供健全的依赖管理、内联组合和确定性构建机制，且**完全不依赖任何类似 npmjs 的中心化注册表**。
+Lync 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与编译器。它将 Markdown 视为工程代码，提供依赖管理、内联组合和确定性构建机制，且不依赖任何中心化注册表。
 
 ---
 
 ## Part 1: 包管理清单 (Install)
 
-Lync 使用一个集中的清单文件来预先声明远程依赖，然后再在 Markdown 源文件中调用它们。这避免了 URL 在代码中到处散落，有利于版本控制，并能在本地建立极简的别名（Alias）。
+Lync 使用清单文件声明远程依赖，然后再在源文件中引用。这避免了硬编码 URL，有利于版本控制，并能在本地建立统一的模块别名（Alias）。
 
 ### 1. 清单文件 (`lync.yaml`)
 
-`lync.yaml` 位于项目根目录。它的核心作用是将一个冗长的远程 URL 绑定到一个简短的、本地唯一的**别名 (Alias)** 上。
+`lync.yaml` 位于项目根目录。其核心作用是将远程 URL 映射到本地唯一的别名上。
 
 ```yaml
 dependencies:
   # 场景 A：纯缓存依赖。仅下载到内部缓存，工作区不可见。
-  # 完美适用于被用于内联展开 (Inline) 的背景上下文。
+  # 适用于将被用作内联展开 (Inline) 的纯文本片段。
   company-rules: "https://example.com/guidelines.md"
   
-  # 场景 B: 显式物理落盘。下载到本地指定的明确路径。
-  # 完美适用于构建本地的知识库目录或技能文件夹。
+  # 场景 B: 显式物理落盘。下载到本地指定的物理路径。
+  # 适用于构建本地知识库或技能库目录。
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
@@ -29,41 +29,41 @@ dependencies:
 
 ### 2. 别名生成与冲突处理机制
 
-在 Lync 中，开发者只需要保证别名在属于自己的 `lync.yaml` 中唯一即可。
-*   **别名 (Alias) 即本地主键**：在你的项目中，`company-rules` 就是唯一的标识符。如果你在 YAML 里写了两个同名别名，解析器会直接覆盖或报错。
-*   通过将“全球去中心化的 URL”与“本地自定义的 Alias”彻底解耦，Lync 极其优雅地解决了命名冲突问题：如果张三和李四都在网上发布了 `coder.md`，你只需要在清单里把它们别名化为 `coder-zs` 和 `coder-ls` 即可。
+Lync 要求开发者保证别名在项目 `lync.yaml` 中的唯一性。
+*   **本地唯一标识**：在项目中，别名（如 `company-rules`）是主键。若声明重复的别名，解析器将直接覆盖或抛出错误。
+*   通过将目标 URL 与本地 Alias 解耦，Lync 规避了全局命名冲突问题。
 
-如果是开发者自己**手写 `lync.yaml` 文件**增加记录，那么**键 (如 `coder-skill`) 就是指定的 alias。**
-如果是通过终端命令 `lync add <url>` 进行安装，由于没有手写设定 alias，CLI 必须按照如下优先级自动推导并生成 Alias 写入 `lync.yaml`：
-1. **显式指定优先级最高**: 用户命令行提供 `--alias`，例如 `lync add https://.../foo.md --alias bar`，写入 `bar`。
-2. **文件名推导**: 未显式指定时，摘取目标 URL 最后一部分并去除扩展名。例如 `.../my-skill.md` 推导为 `my-skill`。
-3. **数字递增加后缀避免冲突**: 若推导得到的 `my-skill` 在本地 yaml 中已被占用，则自动递增数字后缀（如 `my-skill-1`），以确保不篡改不相关的既有配置。当然开发者随时可以进入 `lync.yaml` 重命名为更可读的名字。
+若开发者手动编辑 `lync.yaml`，则使用声明的键作为别名。
+若通过 CLI 工具 `lync add <url>` 安装依赖，系统按以下优先级生成别名：
+1. **显式指定**: 命令行参数 `--alias`（如 `lync add https://.../foo.md --alias bar`）具有最高优先级。
+2. **文件名推导**: 缺省情况下，提取 URL 的末尾路径并移除扩展名作为别名（如 `.../my-skill.md` 推导为 `my-skill`）。
+3. **后缀递增冲突避免**: 若推导得到的别名在 `lync.yaml` 中已存在，则自动追加数字后缀（如 `my-skill-1`）以防止配置覆盖。开发者后续可手动修改该名称。
 
 ---
 
 ## Part 2: 代码引入 (Import)
 
-当包通过 `lync.yaml` 声明并安装到本地后，你就可以在你的 `.src.md` 源文件中通过自定义的 URI 协议 `lync:{alias}` 来引入它们了。
+依赖安装后，可在源文件（如 `.src.md`）中通过 `lync:{alias}` 协议协议进行引用。
 
-这里依然秉承**合法降级 (Graceful Degradation)** 哲学：所有的编译指令依然被隐藏在标准 Markdown 链接的 Title 属性中。
+Lync 采用向下兼容的设计原则：将编译指令编码为标准 Markdown 链接的 Title 属性，以确保未编译的源文件在通用阅读器中保持可读。
 
 ### 引入语法
 
-`[人类可读的名字](lync:alias "@lync-directive")`
+`[链接文本](lync:alias "@lync-directive")`
 
-*   **链接路由模式 (`@import:link`)**: 
-    编译器会将 `lync:alias` 仅仅重写为被下载文件的**本地相对物理路径**。这确保了在最终编译出的 Markdown 中，这是一个可点击跳转的有效链接。
+*   **链接重写模式 (`@import:link`)**: 
+    编译器将 `lync:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
     ```markdown
     请参阅下方的 [代码审查辅助技能](lync:coder-skill "@import:link")。
     ```
-    *编译后产物*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
+    *构建输出*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
 
 *   **内联展开模式 (`@import:inline`)**:
-    编译器会将该链接**整体替换**为所指向模块的全部原始文本内容。非常适合用来将多个碎片语料“拍扁”拼装成一个给 LLM 看的巨大 Prompt。
+    编译器读取目标文件的纯文本内容，并直接替换该引用链接。主要用于组装大型 Prompt 上下文。
     ```markdown
     根据本组织的 [公司开发规范](lync:company-rules "@import:inline")：
     ```
-    *编译后产物*: 这一行链接将灰飞烟灭，取而代之的是 `guidelines.md` 里面洋洋洒洒的纯文本规范。
+    *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
 
 ---
 

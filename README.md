@@ -13,20 +13,18 @@ As LLMs increasingly use Markdown for logic control (e.g., Prompts, System Instr
 
 👉 [Read the Full English Design Spec](DESIGN.en.md)
 
-### 🌟 Core Philosophy
+### 🌟 Core Design
 
-The core philosophy of Lync is **Graceful Degradation**. Lync-enabled Markdown files must remain fully readable, clickable standard documents in generic viewers (like GitHub or Obsidian) even without the compiler. 
-
-All compilation directives are elegantly hidden within standard Markdown link attributes (`[Title](lync:alias "@import:inline")`).
+The core design principle is **graceful degradation**. Compilation directives are encoded within standard Markdown link attributes (`[Title](lync:alias "@import:inline")`) to ensure uncompiled source files remain readable in generic viewers (like GitHub or Obsidian).
 
 ### 📦 Features
 
-*   **Decentralized Package Management**: Install remote Markdown files purely via their URLs. No central registry required.
-*   **Alias-Driven Architecture**: Use `lync.yaml` to map long URLs to short, local Aliases (e.g., `lync:coder-skill`). Say goodbye to URL scattering and naming collisions.
-*   **Deterministic Builds**: The `lync-lock.yaml` mechanism ensures 100% reproducible environments by locking the SHA-256 hashes of all remote files.
+*   **Decentralized Package Management**: Install remote Markdown files directly via their URLs without relying on a central registry.
+*   **Alias-Driven Dependency Management**: Use `lync.yaml` to map URLs to local aliases (e.g., `lync:coder-skill`), avoiding URL scattering and naming collisions.
+*   **Deterministic Builds**: The `lync-lock.yaml` locks SHA-256 hashes of remote files to ensure reproducible builds.
 *   **Two Import Modes**:
-    *   `@import:link`: Rewrites virtual aliases to local physical paths, perfect for building structured Knowledge Bases.
-    *   `@import:inline`: Flatten and inject remote text in-place, perfectly suited for assembling massive monolythic LLM Prompts.
+    *   `@import:link` (Link Rewrite): Rewrites virtual aliases to local physical paths, preserving hyperlink structure.
+    *   `@import:inline` (Inline Expansion): Injects remote text in-place, suitable for assembling large prompt contexts.
 
 ### 🚀 Quick Start (Draft)
 
@@ -62,7 +60,7 @@ lync sync
 # My Awesome Prompt
 
 According to the [Company Development Guidelines](lync:company-rules "@import:inline"):
-(The compiler will expand the rules here)
+(The compiler will replace this link with the raw text)
 ```
 
 **5. Compilation**
@@ -81,18 +79,18 @@ Lync 是一个专为大语言模型 (LLM) 时代设计的轻量级、去中心�
 
 👉 [阅读完整的中文设计规范](DESIGN.zh.md)
 
-### 🌟 核心哲学
+### 🌟 核心设计
 
-Lync 的核心理念是**合法降级 (Graceful Degradation)**。为了最大程度提升人类阅读体验，保持文档纯净，所有 Lync 的编译指令都被隐藏在标准 Markdown 链接的属性中 (`[别名](lync:alias "@import:inline")`)。即使没有经过编译，文件依然能在 GitHub 或 Obsidian 里当作普通的超链接文章来阅读。
+Lync 采用**向下兼容 (Graceful Degradation)** 的设计原则。编译指令被编码为标准 Markdown 链接的属性 (`[别名](lync:alias "@import:inline")`)，以确保未编译的源文件在通用阅读器（如 GitHub 或 Obsidian）中保持可读。
 
 ### 📦 核心特性
 
-*   **去中心化包管理**: 直接通过目标 URL 拉取和安装 Markdown 文件。不需要发布任何 Npm 包。
-*   **别名防碰撞架构**: 通过统一的 `lync.yaml` 将冗长的 URL 绑定到简短本地别名（例如 `lync:coder-skill`）。告别 URL 散落和命名冲突。
-*   **确定性构建**: 借助 `lync-lock.yaml`，所有的远端文件都会被锁定 SHA-256 Hash 值，保证在任何机器上的拉取都是 100% 确定且防篡改的。
-*   **双模式路由引擎**:
-    *   `@import:link` (链接路由): 将虚拟别名重写为真实的本地相对路径，适合构建结构化的知识库系统。
-    *   `@import:inline` (内联展开): 提取远端文本在当前位置原地平铺替换，完美契合 LLM 庞大单体 Prompt 的组装需求。
+*   **去中心化包管理**: 直接通过目标 URL 拉取和安装 Markdown 文件，无需引入中心化注册表。
+*   **基于别名的依赖管理**: 通过 `lync.yaml` 将 URL 绑定到本地别名（例如 `lync:coder-skill`），避免 URL 散落和命名冲突。
+*   **确定性构建**: 通过 `lync-lock.yaml` 锁定远程文件的 SHA-256 哈希值，确保构建的确定性。
+*   **双模式引入机制**:
+    *   `@import:link` (链接重写): 将虚拟别名重写为本地相对物理路径，保留超链接结构。
+    *   `@import:inline` (内联展开): 提取远程文本并替换当前引用，适用于组装大型 Prompt 上下文。
 
 ### 🚀 快速上手 (构想)
 
@@ -129,7 +127,7 @@ lync sync
 # 我的核心 Prompt
 
 根据 [公司开发规范](lync:company-rules "@import:inline")：
-(编译器会将规范纯文本全部平摊粘贴在这里)
+(原始链接被移除，并在原位置插入完整文本内容)
 ```
 
 **5. 执行编译**
