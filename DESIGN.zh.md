@@ -98,9 +98,42 @@ dependencies:
 *   `lync update [alias]`:
     强制打破锁定状态更新库缓存的指令。
     *   **行为**：无视本地缓存和 Lock 文件的拦截，强制就某一 alias 或所有的 alias 去远端发送最新的网络请求，拿到最新内容后重新计算 Hash 并覆写到 `lync-lock.yaml`。
-*   `lync build <entry.src.md>`:
-    核心编译与展开指令。
-    *   **行为**：读取特定的 `entry.src.md` 入口文件进行 AST 树结构解析，所有匹配的 `lync:alias` 自定义链接都将被拦截处理。将带有 `@import:inline` 指令的链接从 `dest` 路径或缓存库中读取并向调用位置展开铺平；将带有 `@import:link` 指令的内容重写为指向本地物理地址的有效相对路径（例如 `./skills/foo.md`）。完成所有扫描后，将处理结束的平整纯文本生成给指定输出或大语言模型。
+*   `lync build [entry]`:
+    核心编译与展开指令。支持单个文件或目录级的批量编译：
+    *   `lync build main.src.md`
+    *   `lync build ./src/**/*.src.md --out-dir ./dist`
+    *   **行为**：扫描入口并进行 AST 解析，拦截所有匹配的 `lync:alias` 自定义链接。将 `@import:inline` 指令内联展开，将 `@import:link` 降级重写。不仅支持局部传入 `--out-dir` 批量构建树状结构，更推荐不加参数默认执行基于 `lync-build.yaml` 配置的批量构建路由。
+
+### 3. 编译配置文件 (Workspace Build Configuration)
+
+对于包含多个文件的项目，特别是需要将输出产物分布到特定 Agent IDE 目录（如 Cursor、Windsurf 或 Cline 等）的工作流，Lync 提供全局构建路由能力。
+
+由于 `lync.yaml` 往往被 `lync add` 命令自动修改和管理，而构建规则高度定制化且需要人类长期维护，因此 Lync 推荐将构建设定抽离为一个独立的配置文件：**`lync-build.yaml`**。
+
+```yaml
+# lync-build.yaml
+
+# 搜集源文件的 Glob 模式
+includes:
+  - "src/**/*.src.md"
+
+# 默认降级回写的总输出目录
+outDir: "./dist"
+
+# 输出路由干预 (Routing rules)
+routing:
+  # 场景 A：如果源文件或目标产物名字带有 .skill.md，自动写入 IDE 默认技能槽
+  - match: "*.skill.md"
+    dest: "./.agents/skills/"
+  # 场景 B：针对单一主控入口，编译完成后强制覆盖 IDE 的全局 System 隐藏文件
+  - match: "main.src.md"
+    dest: "./.cursorrules" 
+```
+
+一旦项目根目录存在此配置，直接执行指令：
+`lync build` （不携带任何参数）
+
+此时编译器会读取 `lync-build.yaml`，遍历匹配的源文件，展开包含网络，并根据 `routing` 规则输出最终的纯文本 Markdown 到对应的物理目录，以完成批量编译与组件分发。
 
 ### 3. 安全性保证
 

@@ -94,9 +94,42 @@ dependencies:
 *   `lync update [alias]`: 
     Forces a cache bust to retrieve the latest upstream version.
     *   **Behavior**: Ignores lockfile constraints for a specific alias (or globally). Fetches the latest content from the remote URL, recalculates the hash, and rewrites the lockfile.
-*   `lync build <entry.src.md>`: 
-    The core markdown compiler.
-    *   **Behavior**: Parses the `entry.src.md` AST tree for `lync:alias` custom links. Replaces `@import:inline` links seamlessly with the raw imported string text from cache/dest. Rewrites `@import:link` directives into valid relative physical paths (e.g. `./skills/foo.md`). Outputs the finalized, self-contained Markdown string.
+*   `lync build [entry]`: 
+    The core markdown compiler. Supports single files or entire workspaces.
+    *   `lync build main.src.md`
+    *   `lync build ./src/**/*.src.md --out-dir ./dist`
+    *   **Behavior**: Parses the entry AST tree for `lync:alias` custom links. Replaces `@import:inline` links seamlessly with the raw imported text. Rewrites `@import:link` directives into valid relative physical paths. For massive projects, it is recommended to run without arguments and rely on the build configuration defined in `lync-build.yaml`.
+
+### 3. Workspace Build Configuration
+
+For projects with multiple files or specific output directory requirements (such as outputting to Cursor, Windsurf, or Cline specific directories), Lync relies on a workspace build configuration file to manage bulk compilation and path routing.
+
+Because `lync.yaml` is often automatically modified by the `lync add` command, build configurations are isolated into a dedicated file managed by the developer: **`lync-build.yaml`**.
+
+```yaml
+# lync-build.yaml
+
+# Glob patterns to determine entry files
+includes:
+  - "src/**/*.src.md"
+
+# Default output directory
+outDir: "./dist"
+
+# Output routing rules
+routing:
+  # Route compiled skills into a specific directory
+  - match: "*.skill.md"
+    dest: "./.agents/skills/"
+  # Output the main instruction file into a root rules file
+  - match: "main.src.md"
+    dest: "./.cursorrules" 
+```
+
+With this configuration in place, the workspace compilation command is simply:
+**`lync build`** (No arguments needed)
+
+The compiler will read `lync-build.yaml`, scan for entry files based on the `includes` patterns, resolve and expand all dependencies, and route the compiled Markdown artifacts to their respective `dest` paths based on the `routing` rules.
 
 ### 3. Safety Guarantees
 
