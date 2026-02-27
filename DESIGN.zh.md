@@ -39,6 +39,17 @@ Lync 要求开发者保证别名在项目 `lync.yaml` 中的唯一性。
 2. **文件名推导**: 缺省情况下，提取 URL 的末尾路径并移除扩展名作为别名（如 `.../my-skill.md` 推导为 `my-skill`）。
 3. **后缀递增冲突避免**: 若推导得到的别名在 `lync.yaml` 中已存在，则自动追加数字后缀（如 `my-skill-1`）以防止配置覆盖。开发者后续可手动修改该名称。
 
+### 3. 本地缓存目录与版本控制
+
+当依赖声明中 **未指定 `dest`** 时，`lync sync` 会将文件下载到项目根目录下的 **`.lync/`** 隐藏目录中（例如 `.lync/company-rules.md`）。该目录为纯内部缓存，应通过 `.gitignore` 排除：
+
+```gitignore
+# Lync 内部缓存（由 lync sync 自动管理）
+.lync/
+```
+
+> **注意**：`lync-lock.yaml` 应 **提交到版本控制**。它类似于 `package-lock.json`，是确定性构建的保证——团队成员执行 `lync sync` 时将依据此文件还原完全一致的依赖状态。
+
 ---
 
 ## Part 2: 代码引入 (Import)

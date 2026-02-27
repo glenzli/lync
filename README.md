@@ -49,13 +49,19 @@ dependencies:
 lync add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
 ```
 
-**3. Synchronization**
+**3. Version Control Setup**
+Add `.lync/` to your `.gitignore` (this is the internal cache directory). The `lync-lock.yaml` should be committed—it ensures deterministic builds.
+```gitignore
+.lync/
+```
+
+**4. Synchronization**
 Install the declared packages and generate the `lync-lock.yaml`:
 ```bash
 lync sync
 ```
 
-**4. Usage inside your Markdown**
+**5. Usage inside your Markdown**
 ```markdown
 # My Awesome Prompt
 
@@ -63,7 +69,7 @@ According to the [Company Development Guidelines](lync:company-rules "@import:in
 (The compiler will replace this link with the raw text)
 ```
 
-**5. Compilation (Simple One-to-One)**
+**6. Compilation (Simple One-to-One)**
 Currently, Lync supports straightforward one-to-one compilation from your `.src.md` mapped to an output `.md` file:
 ```bash
 lync build main.src.md -o main.md
@@ -143,13 +149,19 @@ dependencies:
 lync add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
 ```
 
-**3. 状态收敛 (同步)**
+**3. 版本控制配置**
+将 `.lync/` 加入 `.gitignore`（这是 Lync 的内部缓存目录）。`lync-lock.yaml` 应提交到版本控制——它确保构建的确定性。
+```gitignore
+.lync/
+```
+
+**4. 状态收敛 (同步)**
 一键安装所有缺少的依赖，并生成 `lync-lock.yaml`：
 ```bash
 lync sync
 ```
 
-**4. Markdown 语法调用**
+**5. Markdown 语法调用**
 直接在你的 `.src.md` 文件里使用 `lync:{alias}` 协议：
 ```markdown
 # 我的核心 Prompt
@@ -158,7 +170,7 @@ lync sync
 (原始链接被移除，并在原位置插入完整文本内容)
 ```
 
-**5. 执行编译（简单一对一）**
+**6. 执行编译（简单一对一）**
 目前 Lync 支持直接的一对一编译，将你的 `.src.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费：
 ```bash
 lync build main.src.md -o main.md

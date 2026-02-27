@@ -35,6 +35,17 @@ When installing via the CLI `lync add <url>`, the CLI automatically deduces and 
 2. **Filename Inference**: Extracts the last segment of the URL minus extension. E.g., `.../my-skill.md` becomes `my-skill`.
 3. **Numeric Suffix Fallback**: If `my-skill` is already registered to another URL in the local yaml, a numeric suffix is appended (e.g., `my-skill-1`) to avoid overriding existing setups. The user can always rename it later in `lync.yaml`.
 
+### 3. Local Cache Directory & Version Control
+
+When a dependency is declared **without a `dest`** field, `lync sync` downloads it into the hidden **`.lync/`** directory under the project root (e.g., `.lync/company-rules.md`). This directory is an internal cache and should be excluded via `.gitignore`:
+
+```gitignore
+# Lync internal cache (managed automatically by lync sync)
+.lync/
+```
+
+> **Note**: `lync-lock.yaml` **should be committed** to version control. Similar to `package-lock.json`, it guarantees deterministic builds—team members running `lync sync` will restore the exact same dependency state based on this file.
+
 ---
 
 ## Part 2: Code Importation (Import)
