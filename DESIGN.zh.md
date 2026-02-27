@@ -113,9 +113,10 @@ dependencies:
 *   `lync update [alias]`:
     强制打破锁定状态更新库缓存的指令。
     *   **行为**：无视本地缓存和 Lock 文件的拦截，强制就某一 alias 或所有的 alias 去远端发送最新的网络请求，拿到最新内容后重新计算 Hash 并覆写到 `lync-lock.yaml`。
-*   `lync seal <file>`:
-    （Module Initialization）将普通 Markdown 封装为 Lync 模块的快捷指令。
+*   `lync seal [patterns...]`:
+    （Module Initialization）将普通 Markdown 封装为 Lync 模块的快捷指令。支持通配符批量操作。
     *   **行为**：读取目标文件并在顶部自动注入 YAML Frontmatter (声明 `alias` 与 `version`)。它会复用 `lync add` 的启发式目录推断逻辑来智能命名（或根据 `--alias` 强行指定），最后修改文件后缀为 `.lync.md`。
+    *   **批量模式**：支持 Glob 通配符，例如 `lync seal "prompts/**/*.md"` 可以一次性将整个目录下的所有 Markdown 文件转换为 Lync 模块。
 *   `lync build [entry]`:
     核心编译与展开指令。支持单个文件或目录级的批量编译：
     *   `lync build main.lync.md -o main.md`
@@ -138,6 +139,8 @@ includes:
 # 默认降级回写的总输出目录
 output:
   dir: "./dist"
+  # flat: true    # 开启后忽略 baseDir 的层级结构，所有产物直接输出到 dir 根目录
+  # inPlace: true  # 开启后忽略 dir，直接在源文件所在目录原地生成编译产物
 
 # 映射基准目录（会将包含文件的路径原封不动平移时，剔除该前缀）
 baseDir: "./src"

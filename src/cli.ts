@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { glob } from 'glob';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
 import { runWorkspaceBuild } from './build';
@@ -39,6 +40,8 @@ includes:
 # The output destination directory
 output:
   dir: "./dist"
+  # flat: true # Uncomment to ignore baseDir hierarchy and compile everything directly into dir
+  # inPlace: true # Uncomment to compile files directly alongside their source (e.g., a/prompt.lync.md -> a/prompt.md)
 
 # Strip this prefix directory from the original paths
 baseDir: "."
@@ -168,77 +171,92 @@ baseDir: "."
         });
 
     program
-        .command('seal <file>')
-        .description('Convert a standard markdown file into a Lync module by injecting Frontmatter (like sealing a package)')
-        .option('--alias <alias>', 'Explicitly set the alias name')
-        .action((file: string, options: { alias?: string }) => {
-            const absolutePath = path.resolve(process.cwd(), file);
-            if (!fs.existsSync(absolutePath)) {
-                console.error(`[ERROR] File not found: ${absolutePath}`);
+        .command('seal [patterns...]')
+        .description('Convert standard markdown files into Lync modules by injecting Frontmatter. Supports wildcards.')
+        .option('--alias <alias>', 'Explicitly set the alias name (only recommended for single files)')
+        .action(async (patterns: string[], options: { alias?: string }) => {
+            if (!patterns || patterns.length === 0) {
+                console.error(`[ERROR] Please specify at least one file or pattern to seal.`);
                 process.exit(1);
             }
 
-            const rawContent = fs.readFileSync(absolutePath, 'utf8');
-            const parsed = matter(rawContent);
-
-            if (parsed.data.lync) {
-                console.warn(`[WARN] File '${file}' already contains Lync Frontmatter.`);
-                return;
+            const matchedFiles = new Set<string>();
+            for (const pattern of patterns) {
+                const files = await glob(pattern, { cwd: process.cwd(), absolute: true });
+                files.forEach(f => matchedFiles.add(f));
             }
 
-            let alias = options.alias;
+            if (matchedFiles.size === 0) {
+                console.error(`[ERROR] No files matched the given patterns.`);
+                process.exit(1);
+            }
 
-            if (!alias) {
-                const pathSegments = path.resolve(file).split(path.sep).filter(Boolean);
-                let basename = pathSegments[pathSegments.length - 1];
-                basename = basename.split('.')[0] || basename;
+            for (const absolutePath of matchedFiles) {
+                if (!fs.existsSync(absolutePath) || fs.statSync(absolutePath).isDirectory()) continue;
 
-                const genericNames = [
-                    'readme', 'index', 'main', 'default', 'master', 'refs', 'heads', 'tree', 'blob', 'base', 'about', 'info', 'doc', 'docs',
-                    'src', 'lib', 'pkg', 'bin', 'scripts', 'dist', 'build',
-                    'prompt', 'prompts', 'system', 'user', 'assistant', 'template', 'instructions', 'rules',
-                    'config', 'settings'
-                ];
+                const file = path.relative(process.cwd(), absolutePath);
+                const rawContent = fs.readFileSync(absolutePath, 'utf8');
+                const parsed = matter(rawContent);
 
-                let foundAlias = false;
-                for (let i = pathSegments.length - 1; i >= 0; i--) {
-                    let segment = pathSegments[i];
-                    if (i === pathSegments.length - 1) {
-                        segment = segment.split('.')[0] || segment;
+                if (parsed.data.lync) {
+                    console.warn(`[WARN] File '${file}' already contains Lync Frontmatter.`);
+                    continue; // Skip file if it already has lync frontmatter
+                }
+
+                let alias = options.alias;
+
+                if (!alias) {
+                    const pathSegments = absolutePath.split(path.sep).filter(Boolean);
+                    let basename = pathSegments[pathSegments.length - 1];
+                    basename = basename.split('.')[0] || basename;
+
+                    const genericNames = [
+                        'readme', 'index', 'main', 'default', 'master', 'refs', 'heads', 'tree', 'blob', 'base', 'about', 'info', 'doc', 'docs',
+                        'src', 'lib', 'pkg', 'bin', 'scripts', 'dist', 'build',
+                        'prompt', 'prompts', 'system', 'user', 'assistant', 'template', 'instructions', 'rules',
+                        'config', 'settings'
+                    ];
+
+                    let foundAlias = false;
+                    for (let i = pathSegments.length - 1; i >= 0; i--) {
+                        let segment = pathSegments[i];
+                        if (i === pathSegments.length - 1) {
+                            segment = segment.split('.')[0] || segment;
+                        }
+                        if (!genericNames.includes(segment.toLowerCase())) {
+                            alias = segment.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+                            foundAlias = true;
+                            break;
+                        }
                     }
-                    if (!genericNames.includes(segment.toLowerCase())) {
-                        alias = segment.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-                        foundAlias = true;
-                        break;
+
+                    if (!foundAlias) {
+                        alias = basename.toLowerCase().replace(/[^a-z0-9_-]/g, '-') || 'unnamed-module';
                     }
                 }
 
-                if (!foundAlias) {
-                    alias = basename.toLowerCase().replace(/[^a-z0-9_-]/g, '-') || 'unnamed-module';
+                const newLyncData = {
+                    alias: alias,
+                    version: "1.0.0"
+                };
+
+                parsed.data.lync = newLyncData;
+
+                const newContent = matter.stringify(parsed.content, parsed.data);
+
+                const dir = path.dirname(absolutePath);
+                const originalBasename = path.basename(file).split('.')[0];
+                const newFilename = `${originalBasename}.lync.md`;
+                const newAbsolutePath = path.resolve(dir, newFilename);
+
+                fs.writeFileSync(newAbsolutePath, newContent, 'utf8');
+
+                if (absolutePath !== newAbsolutePath) {
+                    fs.unlinkSync(absolutePath);
+                    console.log(`[CLI] 📦 Sealed module! Renamed to '${newFilename}' and injected Frontmatter (alias: '${alias}').`);
+                } else {
+                    console.log(`[CLI] 📦 Sealed module! Injected Frontmatter into '${file}' (alias: '${alias}').`);
                 }
-            }
-
-            const newLyncData = {
-                alias: alias,
-                version: "1.0.0"
-            };
-
-            parsed.data.lync = newLyncData;
-
-            const newContent = matter.stringify(parsed.content, parsed.data);
-
-            const dir = path.dirname(absolutePath);
-            const originalBasename = path.basename(file).split('.')[0];
-            const newFilename = `${originalBasename}.lync.md`;
-            const newAbsolutePath = path.resolve(dir, newFilename);
-
-            fs.writeFileSync(newAbsolutePath, newContent, 'utf8');
-
-            if (absolutePath !== newAbsolutePath) {
-                fs.unlinkSync(absolutePath);
-                console.log(`[CLI] 📦 Sealed module! Renamed to '${newFilename}' and injected Frontmatter (alias: '${alias}').`);
-            } else {
-                console.log(`[CLI] 📦 Sealed module! Injected Frontmatter into '${file}' (alias: '${alias}').`);
             }
         });
 

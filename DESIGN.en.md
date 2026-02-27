@@ -109,9 +109,10 @@ dependencies:
 *   `lync update [alias]`: 
     Forces a cache bust to retrieve the latest upstream version.
     *   **Behavior**: Ignores lockfile constraints for a specific alias (or globally). Fetches the latest content from the remote URL, recalculates the hash, and rewrites the lockfile.
-*   `lync seal <file>`: 
-    (Module Initialization) "Seals" a standard Markdown file into a formalized Lync Module.
+*   `lync seal [patterns...]`: 
+    (Module Initialization) "Seals" standard Markdown files into formalized Lync Modules. Supports wildcards for batch operations.
     *   **Behavior**: Injects standard YAML Frontmatter declaring the `alias` and `version` into the file. It intelligently infers the alias from the file path leveraging `lync add`'s heuristic logic (ignoring generics like `index`), or accepts a forced name via `--alias <name>`. It then automatically renames the file to a `.lync.md` extension.
+    *   **Batch Mode**: Supports Glob wildcards, e.g. `lync seal "prompts/**/*.md"` to convert an entire directory of Markdown files into Lync modules at once.
 *   `lync build [entry]`: 
     The core markdown compiler. Supports single files or entire workspaces.
     *   `lync build main.lync.md -o main.md`
@@ -134,6 +135,8 @@ includes:
 # Default output directory
 output:
   dir: "./dist"
+  # flat: true    # Ignore baseDir hierarchy, output all files directly into dir
+  # inPlace: true  # Ignore dir, compile output alongside the source file
 
 # Strip this prefix directory from original paths when mapping to output
 baseDir: "./src"

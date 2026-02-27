@@ -100,6 +100,7 @@ If you are distributing your prompt module via a public URL, it's highly recomme
 > ```bash
 > lync seal my-prompt.md --alias my-custom-name
 > ```
+> *Supports Glob wildcards for batch operation: `lync seal "prompts/**/*.md"`*
 > *This will intelligently infer the alias from the file path (ignoring generic names like `index`), inject the required frontmatter, and rename the file to `my-prompt.lync.md`. You can also force a specific name using `--alias`.*
 
 Manual example of the injected block:
@@ -150,11 +151,19 @@ Create a `lync-build.yaml` in your workspace root:
 includes:
   - "src/**/*.lync.md"
 
-# Where should unmatched files go by default?
-outDir: "./dist"
+# Where should compiled files go?
+output:
+  dir: "./dist"
+  # flat: true    # Ignore baseDir hierarchy, output everything directly into dir
+  # inPlace: true  # Compile output alongside the source file (ignores dir)
 
 # Strip this prefix directory from the original paths
 baseDir: "./src"
+
+# Target languages (optional, defaults to auto-detection from source)
+# targetLangs:
+#   - "en"
+#   - "zh-CN"
 
 # Advanced Routing Interceptors
 routing:
@@ -281,8 +290,19 @@ lync build main.lync.md -o main.md --verify
 includes:
   - "src/**/*.lync.md"
 
-# 默认的输出目录在哪？
-outDir: "./dist"
+# 编译产物输出到哪里？
+output:
+  dir: "./dist"
+  # flat: true    # 开启后忽略 baseDir 层级，所有文件直接输出到 dir
+  # inPlace: true  # 开启后忽略 dir，直接在源文件旁边原地生成产物
+
+# 剔除映射前缀目录
+baseDir: "./src"
+
+# 目标生成语言（可选，默认从源文件自动探测）
+# targetLangs:
+#   - "en"
+#   - "zh-CN"
 
 # [高级] 路由拦截器
 routing:

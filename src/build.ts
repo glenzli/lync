@@ -36,13 +36,19 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
     for (const relativeFile of files) {
         const absoluteFile = path.resolve(cwd, relativeFile);
 
-        let relativeToBase = path.relative(finalBaseDir, absoluteFile);
-        if (relativeToBase.startsWith('..' + path.sep) || relativeToBase === '..') {
-            // If the file is strictly outside baseDir, fallback to its basename
-            relativeToBase = path.basename(absoluteFile);
-        }
+        let finalDest;
 
-        let finalDest = path.resolve(finalOutDir, relativeToBase.replace(/\.lync\.md$/, '.md'));
+        if (buildConfig.output?.inPlace && !cliOptions?.outDir) {
+            // Compile alongside the source file
+            finalDest = path.join(path.dirname(absoluteFile), path.basename(absoluteFile).replace(/\.lync\.md$/, '.md'));
+        } else {
+            let relativeToBase = path.relative(finalBaseDir, absoluteFile);
+            if (buildConfig.output?.flat || relativeToBase.startsWith('..' + path.sep) || relativeToBase === '..') {
+                // If the file is strictly outside baseDir or flatten is enabled, fallback to its basename
+                relativeToBase = path.basename(absoluteFile);
+            }
+            finalDest = path.resolve(finalOutDir, relativeToBase.replace(/\.lync\.md$/, '.md'));
+        }
 
         // Apply routing interceptors
         if (buildConfig.routing && buildConfig.routing.length > 0) {

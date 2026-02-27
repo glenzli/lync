@@ -39,6 +39,8 @@ export interface LyncBuild {
     outDir?: string;
     output?: {
         dir?: string;
+        flat?: boolean;
+        inPlace?: boolean;
     };
     baseDir?: string;
     targetLangs?: string[];
