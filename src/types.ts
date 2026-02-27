@@ -1,3 +1,10 @@
+export interface LyncLLMConfig {
+    provider?: string;
+    model?: string;
+    apiKey?: string;
+    baseURL?: string;
+}
+
 export interface DependencyConfig {
     url?: string;
     dest?: string;

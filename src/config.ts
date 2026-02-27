@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as yaml from 'yaml';
-import { LyncConfig, LyncLock, LyncBuild } from './types';
+import { LyncConfig, LyncLock, LyncBuild, LyncLLMConfig } from './types';
 
 const LyncYAML = 'lync.yaml';
 const LyncLockYAML = 'lync-lock.yaml';
@@ -44,4 +45,44 @@ export function loadBuildConfig(cwd: string = process.cwd()): LyncBuild {
     }
     const content = fs.readFileSync(buildPath, 'utf8');
     return yaml.parse(content) as LyncBuild || { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [] };
+}
+
+/**
+ * Loads the cascaded .lyncrc file for independent configurations like LLM tokens.
+ * Priority: ~ (Global) -> ./ (Local)
+ */
+export function loadLyncRc(): { llm?: LyncLLMConfig } {
+    let rcConfig: { llm?: LyncLLMConfig } = {};
+
+    // 1. Load global ~/.lyncrc
+    const globalRcPath = path.resolve(os.homedir(), '.lyncrc');
+    if (fs.existsSync(globalRcPath)) {
+        try {
+            const globalContent = fs.readFileSync(globalRcPath, 'utf8');
+            const parsed = yaml.parse(globalContent);
+            if (parsed) rcConfig = { ...parsed };
+        } catch (e) {
+            console.warn(`[WARN] Failed to parse global ~/.lyncrc: ${e}`);
+        }
+    }
+
+    // 2. Overwrite with local ./.lyncrc
+    const localRcPath = path.resolve(process.cwd(), '.lyncrc');
+    if (fs.existsSync(localRcPath)) {
+        try {
+            const localContent = fs.readFileSync(localRcPath, 'utf8');
+            const parsed = yaml.parse(localContent);
+            if (parsed) {
+                rcConfig = {
+                    ...rcConfig,
+                    ...parsed,
+                    llm: { ...rcConfig.llm, ...parsed.llm }
+                };
+            }
+        } catch (e) {
+            console.warn(`[WARN] Failed to parse local ./.lyncrc: ${e}`);
+        }
+    }
+
+    return rcConfig;
 }

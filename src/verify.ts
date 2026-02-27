@@ -1,5 +1,6 @@
 import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getLLMModel } from './llmProvider';
+import { LyncBuild } from './types';
 import * as dotenv from 'dotenv';
 import * as crypto from 'crypto';
 
@@ -39,21 +40,16 @@ Reasoning: <Detailed reasoning>
 // though usually the CLI runs once per command. We can build a file cache later.
 let lastVerifiedHash: string = '';
 
-export async function verifyCompiledContent(content: string, modelName: string = 'gpt-4o'): Promise<boolean> {
+export async function verifyCompiledContent(content: string, modelOverride?: string): Promise<boolean> {
     const hash = crypto.createHash('sha256').update(content).digest('hex');
     if (hash === lastVerifiedHash) return true; // unchanged
 
-    console.log(`\n[LINT] 🤖 Initiating LLM Semantic Analysis using ${modelName}...`);
+    console.log(`\n[LINT] 🤖 Initiating LLM Semantic Analysis...`);
     console.log(`[LINT] Analyzing composite logic (${content.length} characters)...\n`);
 
     try {
-        if (!process.env.OPENAI_API_KEY) {
-            console.error(`[LINT] ❌ OPENAI_API_KEY environment variable is not set. Skipping verification.`);
-            return false;
-        }
-
         const { text } = await generateText({
-            model: openai(modelName),
+            model: getLLMModel(modelOverride),
             prompt: LINT_PROMPT.replace('{CONTENT}', content),
         });
 

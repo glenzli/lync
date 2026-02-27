@@ -46,10 +46,6 @@ export function extractTargetLangs(filePath: string): string[] {
     return Array.from(langs);
 }
 
-/**
- * Compiles a specific `.lync.md` file.
- * Expands `@import:inline` nodes and rewrites `@import:link` nodes.
- */
 export async function compileFile(filePath: string, outPath?: string, callStack: Set<string> = new Set(), targetLang?: string): Promise<string> {
     if (callStack.has(filePath)) {
         throw new Error(`[FATAL] Circular dependency detected:\n  -> ${Array.from(callStack).join('\n  -> ')}\n  -> ${filePath} (Loop!)`);

@@ -159,6 +159,15 @@ routing:
     dest: "./dist/core-prompt.md"
 ```
 
+# LLM Provider Configuration (Optional)
+Create a `.lyncrc` file in your home directory (`~/.lyncrc`) or project root (`./.lyncrc`, **remember to add it to `.gitignore`**) to securely configure custom LLMs for validation and translation.
+```yaml
+llm:
+  baseURL: "https://api.deepseek.com/v1"
+  apiKey: "optional-custom-api-key"
+  model: "deepseek-chat"
+```
+
 Then, simply execute the parameterless build command:
 ```bash
 lync build
@@ -265,7 +274,7 @@ includes:
 # 默认的输出目录在哪？
 outDir: "./dist"
 
-# 高阶路由拦截器
+# [高级] 路由拦截器
 routing:
   - match: "src/agents/*.lync.md"
     dest: "./dist/agents/"
@@ -273,9 +282,23 @@ routing:
     dest: "./dist/core-prompt.md"
 ```
 
-配置完毕后，只需无参数执行 build 指令即可自动完成全项目的批量组装：
+# [高级] LLM 服务提供商配置 (可选)
+为了避免您的 API Key 泄露到版本控制中，Lync 现已支持在用户的全局目录 (`~/.lyncrc`) 或项目根目录 (`./.lyncrc`，**请记得将其加入 `.gitignore`**) 中创建独立的 `.lyncrc` 配置文件：
+```yaml
+llm:
+  baseURL: "https://api.deepseek.com/v1"
+  apiKey: "your-custom-api-key"
+  model: "deepseek-chat"
+```
+
+随后，只需执行无参数补全的构建命令即可：
 ```bash
 lync build
+```
+
+*同时支持 CLI 临时覆盖：*
+```bash
+lync build --out-dir ./doc --base-dir ./src
 ```
 
 ---

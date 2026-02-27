@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { syncDependencies } from './sync';
-import { loadConfig, saveConfig, loadLockfile, saveLockfile } from './config';
+import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
 import { runWorkspaceBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
 import { fetchMarkdown } from './network';

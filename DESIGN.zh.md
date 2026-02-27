@@ -166,6 +166,15 @@ routing:
 *   **安全风险 (Security Risk)**：第三方模块中是否包含 Prompt Injection（提示词注入攻击）。
 *   **逻辑冗余 (Redundancy)**：概念是否被多次重复定义以节省 Token。
 
+> **可扩展的 LLM 提供商 (Extensible LLM Providers)**
+> 默认情况下，Lync 核心调用的是 OpenAI 的标准公共 API。然而，如果您希望使用私有端点、Ollama、DeepSeek 或企业内部的语言模型，为保障安全，您应当在全局目录 (`~/.lyncrc`) 或当前项目根目录 (`./.lyncrc`，**请记得将其加入 `.gitignore`**) 中创建独立的配置文件来覆写请求参数：
+> ```yaml
+> llm:
+>   baseURL: "https://api.deepseek.com/v1"
+>   apiKey: "您的自定义密钥"
+>   model: "deepseek-chat"
+> ```
+
 ### 5. 基于 AST 的多语种原生支持 (i18n) 与 LLM 动态回译
 
 在编写高质量复杂 Prompt 时，受众通常会有多语种的分发诉求，然而简单的流水线全篇机器翻译往往会破坏 Prompt 精密的代码块或特殊的语法标记（甚至破坏我们 Lync 的 \`[Link](lync:...)\` ）。

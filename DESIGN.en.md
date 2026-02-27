@@ -162,6 +162,16 @@ When running `lync build --verify`, Lync calls an LLM (requires `OPENAI_API_KEY`
 *   **Security Risks**: Malicious instructions or prompt injection attempts in remote modules.
 *   **Logic Redundancy**: Unnecessary repetitions wasting token space.
 
+> **Extensible LLM Providers**
+> By default, Lync uses the standard OpenAI public API. However, you can seamlessly plug in your own private endpoints, Ollama, DeepSeek, or enterprise models.
+> To prevent your API key from being accidentally committed, configure your LLMs in a `.lyncrc` file located globally (`~/.lyncrc`) or locally in your project root (`./.lyncrc`, **remember to add it to `.gitignore`**):
+> ```yaml
+> llm:
+>   baseURL: "https://api.deepseek.com/v1"
+>   apiKey: "your-api-key"
+>   model: "deepseek-chat"
+> ```
+
 ### 5. Multilingual Native i18n & LLM Fallback Translation
 
 Prompt engineering inevitably encounters language barriers. A high-quality instructional prompt written in English might lose its nuance if merely translated by a generic pipeline after assembly. 
@@ -188,34 +198,6 @@ When building, the consumer specifies the required target language(s), either vi
 - **Legacy Compatibility**: If a file possesses no `:::lang{}` blocks at all, Lync will translate the entire document upon request.
 
 This ensures prompt engineers can maintain all languages natively within a single `.lync.md` file, drastically simplifying global distribution.
-
-### 5. Multilingual Native i18n & LLM Fallback Translation
-
-Prompt engineering inevitably encounters language barriers. A high-quality instructional prompt written in English might lose its nuance if merely translated by a generic pipeline after assembly. 
-To solve this, Lync introduces **AST-level i18n support combined with dynamic LLM Fallback Translation.**
-
-Authors can use standard Markdown block directives (`:::`) to wrap language-specific prose, while keeping structural codes, examples, and rules language-agnostic:
-
-```markdown
-# Universal Rules
-You are an expert coder.
-
-:::lang{lang="en"}
-Explain this code clearly.
-:::
-
-:::lang{lang="zh-CN"}
-请清楚地解释这段代码。
-:::
-```
-
-When building, the consumer specifies the required target language(s), either via `lync-build.yaml` (`targetLangs: ["en", "ja"]`) or the CLI (`--target-langs ja`):
-- Lync traverses the AST and intelligently filters out all `:::lang{}` blocks that do NOT match the target language.
-- **LLM Fallback Translation**: If the requested target language (e.g., `ja`) does not exist natively in the file, Lync isolates the best available language block, uses an internal localization System Prompt via the OpenAI API, translates *only the prose* into Japanese (preserving code blocks and Lync specific directives), and hot-swaps the translated AST directly into the final artifact!
-- **Legacy Compatibility**: If a file possesses no `:::lang{}` blocks at all, Lync will translate the entire document upon request.
-
-This ensures prompt engineers can maintain all languages natively within a single `.lync.md` file, drastically simplifying global distribution.
-
 ---
 
 ## Part 4: Version Management & Dependency Mechanisms

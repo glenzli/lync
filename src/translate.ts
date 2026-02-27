@@ -1,13 +1,8 @@
 import { generateText } from 'ai';
-import { openai } from '@ai-sdk/openai';
-import * as dotenv from 'dotenv';
-dotenv.config();
+import { getLLMModel } from './llmProvider';
+import { LyncBuild } from './types';
 
-export async function translateMarkdownContent(content: string, targetLang: string, model: string = 'gpt-4o'): Promise<string | null> {
-    if (!process.env.OPENAI_API_KEY) {
-        console.warn(`[WARN] OPENAI_API_KEY not found. Skipping translation to ${targetLang}.`);
-        return null;
-    }
+export async function translateMarkdownContent(content: string, targetLang: string, modelOverride?: string): Promise<string | null> {
 
     const systemPrompt = `You are an expert AI localization engine specifically designed for translating Markdown prompt templates.
 Your task is to translate the provided Markdown text into the target language: ${targetLang}.
@@ -20,10 +15,10 @@ Your task is to translate the provided Markdown text into the target language: $
 5. Do not add any conversational preamble or postscript (like "Here is the translation:"). Output ONLY the translated Markdown.`;
 
     try {
-        console.log(`[TRANSLATE] 🌐 Translating content to ${targetLang} using ${model}...`);
+        console.log(`[TRANSLATE] 🌐 Translating content to ${targetLang}...`);
 
         const { text } = await generateText({
-            model: openai(model),
+            model: getLLMModel(modelOverride),
             system: systemPrompt,
             prompt: content,
             temperature: 0.1
