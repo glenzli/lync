@@ -128,13 +128,13 @@ describe('Compiler', () => {
         );
 
         fs.writeFileSync(
-            path.join(compilerDir, 'link.src.md'),
+            path.join(compilerDir, 'link.lync.md'),
             '# Test\n\n[Greet](lync:greet "@import:link")\n',
             'utf8'
         );
 
         fs.writeFileSync(
-            path.join(compilerDir, 'inline.src.md'),
+            path.join(compilerDir, 'inline.lync.md'),
             '# Test\n\n[Greet](lync:greet "@import:inline")\n',
             'utf8'
         );
@@ -149,7 +149,7 @@ describe('Compiler', () => {
         const cwd = process.cwd();
         process.chdir(compilerDir);
         try {
-            const srcPath = path.join(compilerDir, 'link.src.md');
+            const srcPath = path.join(compilerDir, 'link.lync.md');
             const outPath = path.join(compilerDir, 'dist', 'link.md');
             const result = await compileFile(srcPath, outPath);
             assert.ok(!result.includes('lync:greet'), 'lync:greet should be rewritten');
@@ -164,7 +164,7 @@ describe('Compiler', () => {
         const cwd = process.cwd();
         process.chdir(compilerDir);
         try {
-            const srcPath = path.join(compilerDir, 'inline.src.md');
+            const srcPath = path.join(compilerDir, 'inline.lync.md');
             const outPath = path.join(compilerDir, 'dist', 'inline.md');
             const result = await compileFile(srcPath, outPath);
             assert.ok(!result.includes('lync:greet'), 'lync:greet should be expanded');

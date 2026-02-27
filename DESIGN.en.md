@@ -50,7 +50,7 @@ When a dependency is declared **without a `dest`** field, `lync sync` downloads 
 
 ## Part 2: Code Importation (Import)
 
-Once a package is declared and installed via `lync.yaml`, it can be imported into your `.src.md` files using a custom URI scheme: `lync:{alias}`. 
+Once a package is declared and installed via `lync.yaml`, it can be imported into your `.lync.md` files using a custom URI scheme: `lync:{alias}`. 
 
 The core design principle is **graceful degradation**: Compilation directives are encoded within standard Markdown link titles to ensure uncompiled source files remain readable in generic viewers.
 
@@ -98,18 +98,25 @@ dependencies:
 
 *   `lync add <url> [options]`: 
     One-click dependency fetching and registration.
-    *   **Behavior**: Predicts an alias or respects `--alias <name>`, registers the URL into `lync.yaml`, and executes a sync to download the file and update the lockfile. Path can be overridden via `--dest <path>`.
+    *   **Behavior**: Registers the URL into `lync.yaml`, and executes a sync to download the file and update the lockfile. Path can be overridden via `--dest <path>`.
+    *   **Smart Alias Inference**: To prevent generic names like `prompt.md` from constantly polluting the namespace, Lync infers the alias using the following priority:
+        1. **Declarative Frontmatter**: Lync inspects the remote file's YAML frontmatter for an official `lync.alias` field.
+        2. **Heuristic URL Traversal**: If un-declared and the URL ends with meaningless generic words (e.g., `main`, `index`, `prompt`, `src`, `master`), Lync automatically steps backward up the directory tree until it finds a recognizable, meaningful directory name.
+        3. On naming collisions, it appends an incrementing counter. Authors can always manually override it via `--alias <name>`.
 *   `lync sync`: 
     (Default command, alias: `lync install`) Converges local state with declarations.
     *   **Behavior**: Reads `lync.yaml` and `lync-lock.yaml`. Downloads missing files. If a URL is already in the lockfile, it honors the locked hash state to ensure deterministic builds.
 *   `lync update [alias]`: 
     Forces a cache bust to retrieve the latest upstream version.
     *   **Behavior**: Ignores lockfile constraints for a specific alias (or globally). Fetches the latest content from the remote URL, recalculates the hash, and rewrites the lockfile.
+*   `lync seal <file>`: 
+    (Module Initialization) "Seals" a standard Markdown file into a formalized Lync Module.
+    *   **Behavior**: Injects standard YAML Frontmatter declaring the `alias` and `version` into the file. It intelligently infers the alias from the file path leveraging `lync add`'s heuristic logic (ignoring generics like `index`), or accepts a forced name via `--alias <name>`. It then automatically renames the file to a `.lync.md` extension.
 *   `lync build [entry]`: 
     The core markdown compiler. Supports single files or entire workspaces.
-    *   `lync build main.src.md`
-    *   `lync build ./src/**/*.src.md --out-dir ./dist`
-    *   **Behavior**: Parses the entry AST tree for `lync:alias` custom links. Replaces `@import:inline` links seamlessly with the raw imported text. Rewrites `@import:link` directives into valid relative physical paths. For massive projects, it is recommended to run without arguments and rely on the build configuration defined in `lync-build.yaml`.
+    *   `lync build main.lync.md -o main.md`
+    *   `lync build --out-dir ./dist --base-dir ./src`
+    *   **Behavior**: Parses the entry AST tree for `lync:alias` custom links. Replaces `@import:inline` links seamlessly with the raw imported text. Rewrites `@import:link` directives into valid relative physical paths. Supports `--out-dir` and `--base-dir` for ad-hoc bulk mapping, but it is recommended to run without arguments and rely on the build configuration defined in `lync-build.yaml`.
 
 ### 3. Workspace Build Configuration
 
@@ -122,10 +129,13 @@ Because `lync.yaml` is often automatically modified by the `lync add` command, b
 
 # Glob patterns to determine entry files
 includes:
-  - "src/**/*.src.md"
+  - "src/**/*.lync.md"
 
 # Default output directory
 outDir: "./dist"
+
+# Strip this prefix directory from original paths when mapping to output
+baseDir: "./src"
 
 # Output routing rules
 routing:
@@ -133,7 +143,7 @@ routing:
   - match: "*.skill.md"
     dest: "./.agents/skills/"
   # Output the main instruction file into a root rules file
-  - match: "main.src.md"
+  - match: "main.lync.md"
     dest: "./.cursorrules" 
 ```
 
@@ -142,7 +152,136 @@ With this configuration in place, the workspace compilation command is simply:
 
 The compiler will read `lync-build.yaml`, scan for entry files based on the `includes` patterns, resolve and expand all dependencies, and route the compiled Markdown artifacts to their respective `dest` paths based on the `routing` rules.
 
-### 3. Safety Guarantees
+### 4. LLM-Powered Semantic Linting
+
+Since Lync assembles prompts for Large Language Models, traditional module resolution cannot detect contradictions in plain text.
+
+When running `lync build --verify`, Lync calls an LLM (requires `OPENAI_API_KEY` in environment, customizable via `--model`) to perform static analysis on the assembled text. It checks for:
+*   **Instruction Conflicts**: Contradictory rules from different nested dependencies.
+*   **Persona Consistency**: Inconsistent role definitions or tones.
+*   **Security Risks**: Malicious instructions or prompt injection attempts in remote modules.
+*   **Logic Redundancy**: Unnecessary repetitions wasting token space.
+
+### 5. Multilingual Native i18n & LLM Fallback Translation
+
+Prompt engineering inevitably encounters language barriers. A high-quality instructional prompt written in English might lose its nuance if merely translated by a generic pipeline after assembly. 
+To solve this, Lync introduces **AST-level i18n support combined with dynamic LLM Fallback Translation.**
+
+Authors can use standard Markdown block directives (`:::`) to wrap language-specific prose, while keeping structural codes, examples, and rules language-agnostic.
+
+```markdown
+# Universal Rules
+You are an expert coder.
+
+:::lang{lang="en"}
+Explain this code clearly.
+:::
+
+:::lang{lang="zh-CN"}
+请清楚地解释这段代码。
+:::
+```
+
+When building, the consumer specifies the required target language(s), either via `lync-build.yaml` (`targetLangs: ["en", "ja"]`) or the CLI (`--target-langs ja`):
+- Lync traverses the AST and intelligently filters out all `:::lang{}` blocks that do NOT match the target language.
+- **LLM Fallback Translation**: If the requested target language (e.g., `ja`) does not exist natively in the file, Lync isolates the best available language block, uses an internal localization System Prompt via the OpenAI API, translates *only the prose* into Japanese (preserving code blocks and Lync specific directives), and hot-swaps the translated AST directly into the final artifact!
+- **Legacy Compatibility**: If a file possesses no `:::lang{}` blocks at all, Lync will translate the entire document upon request.
+
+This ensures prompt engineers can maintain all languages natively within a single `.lync.md` file, drastically simplifying global distribution.
+
+### 5. Multilingual Native i18n & LLM Fallback Translation
+
+Prompt engineering inevitably encounters language barriers. A high-quality instructional prompt written in English might lose its nuance if merely translated by a generic pipeline after assembly. 
+To solve this, Lync introduces **AST-level i18n support combined with dynamic LLM Fallback Translation.**
+
+Authors can use standard Markdown block directives (`:::`) to wrap language-specific prose, while keeping structural codes, examples, and rules language-agnostic:
+
+```markdown
+# Universal Rules
+You are an expert coder.
+
+:::lang{lang="en"}
+Explain this code clearly.
+:::
+
+:::lang{lang="zh-CN"}
+请清楚地解释这段代码。
+:::
+```
+
+When building, the consumer specifies the required target language(s), either via `lync-build.yaml` (`targetLangs: ["en", "ja"]`) or the CLI (`--target-langs ja`):
+- Lync traverses the AST and intelligently filters out all `:::lang{}` blocks that do NOT match the target language.
+- **LLM Fallback Translation**: If the requested target language (e.g., `ja`) does not exist natively in the file, Lync isolates the best available language block, uses an internal localization System Prompt via the OpenAI API, translates *only the prose* into Japanese (preserving code blocks and Lync specific directives), and hot-swaps the translated AST directly into the final artifact!
+- **Legacy Compatibility**: If a file possesses no `:::lang{}` blocks at all, Lync will translate the entire document upon request.
+
+This ensures prompt engineers can maintain all languages natively within a single `.lync.md` file, drastically simplifying global distribution.
+
+---
+
+## Part 4: Version Management & Dependency Mechanisms
+
+Markdown files are often published via URLs without strict version histories. The content of a URL can change at any time. Lync handles this with the following mechanisms:
+
+### 1. Distributing Compiled Artifacts (Compiled Release)
+
+To prevent LLM "hallucinations" caused by conflicting logic, Lync **discourages deep, dynamic dependency trees** for public distribution.
+If Module B relies on Module C, the author of B is recommended to use `lync build` to publish a fully inlined, static Markdown file (`*.md`).
+Source forms (`*.lync.md` containing `lync:xxx` directives) are better suited for internal project workflows, where `lync.yaml` can explicitly manage versions.
+
+### 2. Module Metadata (Lync Frontmatter Protocol)
+
+Lync encourages module authors to declare their official alias, version, and external dependencies using YAML Frontmatter at the top of their source files. This not only aids human comprehension but also serves as the highest priority data source for `lync add`'s smart parser.
+
+> **Best Practice (Extension & Auto-Stripping)**:
+> It is highly recommended to use the **`.lync.md`** extension for source files distributed as Lync modules. 
+> This emphasizes a crucial boundary: files with YAML Frontmatter and `@import` tags are engineering sources meant for "Humans and the Lync Compiler". When a user runs `lync build`, the compiler automatically **strips all YAML meta-data**. The resulting assembled `.md` file is pure natural language, ensuring absolutely no noise or distraction is fed into the LLM's context window.
+
+```yaml
+---
+lync:
+  alias: "my-coder-prompt"
+  version: "1.0.0"
+  dependencies:
+    anti-delusion: "https://example.com/system.md"
+---
+
+# Your Prompt Content here...
+```
+
+*   **alias**: Highly recommended. When other users execute `lync add <your-url>`, Lync will prioritize this field as the default mapped alias in their local namespace.
+*   **version**: Metadata meant for humans to evaluate compatibility (the Lync engine relies solely on content Hashes for strict locking).
+*   **dependencies**: Declares the **indispensable remote dependencies** required for this module to function. When users fetch your module, Lync's `sync` engine automatically parses these nested dependencies and installs them flatly into the user's workspace (strictly adhering to the "root-overrides" rule to prevent conflicts).
+
+### 3. Flat Resolution & Semantic Conflict Management 
+
+When nested dependencies are necessary, Lync enforces a flat namespace without multiple nested versions.
+However, if a dependency conflict arises, Lync does not blindly force a hard override like traditional code package managers. Replacing a natural language module arbitrarily can severely break the prompt's context continuity.
+Instead, Lync relies on the **LLM Linter** (`--verify`) to detect irreconcilable semantic conflicts after assembly, leaving the structural and logical fixes to the developer.
+
+### 4. Hash-Based Locking
+
+When `lync sync` fetches a file, it records its SHA-256 hash in `lync-lock.yaml`. 
+Future builds will use this local snapshot. Even if the upstream URL is altered, Lync will use the local cache that matches the hash.
+Developers must explicitly run `lync update <alias>` to fetch new content, preventing upstream changes from silently breaking the local build.
+
+> **The Role of Versions**: In traditional package managers, explicit versions dictate resolution. In Lync's core execution architecture, **Hash is the sole source of truth**. While authors are still encouraged to include a `version` field in their Markdown Frontmatter to help developers understand semantics and manually track compatibility, the Lync execution engine relies entirely on raw content hashing to detect and lock dependencies.
+
+### 5. Local Relative Imports
+
+When your Prompt modules are split within the same local directory, forcing dependencies through `lync.yaml` is unnecessary.
+Within the same project, you can directly utilize native Markdown relative paths for imports:
+
+```markdown
+# My System Prompt
+[Import Local Persona](./prompts/persona.lync.md "@import:inline")
+[Import Remote Anti-Delusion](lync:anti-delusion "@import:inline")
+```
+
+The compiler automatically recognizes links starting with `./` or `../`. This not only allows you to click and jump to the source file in mainstream editors but also **exempts locally referenced files from forced Hash Lock calculations**, inherently supporting real-time local debugging and hot-reloading.
+
+---
+
+## Part 5: Safety Guarantees
 
 *   **Strict DAG Enforcement**: During `lync build`, if an imported file imports another file recursively, the compiler must track the call stack. If a circular path is detected (e.g., `A -> B -> C -> A`), abort immediately.
 *   **Destination Collision Prevention**: In `lync.yaml`, before `sync`, Lync performs a dry run. If two different aliases share the same local `dest` path, it throws a Fatal Collision Error.

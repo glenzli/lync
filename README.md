@@ -22,6 +22,7 @@ The core design principle is **graceful degradation**. Compilation directives ar
 *   **Decentralized Package Management**: Install remote Markdown files directly via their URLs without relying on a central registry.
 *   **Alias-Driven Dependency Management**: Use `lync.yaml` to map URLs to local aliases (e.g., `lync:coder-skill`), avoiding URL scattering and naming collisions.
 *   **Deterministic Builds**: The `lync-lock.yaml` locks SHA-256 hashes of remote files to ensure reproducible builds.
+*   **Native Multilingual i18n**: Support for AST-level multi-language block extraction and intelligent LLM rollback translations.
 *   **Two Import Modes**:
     *   `@import:link` (Link Rewrite): Rewrites virtual aliases to local physical paths, preserving hyperlink structure.
     *   `@import:inline` (Inline Expansion): Injects remote text in-place, suitable for assembling large prompt contexts.
@@ -65,15 +66,73 @@ lync sync
 ```markdown
 # My Awesome Prompt
 
+## 1. Remote Native Dependency (lync protocol)
 According to the [Company Development Guidelines](lync:company-rules "@import:inline"):
 (The compiler will replace this link with the raw text)
+
+## 2. Local Relative Imports
+You can also import local files directly using relative paths, bypassing `lync.yaml`:
+[My Local Persona](./prompts/persona.lync.md "@import:inline")
 ```
 
 **6. Compilation (Simple One-to-One)**
-Currently, Lync supports straightforward one-to-one compilation from your `.src.md` mapped to an output `.md` file:
+Currently, Lync supports straightforward one-to-one compilation from your `.lync.md` mapped to an output `.md` file:
 ```bash
-lync build main.src.md -o main.md
+lync build main.lync.md -o main.md
 ```
+
+**7. Native Semantic Linting (LLM-Powered)**
+Ensure your assembled prompt is free of logic conflicts, persona inconsistencies, and prompt injections:
+```bash
+lync build main.lync.md -o main.md --verify
+```
+*Requires `OPENAI_API_KEY` in your environment. You can optionally specify a model with `--model gpt-4o`.*
+
+**8. Publishing a Module (Frontmatter)**
+If you are distributing your prompt module via a public URL, it's highly recommended to add a YAML Frontmatter block at the top of your `.md` file to declare your official alias and any nested dependencies. 
+
+> 💡 **Tip:** You can automatically convert any standard Markdown file into a Lync module by running:
+> ```bash
+> lync seal my-prompt.md --alias my-custom-name
+> ```
+> *This will intelligently infer the alias from the file path (ignoring generic names like `index`), inject the required frontmatter, and rename the file to `my-prompt.lync.md`. You can also force a specific name using `--alias`.*
+
+Manual example of the injected block:
+```yaml
+---
+lync:
+  alias: "my-coder-prompt"
+  version: "1.0.0"
+  dependencies:
+    anti-delusion: "https://example.com/system.md"
+---
+
+# Your Prompt Content here...
+```
+*When others use `lync add <your-url>`, Lync will automatically parse this and set up their local environment precisely as you intended.*
+
+**9. Multilingual Compilation & LLM Fallback (i18n)**
+Lync supports native Internationalization for prompts using AST directives. You can author multiple language blocks within the same `.lync.md` file:
+
+```markdown
+# Universal System Rules
+You are an expert coder.
+
+:::lang{lang="en"}
+Please explain the code step by step.
+:::
+
+:::lang{lang="zh-CN"}
+请逐步解释代码。
+:::
+```
+
+When building, use `--target-langs` to specify the desired output languages:
+```bash
+lync build my-prompt.lync.md --target-langs en,zh-CN
+```
+Lync will filter the AST, producing `my-prompt.en.md` and `my-prompt.zh-CN.md`.
+**Magic LLM Fallback:** If a target language is requested (e.g., `ja`) but missing from the source, Lync will automatically call the LLM (`OPENAI_API_KEY` required) to translate the best available block into the target language and inject it seamlessly into the AST!
 
 ### 🗂️ Advanced: Workspace Compilation
 
@@ -84,22 +143,30 @@ Create a `lync-build.yaml` in your workspace root:
 ```yaml
 # Which files should the compiler scan?
 includes:
-  - "src/**/*.src.md"
+  - "src/**/*.lync.md"
 
 # Where should unmatched files go by default?
 outDir: "./dist"
 
+# Strip this prefix directory from the original paths
+baseDir: "./src"
+
 # Advanced Routing Interceptors
 routing:
-  - match: "src/agents/*.src.md"
+  - match: "src/agents/*.lync.md"
     dest: "./dist/agents/"
-  - match: "src/prompts/core.src.md"
+  - match: "src/prompts/core.lync.md"
     dest: "./dist/core-prompt.md"
 ```
 
 Then, simply execute the parameterless build command:
 ```bash
 lync build
+```
+
+*CLI Ad-hoc overrides are also supported:*
+```bash
+lync build --out-dir ./doc --base-dir ./src
 ```
 
 ---
@@ -122,6 +189,7 @@ Lync 采用**向下兼容 (Graceful Degradation)** 的设计原则。编译指�
 *   **去中心化包管理**: 直接通过目标 URL 拉取和安装 Markdown 文件，无需引入中心化注册表。
 *   **基于别名的依赖管理**: 通过 `lync.yaml` 将 URL 绑定到本地别名（例如 `lync:coder-skill`），避免 URL 散落和命名冲突。
 *   **确定性构建**: 通过 `lync-lock.yaml` 锁定远程文件的 SHA-256 哈希值，确保构建的确定性。
+*   **原生多语种分发 (i18n)**: AST 级圈选语言块生成多语言版本；对于未覆盖的语种，支持自动唤起 LLM 动态精确回译。
 *   **双模式引入机制**:
     *   `@import:link` (链接重写): 将虚拟别名重写为本地相对物理路径，保留超链接结构。
     *   `@import:inline` (内联展开): 提取远程文本并替换当前引用，适用于组装大型 Prompt 上下文。
@@ -162,7 +230,7 @@ lync sync
 ```
 
 **5. Markdown 语法调用**
-直接在你的 `.src.md` 文件里使用 `lync:{alias}` 协议：
+直接在你的 `.lync.md` 文件里使用 `lync:{alias}` 协议：
 ```markdown
 # 我的核心 Prompt
 
@@ -171,10 +239,17 @@ lync sync
 ```
 
 **6. 执行编译（简单一对一）**
-目前 Lync 支持直接的一对一编译，将你的 `.src.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费：
+目前 Lync 支持直接的一对一编译，将你的 `.lync.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费：
 ```bash
-lync build main.src.md -o main.md
+lync build main.lync.md -o main.md
 ```
+
+**7. 原生语义检查 (LLM 驱动)**
+在编译完成后自动启动大模型，静态检查组装后的 Prompt 是否存在指令冲突、角色分裂或安全隐患：
+```bash
+lync build main.lync.md -o main.md --verify
+```
+*需要在环境变量中配置 `OPENAI_API_KEY`。可以通过 `--model gpt-4o` 指定模型。*
 
 ### 🗂️ 进阶用法：工作区批量编译
 
@@ -185,16 +260,16 @@ lync build main.src.md -o main.md
 ```yaml
 # 编译器需要扫描哪些源文件？
 includes:
-  - "src/**/*.src.md"
+  - "src/**/*.lync.md"
 
 # 默认的输出目录在哪？
 outDir: "./dist"
 
 # 高阶路由拦截器
 routing:
-  - match: "src/agents/*.src.md"
+  - match: "src/agents/*.lync.md"
     dest: "./dist/agents/"
-  - match: "src/prompts/core.src.md"
+  - match: "src/prompts/core.lync.md"
     dest: "./dist/core-prompt.md"
 ```
 

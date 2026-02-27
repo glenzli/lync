@@ -30,5 +30,7 @@ export interface BuildRoutingRule {
 export interface LyncBuild {
     includes?: string[];
     outDir?: string;
+    baseDir?: string;
+    targetLangs?: string[];
     routing?: BuildRoutingRule[];
 }

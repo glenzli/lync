@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, loadLockfile, saveLockfile } from './config';
 import { fetchMarkdown, computeHash } from './network';
+import matter from 'gray-matter';
 
 export async function syncDependencies(cwd: string = process.cwd()): Promise<void> {
     const config = loadConfig(cwd);
@@ -56,9 +57,31 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
 
                 fs.writeFileSync(targetPath, content, 'utf8');
 
+                // Parse frontmatter
+                const parsed = matter(content);
+                const version = parsed.data.version;
+                if (version) {
+                    console.log(`[SYNC]   Found version: ${version}`);
+                }
+
+                if (parsed.data.lync && parsed.data.lync.dependencies) {
+                    console.log(`[SYNC]   Found nested dependencies. Flat resolving...`);
+                    // We dynamically add these to the current config so they sync in the same pass.
+                    // If alias already exists, Root Override principle applies (we don't overwrite).
+                    for (const [subAlias, subUrl] of Object.entries(parsed.data.lync.dependencies)) {
+                        if (!config.dependencies[subAlias]) {
+                            console.log(`[SYNC]   -> Inheriting '${subAlias}': ${subUrl}`);
+                            config.dependencies[subAlias] = subUrl as string;
+                        } else {
+                            console.log(`[SYNC]   -> Skipping '${subAlias}' (Overridden by Root)`);
+                        }
+                    }
+                }
+
                 lock.dependencies[alias] = {
                     url,
                     dest,
+                    version,
                     hash,
                     fetchedAt: new Date().toISOString()
                 };
