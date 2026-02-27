@@ -136,10 +136,16 @@ includes:
   - "src/**/*.lync.md"
 
 # 默认降级回写的总输出目录
-outDir: "./dist"
+output:
+  dir: "./dist"
 
 # 映射基准目录（会将包含文件的路径原封不动平移时，剔除该前缀）
 baseDir: "./src"
+
+# 目标生成语言集（配置后无论单文件编译还是全项目编译都将执行按需回译）
+# targetLangs:
+#  - "en"
+#  - "zh-CN"
 
 # 输出路由干预 (Routing rules)
 routing:

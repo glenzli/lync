@@ -132,10 +132,16 @@ includes:
   - "src/**/*.lync.md"
 
 # Default output directory
-outDir: "./dist"
+output:
+  dir: "./dist"
 
 # Strip this prefix directory from original paths when mapping to output
 baseDir: "./src"
+
+# Target languages for multi-language generation (applied to both single file and workspace compilation)
+# targetLangs:
+#  - "en"
+#  - "zh-CN"
 
 # Output routing rules
 routing:

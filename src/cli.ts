@@ -44,6 +44,8 @@ output:
 baseDir: "."
 
 # Target languages for multi-language generation (optional)
+# By default, Lync infers languages automatically from :::lang=xxx blocks in your source.
+# Uncomment below to force explicit language generation for all matched files:
 # targetLangs:
 #  - "en"
 #  - "zh-CN"
@@ -304,6 +306,9 @@ baseDir: "."
 
                 try {
                     let fileLangsToProcess = targetLangsArray && targetLangsArray.length > 0 ? targetLangsArray : undefined;
+                    if (!fileLangsToProcess && buildConfig.targetLangs && buildConfig.targetLangs.length > 0) {
+                        fileLangsToProcess = buildConfig.targetLangs;
+                    }
                     if (!fileLangsToProcess) {
                         const extracted = extractTargetLangs(absoluteEntry);
                         fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
