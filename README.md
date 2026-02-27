@@ -35,6 +35,11 @@ npm install -g lync-md
 ```
 
 **2. Initialization**
+You can quickly scaffold a default `lync-build.yaml` in your project root:
+```bash
+lync init
+```
+
 Create a `lync.yaml` file in your project root to declare your dependencies:
 
 ```yaml
@@ -210,8 +215,13 @@ Lync 采用**向下兼容 (Graceful Degradation)** 的设计原则。编译指�
 npm install -g lync-md
 ```
 
-**2. 项目初始化**
-在项目根目录创建 `lync.yaml` 声明依赖：
+**2. 初始化项目**
+你可以使用以下命令在当前目录快速生成一份默认的 `lync-build.yaml` 配置文件模板：
+```bash
+lync init
+```
+
+在工程根目录建立一个 `lync.yaml` 来声明依赖：
 
 ```yaml
 dependencies:

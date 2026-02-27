@@ -13,7 +13,8 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
         ? buildConfig.includes
         : ['**/*.lync.md'];
 
-    const finalOutDir = path.resolve(cwd, cliOptions?.outDir || buildConfig.outDir || './dist');
+    const configuredOutDir = cliOptions?.outDir || buildConfig.outDir || buildConfig.output?.dir || './dist';
+    const finalOutDir = path.resolve(cwd, configuredOutDir);
     const finalBaseDir = path.resolve(cwd, cliOptions?.baseDir || buildConfig.baseDir || '.');
 
     let globalTargetLangs = cliOptions?.targetLangs;

@@ -20,6 +20,44 @@ export function setupCLI(): Command {
         .version(pkg.version || '0.1.0');
 
     program
+        .command('init')
+        .description('Initialize a default lync-build.yaml configuration file')
+        .action(() => {
+            const configPath = path.resolve(process.cwd(), 'lync-build.yaml');
+            if (fs.existsSync(configPath)) {
+                console.log(`[INIT] ⚠️ lync-build.yaml already exists in the current directory.`);
+                return;
+            }
+
+            const defaultConfig = `# Lync Build Configuration
+# Determines how the Lync compiler will assemble and output your Markdown modules.
+
+# The entry files to compile
+includes:
+  - "**/*.lync.md"
+
+# The output destination directory
+output:
+  dir: "./dist"
+
+# Strip this prefix directory from the original paths
+baseDir: "."
+
+# Target languages for multi-language generation (optional)
+# targetLangs:
+#  - "en"
+#  - "zh-CN"
+
+# Advanced Routing Interceptors (optional)
+# routing:
+#   - match: "src/agents/*.lync.md"
+#     dest: "./dist/agents/"
+`;
+            fs.writeFileSync(configPath, defaultConfig, 'utf8');
+            console.log(`[INIT] ✅ Successfully created lync-build.yaml!`);
+        });
+
+    program
         .command('add <url>')
         .description('Add a remote dependency')
         .option('--alias <alias>', 'Explicitly set the alias name')
@@ -251,10 +289,12 @@ export function setupCLI(): Command {
                     process.exit(1);
                 }
 
+                const buildConfig = loadBuildConfig(process.cwd());
+                const configuredOutDir = options?.outDir || buildConfig.outDir || buildConfig.output?.dir;
                 let finalDest;
-                if (options && options.outDir) {
+                if (configuredOutDir) {
                     const outName = path.basename(entry).replace(/\.lync\.md$/, '.md');
-                    finalDest = path.resolve(process.cwd(), options.outDir, outName);
+                    finalDest = path.resolve(process.cwd(), configuredOutDir, outName);
                 } else {
                     finalDest = absoluteEntry.replace(/\.lync\.md$/, '.md');
                     if (finalDest === absoluteEntry) {
