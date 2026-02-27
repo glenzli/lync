@@ -1,10 +1,6 @@
 import { generateText } from 'ai';
 import { getLLMModel } from './llmProvider';
-import { LyncBuild } from './types';
-import * as dotenv from 'dotenv';
 import * as crypto from 'crypto';
-
-dotenv.config();
 
 const LINT_PROMPT = `
 You are Lync, an advanced AI compiler and static analyzer for the LLM era.

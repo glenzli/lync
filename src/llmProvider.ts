@@ -2,13 +2,12 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { loadLyncRc } from './config';
 import * as dotenv from 'dotenv';
 
-dotenv.config();
-
 /**
  * Resolves the configuration and initializes an OpenAI-compatible provider instance.
  * Priority: 1. ENV Variables -> 2. .lyncrc (Local -> Global) -> 3. Defaults
  */
 export function getLLMModel(modelOverride?: string) {
+    dotenv.config();
     const rcConfig = loadLyncRc();
 
     // 1. Resolve API Key

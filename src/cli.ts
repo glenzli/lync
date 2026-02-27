@@ -12,10 +12,12 @@ import * as fs from 'fs';
 export function setupCLI(): Command {
     const program = new Command();
 
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
+
     program
         .name('lync')
         .description('A decentralized markdown package manager and compiler.')
-        .version('0.1.0');
+        .version(pkg.version || '0.1.0');
 
     program
         .command('add <url>')
