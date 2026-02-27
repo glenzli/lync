@@ -6,6 +6,7 @@ import remarkFrontmatter from 'remark-frontmatter';
 import remarkDirective from 'remark-directive';
 import { toMarkdown } from 'mdast-util-to-markdown';
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
+import { directiveToMarkdown } from 'mdast-util-directive';
 import { visitParents } from 'unist-util-visit-parents';
 import { visit } from 'unist-util-visit';
 import { loadLockfile } from './config';
@@ -119,7 +120,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 });
             } else {
                 const rootWrapper: Root = { type: 'root', children: firstAvailableLangBlock.children };
-                const sourceContentToTranslate = toMarkdown(rootWrapper, { extensions: [frontmatterToMarkdown(['yaml'])] });
+                const sourceContentToTranslate = toMarkdown(rootWrapper, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
                 console.log(`[COMPILER] 🌐 Target language '${targetLang}' not found in blocks. Translating fallback block...`);
 
                 const translatedMarkdown = await translateMarkdownContent(sourceContentToTranslate, targetLang);
@@ -165,7 +166,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             }
         } else {
             // Legacy Mode
-            const sourceContent = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml'])] });
+            const sourceContent = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
             console.log(`[COMPILER] 🌐 Legacy module detected. Translating the entire content to '${targetLang}'...`);
             const translatedMarkdown = await translateMarkdownContent(sourceContent, targetLang);
             if (translatedMarkdown) {
@@ -260,7 +261,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             throw new Error(`[FATAL] Missing physical file for '${resolveName}'. Cannot import inline.`);
         }
 
-        const expandedText = await compileFile(lockedDestPath, outPath, callStack);
+        const expandedText = await compileFile(lockedDestPath, outPath, callStack, targetLang);
         const subAst = processor.parse(expandedText) as Root;
 
         // Determine how to inject the subAst into the parent.
@@ -295,5 +296,5 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
     }
 
     callStack.delete(filePath);
-    return toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml'])] });
+    return toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
 }

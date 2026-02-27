@@ -38,5 +38,5 @@ export function getLLMModel(modelOverride?: string) {
         baseURL: baseURL, // If undefined, it falls back to standard OpenAI endpoint
     });
 
-    return customOpenAI(modelName);
+    return customOpenAI.chat(modelName);
 }

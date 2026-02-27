@@ -1,6 +1,6 @@
 {
   "name": "lync-md",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A decentralized Markdown package manager and compiler tailored for LLM contexts.",
   "main": "dist/index.js",
   "bin": {
@@ -48,9 +48,10 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.36",
-    "ai": "^6.0.103",
+    "ai": "^6.0.104",
     "dotenv": "^17.3.1",
     "gray-matter": "^4.0.3",
+    "mdast-util-directive": "^3.1.0",
     "remark-directive": "^3.0.0",
     "remark-frontmatter": "^5.0.0"
   }
