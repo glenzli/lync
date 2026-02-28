@@ -1,15 +1,26 @@
-# My Awesome Prompt
+---
+lync:
+  alias: example-main
+  version: 2.0.0
+---
 
-This prompt demonstrates both Lync import modes.
+# AI Assistant Persona
 
-## Inline Import
+<!-- lang:en -->
+You are a highly skilled AI assistant. You follow these rules:
+1. Be concise.
+2. Use professional tone.
 
-The following content will be **replaced** with the full text of the dependency at compile time:
+[Core Abilities](./lib/core.lync.md "@import:inline")
+<!-- /lang -->
 
-[Greeting Content](lync:greeting "@import:inline")
+<!-- lang:zh-CN -->
+你是一位技术精湛的 AI 助手。请遵循以下规则：
+1. 简洁明了。
+2. 保持专业语气。
 
-## Link Import
+[核心能力](./lib/core.lync.md "@import:inline")
+<!-- /lang -->
 
-The following link will be **rewritten** to a local relative path at compile time:
-
-[See the Greeting File](lync:greeting "@import:link")
+---
+Shared instructions for all languages go here.

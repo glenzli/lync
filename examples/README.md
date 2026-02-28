@@ -1,31 +1,35 @@
-# Lync Examples
+# Lync v2 Examples
 
-This directory contains a minimal example workspace demonstrating how Lync works.
+This directory demonstrates Lync's powerful multi-language and modular prompt design.
 
-## Files
+## Key Features in v2
 
-| File | Purpose |
-|---|---|
-| `lync.yaml` | Declares a remote dependency with alias `greeting` |
-| `deps/hello.md` | The cached dependency file (would be fetched by `lync sync`) |
-| `main.lync.md` | A source file using both `@import:inline` and `@import:link` |
+- **Universal i18n blocks**: Using `<!-- lang:xx -->` for standard Markdown compatibility.
+- **Deep Cascading**: `@import:inline` now propagates target languages recursively.
+- **Heuristic Sealing**: `lync seal` can automatically wrap prompts in language blocks.
+
+## Example Structure
+
+- `main.lync.md`: The entry point with i18n blocks and an inline import.
+- `lib/core.lync.md`: A modular piece of prompt logic, also supporting multiple languages.
 
 ## How to Try
 
+### 1. Build for English
 ```bash
-# 1. Navigate into the example workspace
-cd examples/
-
-# 2. Sync the declared dependencies
-lync sync
-
-# 3. Compile the source file
-lync build main.lync.md -o main.md
-
-# 4. Inspect the output!
-cat main.md
+lync build main.lync.md --target-langs en -o out/en.md
+# Observe how both main and lib content are filtered to English.
 ```
 
-In the output `main.md`:
-- The `@import:inline` link will be replaced with the full contents of `deps/hello.md`.
-- The `@import:link` link's URL will be rewritten to the relative path `./deps/hello.md`.
+### 2. Build for Chinese (with auto-translation)
+```bash
+lync build main.lync.md --target-langs zh-CN -o out/zh.md
+# Observe how matching blocks are used, and missing ones would be LLM-translated.
+```
+
+### 3. Try the Seal Command
+```bash
+echo "Hello World" > new-prompt.md
+lync seal new-prompt.md --lang en
+# See how 'new-prompt.lync.md' is created with both Frontmatter and i18n blocks!
+```
