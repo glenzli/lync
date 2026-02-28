@@ -186,25 +186,25 @@ When running `lync build --verify`, Lync calls an LLM (requires `OPENAI_API_KEY`
 Prompt engineering inevitably encounters language barriers. A high-quality instructional prompt written in English might lose its nuance if merely translated by a generic pipeline after assembly. 
 To solve this, Lync introduces **AST-level i18n support combined with dynamic LLM Fallback Translation.**
 
-Authors can use standard Markdown block directives (`:::`) to wrap language-specific prose, while keeping structural codes, examples, and rules language-agnostic.
+Authors can use simplified HTML comments to wrap language-specific prose, while keeping structural codes, examples, and rules language-agnostic.
 
 ```markdown
 # Universal Rules
 You are an expert coder.
 
-:::lang{lang="en"}
+<!-- lang:en -->
 Explain this code clearly.
-:::
+<!-- /lang -->
 
-:::lang{lang="zh-CN"}
+<!-- lang:zh-CN -->
 请清楚地解释这段代码。
-:::
+<!-- /lang -->
 ```
 
 When building, the consumer specifies the required target language(s), either via `lync-build.yaml` (`targetLangs: ["en", "ja"]`) or the CLI (`--target-langs ja`):
-- Lync traverses the AST and intelligently filters out all `:::lang{}` blocks that do NOT match the target language.
+- Lync traverses the AST and intelligently filters out all `<!-- lang:xx -->` blocks that do NOT match the target language.
 - **LLM Fallback Translation**: If the requested target language (e.g., `ja`) does not exist natively in the file, Lync isolates the best available language block, uses an internal localization System Prompt via the OpenAI API, translates *only the prose* into Japanese (preserving code blocks and Lync specific directives), and hot-swaps the translated AST directly into the final artifact!
-- **Legacy Compatibility**: If a file possesses no `:::lang{}` blocks at all, Lync will translate the entire document upon request.
+- **Legacy Compatibility**: If a file possesses no `<!-- lang:xx -->` blocks at all, Lync will translate the entire document upon request.
 
 This ensures prompt engineers can maintain all languages natively within a single `.lync.md` file, drastically simplifying global distribution.
 ---

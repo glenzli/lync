@@ -186,26 +186,26 @@ routing:
 
 ### 5. 基于 AST 的多语种原生支持 (i18n) 与 LLM 动态回译
 
-在编写高质量复杂 Prompt 时，受众通常会有多语种的分发诉求，然而简单的流水线全篇机器翻译往往会破坏 Prompt 精密的代码块或特殊的语法标记（甚至破坏我们 Lync 的 \`[Link](lync:...)\` ）。
+在编写高质量复杂 Prompt 时，受众通常会有多语种的分发诉求，然而简单的流水线全篇机器翻译往往会破坏 Prompt 精密的代码块或特殊的语法标记（甚至破坏我们 Lync 的 `[Link](lync:...)` ）。
 为此，Lync 在编译器层面**原生支持了 Markdown i18n 语块标记结合 LLM 的动态回流技术。**
 
-Lync 允许作者在同一个 \`.lync.md\` 文件内，使用标准的 Markdown 块指令（Container Directives）圈定特定的语言区块：
+Lync 允许作者在同一个 `.lync.md` 文件内，使用简洁的 HTML 注释圈定特定的语言区块：
 
 ```markdown
 # 基础框架
 You are an expert coder.
 
-:::lang{lang="zh-CN"}
+<!-- lang:zh-CN -->
 请详细解释这些代码。
-:::
+<!-- /lang -->
 
-:::lang{lang="en"}
+<!-- lang:en -->
 Please explain the code step by step.
-:::
+<!-- /lang -->
 ```
 
 在编译分发环节，消费者可以通过 `lync-build.yaml`（`targetLangs: ["zh-CN"]`）或者命令行局部参数（`--target-langs zh-CN,ja`）来指定消费者需要的终端语种：
-- Lync 编译器将会遍历整棵 AST（抽象语法树），智能修剪掉所有与 `targetLangs` 不匹配的 `:::lang{}` 语块节点。
+- Lync 编译器将会遍历整棵 AST（抽象语法树），智能修剪掉所有与 `targetLangs` 不匹配的 `<!-- lang:xx -->` 语块节点。
 - **动态 LLM 回译**：当消费者索要的语言（例如 `--target-langs ja`）在原始模块里并未提供时，Lync 会自动阻断常规降级流程，智能捕捉并隔离原文中结构最完整的母语语言块，在后台请求 OpenAI API 将该区块“自然语言部分”精准回译为日文，然后**直接挂载到正在编译的 AST 中**以补齐信息差。
 - **旧模块兼容**：如果通篇不含有多语种语块标记的传统模块，一旦触发了特定的 `target-langs`，Lync 会启动全局层面的模块翻译。
 
