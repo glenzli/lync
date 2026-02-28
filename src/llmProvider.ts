@@ -7,6 +7,9 @@ import * as dotenv from 'dotenv';
  * Priority: 1. ENV Variables -> 2. .lyncrc (Local -> Global) -> 3. Defaults
  */
 export function getLLMModel(modelOverride?: string) {
+    if (process.env.DOTENV_CONFIG_QUIET === undefined) {
+        process.env.DOTENV_CONFIG_QUIET = 'true';
+    }
     dotenv.config();
     const rcConfig = loadLyncRc();
 

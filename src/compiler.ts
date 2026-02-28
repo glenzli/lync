@@ -9,6 +9,20 @@ import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import { directiveToMarkdown } from 'mdast-util-directive';
 import { visitParents } from 'unist-util-visit-parents';
 import { visit } from 'unist-util-visit';
+import { francAll } from 'franc-min';
+
+const iso639_3_map: Record<string, string[]> = {
+    'cmn': ['zh', 'zh-cn', 'zh-tw', 'zh-hk'],
+    'eng': ['en', 'en-us', 'en-gb'],
+    'jpn': ['ja'],
+    'spa': ['es'],
+    'fra': ['fr'],
+    'deu': ['de'],
+    'rus': ['ru'],
+    'kor': ['ko'],
+    'ita': ['it'],
+    'por': ['pt', 'pt-br']
+};
 import { loadLockfile } from './config';
 import { Root, Link, Parent } from 'mdast';
 import { translateMarkdownContent } from './translate';
@@ -74,44 +88,70 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         let hasTargetLangBlock = false;
         let firstAvailableLangBlock: any = null;
 
-        visit(ast, 'containerDirective', (node: any) => {
-            const name = node.name as string;
-            let blockLang = '';
-            if (name.startsWith('lang=')) {
-                blockLang = name.substring(5);
-            } else if (name === 'lang') {
-                blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
-            }
-            if (!blockLang && name && name !== 'lang') {
-                blockLang = name; // Fallback for :::zh-CN
-            }
+        // Custom visitor due to remark-directive often failing to generate containerDirective AST nodes 
+        // silently during processor.parse() depending on exact plugin versions and micromark bindings.
+        visit(ast, (node: any) => {
+            // Check native `containerDirective` nodes (if they actually parsed)
+            if (node.type === 'containerDirective') {
+                const name = node.name as string;
+                let blockLang = '';
+                if (name.startsWith('lang=')) blockLang = name.substring(5);
+                else if (name === 'lang') blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
+                if (!blockLang && name && name !== 'lang') blockLang = name; // Fallback
 
-            if (blockLang) {
+                if (blockLang) {
+                    hasLangDirectives = true;
+                    if (!firstAvailableLangBlock) firstAvailableLangBlock = node;
+                    if (blockLang.toLowerCase() === targetLang.toLowerCase()) hasTargetLangBlock = true;
+                }
+            }
+            // Fallback checking if it was parsed as plain text
+            else if (node.type === 'text' && node.value && node.value.includes(':::lang=')) {
                 hasLangDirectives = true;
-                if (!firstAvailableLangBlock) firstAvailableLangBlock = node;
-                if (blockLang.toLowerCase() === targetLang.toLowerCase()) {
+                const targetMatch = new RegExp(`:::lang=${targetLang}`, 'i');
+                if (targetMatch.test(node.value) || new RegExp(`:::${targetLang}`, 'i').test(node.value)) {
                     hasTargetLangBlock = true;
                 }
+                if (!firstAvailableLangBlock) firstAvailableLangBlock = node;
             }
         });
 
         if (hasLangDirectives) {
             if (hasTargetLangBlock) {
+                console.log(`[COMPILER] ⚡️ Using existing '${targetLang}' block for ${filePath}`);
                 let offset = 0;
-                visit(ast, 'containerDirective', (node: any, index: number, parent: any) => {
-                    const name = node.name as string;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                visit(ast, (node: any, index: number | undefined, parent: any) => {
+                    if (index === undefined) return;
+
                     let blockLang = '';
-                    if (name.startsWith('lang=')) {
-                        blockLang = name.substring(5);
-                    } else if (name === 'lang') {
-                        blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
+                    let isTextNode = false;
+
+                    if (node.type === 'containerDirective') {
+                        const name = node.name as string;
+                        if (name.startsWith('lang=')) blockLang = name.substring(5);
+                        else if (name === 'lang') blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
+                        if (!blockLang && name && name !== 'lang') blockLang = name;
+                    } else if (node.type === 'text' && node.value && node.value.includes(':::lang=')) {
+                        const match = node.value.match(/:::lang=([^\n:]+)/i);
+                        const matchShort = node.value.match(/:::([a-zA-Z-]+)/i);
+                        if (match) blockLang = match[1].trim();
+                        else if (matchShort && matchShort[1] !== 'lang') blockLang = matchShort[1].trim();
+                        if (blockLang) isTextNode = true;
                     }
-                    if (!blockLang && name && name !== 'lang') blockLang = name;
 
                     if (blockLang) {
                         if (blockLang.toLowerCase() === targetLang.toLowerCase()) {
-                            parent.children.splice(index, 1, ...node.children);
-                            return ['skip', index];
+                            if (isTextNode) {
+                                // Extract the inner content from the pseudo-directive text
+                                const innerText = node.value.replace(/:::lang=[^\n:]+\n+/, '').replace(/\n+:::$/, '');
+                                const innerAst = processor.parse(innerText) as Root;
+                                parent.children.splice(index, 1, ...innerAst.children);
+                                return ['skip', index + innerAst.children.length];
+                            } else {
+                                parent.children.splice(index, 1, ...node.children);
+                                return ['skip', index + node.children.length];
+                            }
                         } else {
                             parent.children.splice(index, 1);
                             return ['skip', index];
@@ -119,19 +159,45 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                     }
                 });
             } else {
-                const rootWrapper: Root = { type: 'root', children: firstAvailableLangBlock.children };
-                const sourceContentToTranslate = toMarkdown(rootWrapper, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
+                let sourceContentToTranslate = '';
+                if (firstAvailableLangBlock.type === 'text') {
+                    // Extract the inner content from the pseudo-directive text
+                    sourceContentToTranslate = firstAvailableLangBlock.value.replace(/:::lang=[^\n:]+\n+/, '').replace(/\n+:::$/, '');
+                } else {
+                    const rootWrapper: Root = { type: 'root', children: firstAvailableLangBlock.children };
+                    sourceContentToTranslate = toMarkdown(rootWrapper, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
+                }
+
                 console.log(`[COMPILER] 🌐 Target language '${targetLang}' not found in blocks. Translating fallback block...`);
 
-                const translatedMarkdown = await translateMarkdownContent(sourceContentToTranslate, targetLang);
-                if (translatedMarkdown) {
-                    const translatedAst = processor.parse(translatedMarkdown) as Root;
-                    visit(ast, 'containerDirective', (node: any, index: number, parent: any) => {
-                        const name = node.name as string;
+                const translatedResult = await translateMarkdownContent(sourceContentToTranslate, targetLang);
+                if (translatedResult) {
+                    if (translatedResult.usage) {
+                        const inTokens = translatedResult.usage.inputTokens ?? 0;
+                        const outTokens = translatedResult.usage.outputTokens ?? 0;
+                        const totalTokens = translatedResult.usage.totalTokens ?? (inTokens + outTokens);
+                        console.log(`[TRANSLATE] 📊 Tokens used: ${inTokens} prompt + ${outTokens} completion = ${totalTokens} total`);
+                    }
+                    const translatedAst = processor.parse(translatedResult.text) as Root;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    visit(ast, (node: any, index: number | undefined, parent: any) => {
+                        if (index === undefined) return;
+
                         let blockLang = '';
-                        if (name.startsWith('lang=')) blockLang = name.substring(5);
-                        else if (name === 'lang') blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
-                        if (!blockLang && name && name !== 'lang') blockLang = name;
+                        let isTextNode = false;
+
+                        if (node.type === 'containerDirective') {
+                            const name = node.name as string;
+                            if (name.startsWith('lang=')) blockLang = name.substring(5);
+                            else if (name === 'lang') blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
+                            if (!blockLang && name && name !== 'lang') blockLang = name;
+                        } else if (node.type === 'text' && node.value && node.value.includes(':::lang=')) {
+                            const match = node.value.match(/:::lang=([^\n:]+)/i);
+                            const matchShort = node.value.match(/:::([a-zA-Z-]+)/i);
+                            if (match) blockLang = match[1].trim();
+                            else if (matchShort && matchShort[1] !== 'lang') blockLang = matchShort[1].trim();
+                            if (blockLang) isTextNode = true;
+                        }
 
                         if (blockLang) {
                             if (node === firstAvailableLangBlock) {
@@ -145,17 +211,37 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                     });
                 } else {
                     console.warn(`[WARN] Translation to '${targetLang}' failed. Using fallback language block as-is.`);
-                    visit(ast, 'containerDirective', (node: any, index: number, parent: any) => {
-                        const name = node.name as string;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    visit(ast, (node: any, index: number | undefined, parent: any) => {
+                        if (index === undefined) return;
+
                         let blockLang = '';
-                        if (name.startsWith('lang=')) blockLang = name.substring(5);
-                        else if (name === 'lang') blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
-                        if (!blockLang && name && name !== 'lang') blockLang = name;
+                        let isTextNode = false;
+
+                        if (node.type === 'containerDirective') {
+                            const name = node.name as string;
+                            if (name.startsWith('lang=')) blockLang = name.substring(5);
+                            else if (name === 'lang') blockLang = node.attributes?.id || node.attributes?.lang || (node.attributes && Object.keys(node.attributes)[0]);
+                            if (!blockLang && name && name !== 'lang') blockLang = name;
+                        } else if (node.type === 'text' && node.value && node.value.includes(':::lang=')) {
+                            const match = node.value.match(/:::lang=([^\n:]+)/i);
+                            const matchShort = node.value.match(/:::([a-zA-Z-]+)/i);
+                            if (match) blockLang = match[1].trim();
+                            else if (matchShort && matchShort[1] !== 'lang') blockLang = matchShort[1].trim();
+                            if (blockLang) isTextNode = true;
+                        }
 
                         if (blockLang) {
                             if (node === firstAvailableLangBlock) {
-                                parent.children.splice(index, 1, ...node.children);
-                                return ['skip', index + node.children.length];
+                                if (isTextNode) {
+                                    const innerText = node.value.replace(/:::lang=[^\n:]+\n+/, '').replace(/\n+:::$/, '');
+                                    const innerAst = processor.parse(innerText) as Root;
+                                    parent.children.splice(index, 1, ...innerAst.children);
+                                    return ['skip', index + innerAst.children.length];
+                                } else {
+                                    parent.children.splice(index, 1, ...node.children);
+                                    return ['skip', index + node.children.length];
+                                }
                             } else {
                                 parent.children.splice(index, 1);
                                 return ['skip', index];
@@ -166,14 +252,57 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             }
         } else {
             // Legacy Mode
-            const sourceContent = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
-            console.log(`[COMPILER] 🌐 Legacy module detected. Translating the entire content to '${targetLang}'...`);
-            const translatedMarkdown = await translateMarkdownContent(sourceContent, targetLang);
-            if (translatedMarkdown) {
-                const translatedAst = processor.parse(translatedMarkdown) as Root;
-                ast.children = translatedAst.children;
+            let hasText = false;
+            let accumulatedProse = '';
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            visit(ast, 'text', (node: any, index: number | undefined, parent: any) => {
+                if (parent && parent.type === 'link') return;
+                if (parent && parent.type === 'image') return;
+
+                if (node.value) {
+                    accumulatedProse += node.value + ' ';
+                }
+
+                // RegExp matches basic Latin, Numbers, and common CJK block characters
+                if (/[a-zA-Z0-9\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7a3]/.test(node.value)) {
+                    hasText = true;
+                }
+            });
+
+            if (!hasText) {
+                console.log(`[COMPILER] ⚡️ Aggregator detected (No translatable prose). Skipping LLM translation for '${targetLang}'.`);
             } else {
-                console.warn(`[WARN] Translation of legacy module to '${targetLang}' failed. Proceeding with original content.`);
+                let nlpSkipped = false;
+                const topLanguages = francAll(accumulatedProse);
+                if (topLanguages.length > 0) {
+                    const topGuess = topLanguages[0];
+                    const langCode = topGuess[0];
+                    const confidence = topGuess[1] as number;
+
+                    const mappedTargets = iso639_3_map[langCode] || [];
+                    if (confidence > 0.4 && mappedTargets.includes(targetLang.toLowerCase())) {
+                        console.log(`[COMPILER] ⚡️ NLP detected source is already '${targetLang}' (Score: ${(confidence * 100).toFixed(0)}%). Skipping LLM translation.`);
+                        nlpSkipped = true;
+                    }
+                }
+
+                if (!nlpSkipped) {
+                    const sourceContent = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml']), directiveToMarkdown()] });
+                    console.log(`[COMPILER] 🌐 Legacy module detected. Translating the entire content to '${targetLang}'...`);
+                    const translatedResult = await translateMarkdownContent(sourceContent, targetLang);
+                    if (translatedResult) {
+                        if (translatedResult.usage) {
+                            const inTokens = translatedResult.usage.inputTokens ?? 0;
+                            const outTokens = translatedResult.usage.outputTokens ?? 0;
+                            const totalTokens = translatedResult.usage.totalTokens ?? (inTokens + outTokens);
+                            console.log(`[TRANSLATE] 📊 Tokens used: ${inTokens} prompt + ${outTokens} completion = ${totalTokens} total`);
+                        }
+                        const translatedAst = processor.parse(translatedResult.text) as Root;
+                        ast.children = translatedAst.children;
+                    } else {
+                        console.warn(`[WARN] Translation of legacy module to '${targetLang}' failed. Proceeding with original content.`);
+                    }
+                }
             }
         }
     }

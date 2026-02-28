@@ -1,8 +1,12 @@
-import { generateText } from 'ai';
+import { LanguageModelUsage, generateText } from 'ai';
 import { getLLMModel } from './llmProvider';
-import { LyncBuild } from './types';
 
-export async function translateMarkdownContent(content: string, targetLang: string, modelOverride?: string): Promise<string | null> {
+export interface TranslationResult {
+    text: string;
+    usage?: LanguageModelUsage;
+}
+
+export async function translateMarkdownContent(content: string, targetLang: string, modelOverride?: string): Promise<TranslationResult | null> {
 
     const systemPrompt = `You are an expert AI localization engine specifically designed for translating Markdown prompt templates.
 Your task is to translate the provided Markdown text into the target language: ${targetLang}.
@@ -17,14 +21,14 @@ Your task is to translate the provided Markdown text into the target language: $
     try {
         console.log(`[TRANSLATE] 🌐 Translating content to ${targetLang}...`);
 
-        const { text } = await generateText({
+        const { text, usage } = await generateText({
             model: getLLMModel(modelOverride),
             system: systemPrompt,
             prompt: content,
             temperature: 0.1
         });
 
-        return text.trim() || null;
+        return { text: text.trim(), usage };
     } catch (e: any) {
         console.error(`[TRANSLATE] ❌ Error calling OpenAI: ${e.message}`);
         return null;
