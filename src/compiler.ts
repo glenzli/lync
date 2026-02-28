@@ -9,20 +9,7 @@ import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import { directiveToMarkdown } from 'mdast-util-directive';
 import { visitParents } from 'unist-util-visit-parents';
 import { visit } from 'unist-util-visit';
-import { francAll } from 'franc-min';
-
-const iso639_3_map: Record<string, string[]> = {
-    'cmn': ['zh', 'zh-cn', 'zh-tw', 'zh-hk'],
-    'eng': ['en', 'en-us', 'en-gb'],
-    'jpn': ['ja'],
-    'spa': ['es'],
-    'fra': ['fr'],
-    'deu': ['de'],
-    'rus': ['ru'],
-    'kor': ['ko'],
-    'ita': ['it'],
-    'por': ['pt', 'pt-br']
-};
+import { detectLanguage, iso639_3_map } from './utils';
 import { loadLockfile } from './config';
 import { Root, Link, Parent } from 'mdast';
 import { translateMarkdownContent } from './translate';
@@ -135,27 +122,22 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         } else {
             // Legacy/Global Mode (entire file)
             // Determine if it actually needs translation (NLP)
-            let hasText = /[a-zA-Z0-9\u4e00-\u9fa5]/.test(rawContent);
-            if (hasText) {
-                const topLanguages = francAll(rawContent.substring(0, 2000)); // Sample first 2k
-                let nlpSkipped = false;
-                if (topLanguages.length > 0) {
-                    const topGuess = topLanguages[0];
-                    const langCode = topGuess[0];
-                    const confidence = topGuess[1] as number;
-                    const mappedTargets = iso639_3_map[langCode] || [];
-                    if (confidence > 0.4 && mappedTargets.includes(targetLang.toLowerCase())) {
-                        console.log(`[COMPILER] ⚡️ NLP detected source is already '${targetLang}' (Score: ${(confidence * 100).toFixed(0)}%). Skipping LLM translation.`);
-                        nlpSkipped = true;
-                    }
-                }
+            const detected = detectLanguage(rawContent);
+            let nlpSkipped = false;
 
-                if (!nlpSkipped) {
-                    console.log(`[COMPILER] 🌐 No i18n blocks found. Translating the entire content to '${targetLang}'...`);
-                    const translatedResult = await translateMarkdownContent(rawContent, targetLang);
-                    if (translatedResult) {
-                        rawContent = translatedResult.text;
-                    }
+            if (detected) {
+                const mappedTargets = iso639_3_map[detected] || [detected];
+                if (mappedTargets.includes(targetLang.toLowerCase()) || detected.toLowerCase() === targetLang.toLowerCase()) {
+                    console.log(`[COMPILER] ⚡️ NLP detected source is already '${targetLang}'. Skipping LLM translation.`);
+                    nlpSkipped = true;
+                }
+            }
+
+            if (!nlpSkipped) {
+                console.log(`[COMPILER] 🌐 No i18n blocks found. Translating the entire content to '${targetLang}'...`);
+                const translatedResult = await translateMarkdownContent(rawContent, targetLang);
+                if (translatedResult) {
+                    rawContent = translatedResult.text;
                 }
             }
         }

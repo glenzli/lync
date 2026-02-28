@@ -4,6 +4,7 @@ import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
 import { runWorkspaceBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
+import { detectLanguage } from './utils';
 import { fetchMarkdown } from './network';
 import matter from 'gray-matter';
 import { verifyCompiledContent } from './verify';
@@ -174,7 +175,8 @@ baseDir: "."
         .command('seal [patterns...]')
         .description('Convert standard markdown files into Lync modules by injecting Frontmatter. Supports wildcards.')
         .option('--alias <alias>', 'Explicitly set the alias name (only recommended for single files)')
-        .action(async (patterns: string[], options: { alias?: string }) => {
+        .option('--lang <lang>', 'Wrap content in a specific i18n block (e.g. ja, zh-CN)')
+        .action(async (patterns: string[], options: { alias?: string; lang?: string }) => {
             if (!patterns || patterns.length === 0) {
                 console.error(`[ERROR] Please specify at least one file or pattern to seal.`);
                 process.exit(1);
@@ -235,14 +237,23 @@ baseDir: "."
                     }
                 }
 
-                const newLyncData = {
+                const lyncMetadata = {
                     alias: alias,
                     version: "1.0.0"
                 };
+                parsed.data.lync = lyncMetadata;
 
-                parsed.data.lync = newLyncData;
+                // ----- [NEW] i18n Auto-wrapping -----
+                let content = parsed.content;
+                if (!content.includes('<!-- lang:')) {
+                    const targetLang = options.lang || detectLanguage(content);
+                    if (targetLang) {
+                        content = `\n<!-- lang:${targetLang} -->\n${content.trim()}\n<!-- /lang -->\n`;
+                        console.log(`[CLI] 🌐 Auto-wrapped content in '${targetLang}' block.`);
+                    }
+                }
 
-                const newContent = matter.stringify(parsed.content, parsed.data);
+                const newContent = matter.stringify(content, parsed.data);
 
                 const dir = path.dirname(absolutePath);
                 const originalBasename = path.basename(file).split('.')[0];
