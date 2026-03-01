@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as yaml from 'yaml';
-import { LyncConfig, LyncLock, LyncBuild, LyncLLMConfig } from './types';
+import { LyncConfig, LyncLock, LyncBuild, LyncRc } from './types';
 
 const LyncYAML = 'lync.yaml';
 const LyncLockYAML = 'lync-lock.yaml';
@@ -41,18 +41,18 @@ export function saveLockfile(lock: LyncLock, cwd: string = process.cwd()): void 
 export function loadBuildConfig(cwd: string = process.cwd()): LyncBuild {
     const buildPath = path.join(cwd, LyncBuildYAML);
     if (!fs.existsSync(buildPath)) {
-        return { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [], verifyLang: undefined };
+        return { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [] };
     }
     const content = fs.readFileSync(buildPath, 'utf8');
-    return yaml.parse(content) as LyncBuild || { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [], verifyLang: undefined };
+    return yaml.parse(content) as LyncBuild || { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [] };
 }
 
 /**
  * Loads the cascaded .lyncrc file for independent configurations like LLM tokens.
  * Priority: ~ (Global) -> ./ (Local)
  */
-export function loadLyncRc(): { llm?: LyncLLMConfig } {
-    let rcConfig: { llm?: LyncLLMConfig } = {};
+export function loadLyncRc(): LyncRc {
+    let rcConfig: LyncRc = {};
 
     // 1. Load global ~/.lyncrc
     const globalRcPath = path.resolve(os.homedir(), '.lyncrc');

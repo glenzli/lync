@@ -5,6 +5,11 @@ export interface LyncLLMConfig {
     baseURL?: string;
 }
 
+export interface LyncRc {
+    lang?: string;
+    llm?: LyncLLMConfig;
+}
+
 export interface DependencyConfig {
     url?: string;
     dest?: string;
@@ -45,5 +50,4 @@ export interface LyncBuild {
     baseDir?: string;
     targetLangs?: string[];
     routing?: BuildRoutingRule[];
-    verifyLang?: string;
 }

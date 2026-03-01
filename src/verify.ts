@@ -1,6 +1,7 @@
 import { generateText } from 'ai';
 import { getLLMModel } from './llmProvider';
 import * as crypto from 'crypto';
+import { t, getVerifyLang } from './i18n';
 
 const LINT_PROMPT = `
 You are Lync, an advanced AI compiler and static analyzer for the LLM era.
@@ -41,15 +42,14 @@ Reasoning: <Detailed reasoning>
 // though usually the CLI runs once per command. We can build a file cache later.
 let lastVerifiedHash: string = '';
 
-export async function verifyCompiledContent(content: string, modelOverride?: string, verifyLang?: string): Promise<boolean> {
+export async function verifyCompiledContent(content: string, modelOverride?: string): Promise<boolean> {
     const hash = crypto.createHash('sha256').update(content).digest('hex');
     if (hash === lastVerifiedHash) return true; // unchanged
 
-    const defaultLang = Intl.DateTimeFormat().resolvedOptions().locale;
-    const finalLang = verifyLang || defaultLang;
+    const finalLang = getVerifyLang();
 
-    console.log(`\n[LINT] 🤖 Initiating LLM Semantic Analysis (Lang: ${finalLang})...`);
-    console.log(`[LINT] Analyzing composite logic (${content.length} characters)...\n`);
+    console.log(t('LINT_INIT', finalLang));
+    console.log(t('LINT_ANALYZING', content.length));
 
     try {
         const { text } = await generateText({
@@ -61,25 +61,25 @@ export async function verifyCompiledContent(content: string, modelOverride?: str
         const lastLine = lines[lines.length - 1].trim();
 
         if (lastLine === 'LINT_PASS') {
-            console.log(`[LINT] ✅ No semantic issues found. Result: PASS.`);
+            console.log(t('LINT_PASS'));
             lastVerifiedHash = hash;
             return true;
         } else if (lastLine === 'LINT_WARN') {
             console.log(text.replace('LINT_WARN', '').trim());
-            console.log(`\n[LINT] ⚠️ Minor issues or redundancies found. Result: WARN (Non-blocking).`);
+            console.log(t('LINT_WARN'));
             lastVerifiedHash = hash;
             return true;
         } else if (lastLine === 'LINT_BLOCK') {
             console.log(text.replace('LINT_BLOCK', '').trim());
-            console.log(`\n[LINT] 🛑 Critical system destruction risk detected! Result: BLOCK.`);
+            console.log(t('LINT_BLOCK'));
             return false; // blocks the build
         } else {
             console.log(text);
-            console.log(`\n[LINT] ❓ Unknown verification result format. Assuming BLOCK for safety.`);
+            console.log(t('LINT_UNKNOWN'));
             return false;
         }
     } catch (e: any) {
-        console.error(`[LINT] ❌ Failed to run LLM verification: ${e.message}`);
+        console.error(t('LINT_ERR_FAILED', e.message));
         return false;
     }
 }

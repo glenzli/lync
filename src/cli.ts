@@ -10,6 +10,7 @@ import matter from 'gray-matter';
 import { verifyCompiledContent } from './verify';
 import * as path from 'path';
 import * as fs from 'fs';
+import { initI18n, t } from './i18n';
 
 export function setupCLI(): Command {
     const program = new Command();
@@ -19,7 +20,11 @@ export function setupCLI(): Command {
     program
         .name('lync')
         .description('A decentralized markdown package manager and compiler.')
-        .version(pkg.version || '0.1.0');
+        .version(pkg.version || '0.1.0')
+        .option('--lang <lang>', 'Global language for CLI interactive outputs (e.g. en, zh-CN)')
+        .hook('preAction', (thisCommand) => {
+            initI18n(thisCommand.opts().lang);
+        });
 
     program
         .command('init')
@@ -27,7 +32,7 @@ export function setupCLI(): Command {
         .action(() => {
             const configPath = path.resolve(process.cwd(), 'lync-build.yaml');
             if (fs.existsSync(configPath)) {
-                console.log(`[INIT] ⚠️ lync-build.yaml already exists in the current directory.`);
+                console.log(t('INIT_WARN_EXISTS'));
                 return;
             }
 
@@ -63,7 +68,7 @@ baseDir: "."
 # verifyLang: "zh-CN"
 `;
             fs.writeFileSync(configPath, defaultConfig, 'utf8');
-            console.log(`[INIT] ✅ Successfully created lync-build.yaml!`);
+            console.log(t('INIT_SUCCESS'));
         });
 
     program
@@ -79,14 +84,14 @@ baseDir: "."
 
             if (!alias) {
                 // Fetch to memory first to check for declarative alias
-                console.log(`[CLI] Fetching ${url} to inspect metadata...`);
+                console.log(t('ADD_FETCHING', url));
                 try {
                     const content = await fetchMarkdown(url);
                     const parsed = matter(content);
 
                     if (parsed.data.lync && parsed.data.lync.alias) {
                         alias = parsed.data.lync.alias;
-                        console.log(`[CLI] Discovered declared alias from Frontmatter: '${alias}'`);
+                        console.log(t('ADD_DISCOVERED_ALIAS', alias as string));
                     }
                 } catch (e: any) {
                     // Suppress error, fallback to URL parsing silently
@@ -127,7 +132,7 @@ baseDir: "."
                                 alias = segment;
                                 foundAlias = true;
                                 if (i < pathSegments.length - 1) {
-                                    console.log(`[CLI] Generic path detected. Traversed up to infer alias: '${alias}'`);
+                                    console.log(t('ADD_GENERIC_PATH', alias));
                                 }
                                 break;
                             }
@@ -169,7 +174,7 @@ baseDir: "."
             }
 
             saveConfig(config);
-            console.log(`[CLI] Added alias '${finalAlias}' pointing to ${url}`);
+            console.log(t('ADD_SUCCESS', finalAlias, url));
 
             await syncDependencies();
         });
@@ -181,7 +186,7 @@ baseDir: "."
         .option('--lang <lang>', 'Wrap content in a specific i18n block (e.g. ja, zh-CN)')
         .action(async (patterns: string[], options: { alias?: string; lang?: string }) => {
             if (!patterns || patterns.length === 0) {
-                console.error(`[ERROR] Please specify at least one file or pattern to seal.`);
+                console.error(t('SEAL_ERR_NO_FILES'));
                 process.exit(1);
             }
 
@@ -192,7 +197,7 @@ baseDir: "."
             }
 
             if (matchedFiles.size === 0) {
-                console.error(`[ERROR] No files matched the given patterns.`);
+                console.error(t('SEAL_ERR_NO_MATCH'));
                 process.exit(1);
             }
 
@@ -204,7 +209,7 @@ baseDir: "."
                 const parsed = matter(rawContent);
 
                 if (parsed.data.lync) {
-                    console.warn(`[WARN] File '${file}' already contains Lync Frontmatter.`);
+                    console.warn(t('SEAL_WARN_EXISTS', file));
                     continue; // Skip file if it already has lync frontmatter
                 }
 
@@ -252,7 +257,7 @@ baseDir: "."
                     const targetLang = options.lang || detectLanguage(content);
                     if (targetLang) {
                         content = `\n<!-- lang:${targetLang} -->\n${content.trim()}\n<!-- /lang -->\n`;
-                        console.log(`[CLI] 🌐 Auto-wrapped content in '${targetLang}' block.`);
+                        console.log(t('SEAL_AUTO_WRAP', targetLang));
                     }
                 }
 
@@ -267,9 +272,9 @@ baseDir: "."
 
                 if (absolutePath !== newAbsolutePath) {
                     fs.unlinkSync(absolutePath);
-                    console.log(`[CLI] 📦 Sealed module! Renamed to '${newFilename}' and injected Frontmatter (alias: '${alias}').`);
+                    console.log(t('SEAL_SUCCESS_RENAME', newFilename, alias as string));
                 } else {
-                    console.log(`[CLI] 📦 Sealed module! Injected Frontmatter into '${file}' (alias: '${alias}').`);
+                    console.log(t('SEAL_SUCCESS_INJECT', file, alias as string));
                 }
             }
         });
@@ -292,13 +297,13 @@ baseDir: "."
             if (alias) {
                 if (lock.dependencies[alias]) {
                     delete lock.dependencies[alias];
-                    console.log(`[CLI] Cleared lock cache for '${alias}'.`);
+                    console.log(t('UPDATE_CLEARED_ALIAS', alias));
                 } else {
-                    console.warn(`[WARN] Alias '${alias}' not found in lockfile.`);
+                    console.warn(t('UPDATE_WARN_NOT_FOUND', alias));
                 }
             } else {
                 lock.dependencies = {};
-                console.log(`[CLI] Cleared locked cache for all dependencies.`);
+                console.log(t('UPDATE_CLEARED_ALL'));
             }
 
             saveLockfile(lock);
@@ -312,15 +317,14 @@ baseDir: "."
         .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
         .option('--target-langs <langs>', 'Comma-separated list of target languages for i18n compilation')
         .option('--verify', 'Perform native LLM semantic linting on the compiled markdown')
-        .option('--verify-lang <lang>', 'Specify the language for LLM verification output (e.g. zh-CN)')
         .option('--model <model>', 'Specify the LLM model to use for verification (default: gpt-4o)')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; verifyLang?: string; model?: string }) => {
+        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; model?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 // Compile single file
                 const absoluteEntry = path.resolve(process.cwd(), entry);
                 if (!fs.existsSync(absoluteEntry)) {
-                    console.error(`[ERROR] Entry file not found: ${absoluteEntry}`);
+                    console.error(t('BUILD_ERR_ENTRY_NOT_FOUND', absoluteEntry));
                     process.exit(1);
                 }
 
@@ -357,21 +361,21 @@ baseDir: "."
                         const dir = path.dirname(currentDest);
                         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
                         fs.writeFileSync(currentDest, content, 'utf8');
-                        console.log(`[BUILD] ✅ Compiled ${entry} ${targetLang ? `[${targetLang}]` : ''} -> ${path.relative(process.cwd(), currentDest)}`);
+                        console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
 
                         if (options && options.verify) {
-                            const verified = await verifyCompiledContent(content, options.model, options.verifyLang);
+                            const verified = await verifyCompiledContent(content, options.model);
                             if (!verified) {
                                 process.exit(1);
                             }
                         }
                     }
                 } catch (e: any) {
-                    console.error(`[BUILD] ❌ Failed to compile ${entry}: ${e.message}`);
+                    console.error(t('BUILD_ERR_SINGLE', entry, e.message));
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, verifyLang: options?.verifyLang });
+                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
             }
         });
 

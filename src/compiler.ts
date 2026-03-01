@@ -13,6 +13,7 @@ import { detectLanguage, iso639_3_map } from './utils';
 import { loadLockfile } from './config';
 import { Root, Link, Parent } from 'mdast';
 import { translateMarkdownContent } from './translate';
+import { t } from './i18n';
 
 /**
  * Pre-scans a Markdown file to extract all unique language markers defined in `<!-- lang:xx -->` HTML comments.
@@ -49,7 +50,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         if (rawContent.includes('<!-- lang:')) {
             // Check if our specific target language exists
             if (rawContent.includes(langMarker)) {
-                console.log(`[COMPILER] ⚡️ Using existing '${targetLang}' block for ${filePath}`);
+                console.log(t('COMPILER_USE_EXISTING_BLOCK', targetLang, filePath));
 
                 // 1. Identify all language blocks
                 // 2. Keep only the requested one (stripping markers)
@@ -82,7 +83,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 const firstBlockMatch = /<!--\s*lang:([a-zA-Z-]+)\s*-->([\s\S]*?)<!--\s*\/lang\s*-->/.exec(rawContent);
                 if (firstBlockMatch) {
                     const sourceContentToTranslate = firstBlockMatch[2].trim();
-                    console.log(`[COMPILER] 🌐 Target language '${targetLang}' not found in blocks. Translating fallback block...`);
+                    console.log(t('COMPILER_TRANS_START', targetLang, filePath));
 
                     const translatedResult = await translateMarkdownContent(sourceContentToTranslate, targetLang);
                     let translatedText = sourceContentToTranslate; // Default to untranslated on fail
@@ -91,7 +92,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                             const inTokens = translatedResult.usage.inputTokens ?? 0;
                             const outTokens = translatedResult.usage.outputTokens ?? 0;
                             const totalTokens = translatedResult.usage.totalTokens ?? (inTokens + outTokens);
-                            console.log(`[TRANSLATE] 📊 Tokens used: ${inTokens} prompt + ${outTokens} completion = ${totalTokens} total`);
+                            console.log(t('COMPILER_TRANS_TOKENS', inTokens, outTokens, totalTokens));
                         }
                         translatedText = translatedResult.text;
                     }
@@ -128,13 +129,13 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             if (detected) {
                 const mappedTargets = iso639_3_map[detected] || [detected];
                 if (mappedTargets.includes(targetLang.toLowerCase()) || detected.toLowerCase() === targetLang.toLowerCase()) {
-                    console.log(`[COMPILER] ⚡️ NLP detected source is already '${targetLang}'. Skipping LLM translation.`);
+                    console.log(t('COMPILER_NLP_SKIP', targetLang));
                     nlpSkipped = true;
                 }
             }
 
             if (!nlpSkipped) {
-                console.log(`[COMPILER] 🌐 No i18n blocks found. Translating the entire content to '${targetLang}'...`);
+                console.log(t('COMPILER_TRANS_FULL', targetLang));
                 const translatedResult = await translateMarkdownContent(rawContent, targetLang);
                 if (translatedResult) {
                     rawContent = translatedResult.text;

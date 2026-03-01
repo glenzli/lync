@@ -74,7 +74,7 @@ The core design principle is **graceful degradation**: Compilation directives ar
 
 ---
 
-## Part 3: The Lync Compiler
+## Part 3: The Lync Compiler & CLI Overview
 
 The Lync CLI is the execution engine for the protocol.
 
@@ -82,131 +82,16 @@ The Lync CLI is the execution engine for the protocol.
 
 While `lync.yaml` is for humans, `lync-lock.yaml` is strictly machine-generated. It maps the local Alias to the exact URL, destination, and the resolved SHA-256 hash (or frontmatter version). This guarantees deterministic synchronization across machines.
 
-**Example Format:**
-```yaml
-version: 1
-dependencies:
-  coder-skill:
-    url: "https://example.com/coder-skill.md"
-    dest: "./skills/coder.md"
-    version: "1.2.0"
-    hash: "e3b0c442..."
-    fetchedAt: "2026-02-26T20:50:36Z"
-```
+### 2. CLI Commands & Advanced Capabilities
 
-### 2. Detailed CLI Commands
+Lync provides a suite of CLI tools to manage the module lifecycle, including:
+*   **Dependency Management**: `install`, `add`, `update`
+*   **Module Encapsulation**: The `seal` command extracts YAML frontmatter and intelligently renames files.
+*   **Compile Routing**: Zero-config batch AST-level compilation via `lync-build.yaml`.
+*   **Semantic Linting**: Integrated LLM native Linter to flag conflicts, persona drifts, and security risks.
+*   **AST-Level i18n**: Smart compilation of language blocks, falling back to dynamic translation via LLM for missing elements.
 
-*   `lync add <url> [options]`: 
-    One-click dependency fetching and registration.
-    *   **Behavior**: Registers the URL into `lync.yaml`, and executes a sync to download the file and update the lockfile. Path can be overridden via `--dest <path>`.
-    *   **Smart Alias Inference**: To prevent generic names like `prompt.md` from constantly polluting the namespace, Lync infers the alias using the following priority:
-        1. **Declarative Frontmatter**: Lync inspects the remote file's YAML frontmatter for an official `lync.alias` field.
-        2. **Heuristic URL Traversal**: If un-declared and the URL ends with meaningless generic words (e.g., `main`, `index`, `prompt`, `src`, `master`), Lync automatically steps backward up the directory tree until it finds a recognizable, meaningful directory name.
-        3. On naming collisions, it appends an incrementing counter. Authors can always manually override it via `--alias <name>`.
-*   `lync sync`: 
-    (Default command, alias: `lync install`) Converges local state with declarations.
-    *   **Behavior**: Reads `lync.yaml` and `lync-lock.yaml`. Downloads missing files. If a URL is already in the lockfile, it honors the locked hash state to ensure deterministic builds.
-*   `lync update [alias]`: 
-    Forces a cache bust to retrieve the latest upstream version.
-    *   **Behavior**: Ignores lockfile constraints for a specific alias (or globally). Fetches the latest content from the remote URL, recalculates the hash, and rewrites the lockfile.
-*   `lync seal [patterns...]`: 
-    (Module Initialization) "Seals" standard Markdown files into formalized Lync Modules. Supports wildcards for batch operations.
-    *   **Behavior**: Injects standard YAML Frontmatter declaring the `alias` and `version` into the file. It intelligently infers the alias from the file path leveraging `lync add`'s heuristic logic (ignoring generics like `index`), or accepts a forced name via `--alias <name>`. It then automatically renames the file to a `.lync.md` extension.
-    *   **Batch Mode**: Supports Glob wildcards, e.g. `lync seal "prompts/**/*.md"` to convert an entire directory of Markdown files into Lync modules at once.
-*   `lync build [entry]`: 
-    The core markdown compiler. Supports single files or entire workspaces.
-    *   `lync build main.lync.md -o main.md`
-    *   `lync build --out-dir ./dist --base-dir ./src`
-    *   **Behavior**: Parses the entry AST tree for `lync:alias` custom links. Replaces `@import:inline` links seamlessly with the raw imported text. Rewrites `@import:link` directives into valid relative physical paths. Supports `--out-dir` and `--base-dir` for ad-hoc bulk mapping, but it is recommended to run without arguments and rely on the build configuration defined in `lync-build.yaml`.
-
-### 3. Workspace Build Configuration
-
-For projects with multiple files or specific output directory requirements (such as outputting to Cursor, Windsurf, or Cline specific directories), Lync relies on a workspace build configuration file to manage bulk compilation and path routing.
-
-Because `lync.yaml` is often automatically modified by the `lync add` command, build configurations are isolated into a dedicated file managed by the developer: **`lync-build.yaml`**.
-
-```yaml
-# lync-build.yaml
-
-# Glob patterns to determine entry files
-includes:
-  - "src/**/*.lync.md"
-
-# Default output directory
-output:
-  dir: "./dist"
-  # flat: true    # Ignore baseDir hierarchy, output all files directly into dir
-  # inPlace: true  # Ignore dir, compile output alongside the source file
-
-# Strip this prefix directory from original paths when mapping to output
-baseDir: "./src"
-
-# Target languages for multi-language generation (applied to both single file and workspace compilation)
-# targetLangs:
-#  - "en"
-#  - "zh-CN"
-
-# Output routing rules
-routing:
-  # Route compiled skills into a specific directory
-  - match: "*.skill.md"
-    dest: "./.agents/skills/"
-  # Output the main instruction file into a root rules file
-  - match: "main.lync.md"
-    dest: "./.cursorrules" 
-```
-
-With this configuration in place, the workspace compilation command is simply:
-**`lync build`** (No arguments needed)
-
-The compiler will read `lync-build.yaml`, scan for entry files based on the `includes` patterns, resolve and expand all dependencies, and route the compiled Markdown artifacts to their respective `dest` paths based on the `routing` rules.
-
-### 4. LLM-Powered Semantic Linting
-
-Since Lync assembles prompts for Large Language Models, traditional module resolution cannot detect contradictions in plain text.
-
-When running `lync build --verify`, Lync calls an LLM (requires `OPENAI_API_KEY` in environment, customizable via `--model`) to perform static analysis on the assembled text. It checks for:
-*   **Instruction Conflicts**: Contradictory rules from different nested dependencies.
-*   **Persona Consistency**: Inconsistent role definitions or tones.
-*   **Security Risks**: Malicious instructions or system destruction risks in remote modules.
-*   **Logic Redundancy**: Unnecessary repetitions wasting token space.
-
-> **Extensible LLM Providers**
-> By default, Lync uses the standard OpenAI public API. However, you can seamlessly plug in your own private endpoints, Ollama, DeepSeek, or enterprise models.
-> To prevent your API key from being accidentally committed, configure your LLMs in a `.lyncrc` file located globally (`~/.lyncrc`) or locally in your project root (`./.lyncrc`, **remember to add it to `.gitignore`**):
-> ```yaml
-> llm:
->   baseURL: "https://api.deepseek.com/v1"
->   apiKey: "your-api-key"
->   model: "deepseek-chat"
-> ```
-
-### 5. Multilingual Native i18n & LLM Fallback Translation
-
-Prompt engineering inevitably encounters language barriers. A high-quality instructional prompt written in English might lose its nuance if merely translated by a generic pipeline after assembly. 
-To solve this, Lync introduces **AST-level i18n support combined with dynamic LLM Fallback Translation.**
-
-Authors can use simplified HTML comments to wrap language-specific prose, while keeping structural codes, examples, and rules language-agnostic.
-
-```markdown
-# Universal Rules
-You are an expert coder.
-
-<!-- lang:en -->
-Explain this code clearly.
-<!-- /lang -->
-
-<!-- lang:zh-CN -->
-请清楚地解释这段代码。
-<!-- /lang -->
-```
-
-When building, the consumer specifies the required target language(s), either via `lync-build.yaml` (`targetLangs: ["en", "ja"]`) or the CLI (`--target-langs ja`):
-- Lync traverses the AST and intelligently filters out all `<!-- lang:xx -->` blocks that do NOT match the target language.
-- **LLM Fallback Translation**: If the requested target language (e.g., `ja`) does not exist natively in the file, Lync isolates the best available language block, uses an internal localization System Prompt via the OpenAI API, translates *only the prose* into Japanese (preserving code blocks and Lync specific directives), and hot-swaps the translated AST directly into the final artifact!
-- **Legacy Compatibility**: If a file possesses no `<!-- lang:xx -->` blocks at all, Lync will translate the entire document upon request.
-
-This ensures prompt engineers can maintain all languages natively within a single `.lync.md` file, drastically simplifying global distribution.
+> 👉 **Full Guide**: For detailed instructions on using the Lync CLI, global `.lyncrc` configuration, custom LLM integration, and workspace build routing, please refer to the [**Lync Help & Usage Document (HELP.md)**](HELP.md).
 ---
 
 ## Part 4: Version Management & Dependency Mechanisms

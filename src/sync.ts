@@ -3,6 +3,7 @@ import * as path from 'path';
 import { loadConfig, loadLockfile, saveLockfile } from './config';
 import { fetchMarkdown, computeHash } from './network';
 import matter from 'gray-matter';
+import { t } from './i18n';
 
 export async function syncDependencies(cwd: string = process.cwd()): Promise<void> {
     const config = loadConfig(cwd);
@@ -19,7 +20,7 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
         const dest = typeof declaration === 'string' ? undefined : declaration.dest;
 
         if (!url) {
-            console.warn(`[WARN] Alias '${alias}' has no URL specified. Skipping.`);
+            console.warn(t('SYNC_WARN_NO_URL', alias));
             continue;
         }
 
@@ -39,12 +40,12 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
             const currentHash = computeHash(currentContent);
             if (currentHash !== lockedDep.hash) {
                 needsFetch = true;
-                console.warn(`[WARN] Hash mismatch for '${alias}'. File may have been locally modified. Re-fetching.`);
+                console.warn(t('SYNC_WARN_HASH_MISMATCH', alias));
             }
         }
 
         if (needsFetch) {
-            console.log(`[SYNC] Fetching '${alias}' from ${url}...`);
+            console.log(t('SYNC_FETCHING_START', alias, url));
             try {
                 const content = await fetchMarkdown(url);
                 const hash = computeHash(content);
@@ -61,19 +62,19 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
                 const parsed = matter(content);
                 const version = parsed.data.version;
                 if (version) {
-                    console.log(`[SYNC]   Found version: ${version}`);
+                    console.log(t('SYNC_FOUND_VERSION', version));
                 }
 
                 if (parsed.data.lync && parsed.data.lync.dependencies) {
-                    console.log(`[SYNC]   Found nested dependencies. Flat resolving...`);
+                    console.log(t('SYNC_FOUND_NESTED'));
                     // We dynamically add these to the current config so they sync in the same pass.
                     // If alias already exists, Root Override principle applies (we don't overwrite).
                     for (const [subAlias, subUrl] of Object.entries(parsed.data.lync.dependencies)) {
                         if (!config.dependencies[subAlias]) {
-                            console.log(`[SYNC]   -> Inheriting '${subAlias}': ${subUrl}`);
+                            console.log(t('SYNC_INHERITING', subAlias, subUrl as string));
                             config.dependencies[subAlias] = subUrl as string;
                         } else {
-                            console.log(`[SYNC]   -> Skipping '${subAlias}' (Overridden by Root)`);
+                            console.log(t('SYNC_SKIPPING_OVERRIDDEN', subAlias));
                         }
                     }
                 }
@@ -86,17 +87,17 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
                     fetchedAt: new Date().toISOString()
                 };
                 lockModified = true;
-                console.log(`[SYNC] ✅ '${alias}' updated successfully.`);
+                console.log(t('SYNC_SUCCESS_ALIAS', alias));
             } catch (err: any) {
-                console.error(`[ERROR] Failed to sync '${alias}': ${err.message}`);
+                console.error(t('SYNC_ERR_FAILED', alias, err.message));
             }
         } else {
-            console.log(`[SYNC] ⚡ '${alias}' is up to date.`);
+            console.log(t('SYNC_UP_TO_DATE_ALIAS', alias));
         }
     }
 
     if (lockModified) {
         saveLockfile(lock, cwd);
-        console.log(`[SYNC] lync-lock.yaml updated.`);
+        console.log(t('SYNC_LOCK_UPDATED'));
     }
 }

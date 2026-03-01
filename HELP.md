@@ -64,9 +64,9 @@ lync build main.lync.md -o main.md
 **6. Native Semantic Linting (LLM-Powered)**
 Ensure your assembled prompt is free of logic conflicts, persona inconsistencies, and system destruction risks:
 ```bash
-lync build main.lync.md -o main.md --verify --verify-lang en
+lync build main.lync.md -o main.md --verify --lang en
 ```
-*Requires `OPENAI_API_KEY` in your environment. You can optionally specify a model with `--model gpt-4o`, or language with `--verify-lang`. Non-critical issues (like redundancy) will only show warnings without blocking the build.*
+*Requires `OPENAI_API_KEY` in your environment. You can optionally specify a model with `--model gpt-4o`, or CLI/Verify output language with `--lang`. Non-critical issues (like redundancy) will only show warnings without blocking the build.*
 
 **7. Publishing a Module (Frontmatter)**
 If you are distributing your prompt module via a public URL, it's highly recommended to add a YAML Frontmatter block at the top of your `.md` file to declare your official alias and any nested dependencies. 
@@ -144,16 +144,12 @@ baseDir: "./src"
 routing:
   - match: "src/agents/*.lync.md"
   dest: "./dist/agents/"
-  - match: "src/prompts/core.lync.md"
-  dest: "./dist/core-prompt.md"
-
-# Output language for LLM verification (optional)
-# verifyLang: "en"
 ```
 
-### LLM Provider Configuration (Optional)
-Create a `.lyncrc` file in your home directory (`~/.lyncrc`) or project root (`./.lyncrc`, **remember to add it to `.gitignore`**) to securely configure custom LLMs for validation and translation.
+### Global Configuration (.lyncrc)
+Create a `.lyncrc` file in your home directory (`~/.lyncrc`) or project root (`./.lyncrc`, **remember to add it to `.gitignore`**) to securely configure custom LLMs for validation and translation, and to set your global workspace language.
 ```yaml
+lang: "en" # Global language for CLI output and LLM verification (en, zh-CN)
 llm:
   baseURL: "https://api.deepseek.com/v1"
   apiKey: "optional-custom-api-key"
@@ -229,9 +225,9 @@ lync build main.lync.md -o main.md
 **6. 原生语义检查 (LLM 驱动)**
 在编译完成后自动启动大模型，静态检查组装后的 Prompt 是否存在指令冲突、角色分裂或系统破坏风险：
 ```bash
-lync build main.lync.md -o main.md --verify --verify-lang zh-CN
+lync build main.lync.md -o main.md --verify --lang zh-CN
 ```
-*需要在环境变量中配置 `OPENAI_API_KEY`。可以通过 `--model gpt-4o` 指定模型，或通过 `--verify-lang` 指定输出语言。非致命问题（如逻辑冗余）将只显示警告而不会阻断编译。*
+*需要在环境变量中配置 `OPENAI_API_KEY`。可以通过 `--model gpt-4o` 指定模型，或通过 `--lang` 指定 CLI 和大模型输出的语言。非致命问题（如逻辑冗余）将只显示警告而不会阻断编译。*
 
 **7. 发布模块 (Frontmatter 注入)**
 如果您通过公共 URL 分发提示词模块，强烈建议在 `.md` 文件顶部添加 YAML Frontmatter 块，声明正式别名和嵌套依赖项。
@@ -309,16 +305,13 @@ baseDir: "./src"
 routing:
   - match: "src/agents/*.lync.md"
   dest: "./dist/agents/"
-  - match: "src/prompts/core.lync.md"
-  dest: "./dist/core-prompt.md"
-
-# LLM 审查输出的语言 (可选)
-# verifyLang: "zh-CN"
 ```
 
-### [高级] LLM 服务提供商配置 (可选)
-为了避免您的 API Key 泄露到版本控制中，Lync 现已支持在用户的全局目录 (`~/.lyncrc`) 或项目根目录 (`./.lyncrc`，**请记得将其加入 `.gitignore`**) 中创建独立的 `.lyncrc` 配置文件：
+### [高级] 全局配置 (.lyncrc)
+Lync 现在支持在用户的全局目录 (`~/.lyncrc`) 或项目根目录 (`./.lyncrc`，**请记得将其加入 `.gitignore`**) 中创建独立的 `.lyncrc` 配置文件。
+您可以用来配置全局交互/验证语言，以及避免您的 API Key 泄露到版本控制中：
 ```yaml
+lang: "zh-CN" # Lync 的全局交互日志和大模型输出语言
 llm:
   baseURL: "https://api.deepseek.com/v1"
   apiKey: "your-custom-api-key"

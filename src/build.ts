@@ -5,11 +5,10 @@ import * as fs from 'fs';
 import { loadBuildConfig } from './config';
 import { compileFile, extractTargetLangs } from './compiler';
 import { verifyCompiledContent } from './verify';
+import { t } from './i18n';
 
-export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[]; verifyLang?: string }) {
+export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const buildConfig = loadBuildConfig(cwd);
-
-    const finalVerifyLang = cliOptions?.verifyLang || buildConfig.verifyLang;
 
     const includes = buildConfig.includes && buildConfig.includes.length > 0
         ? buildConfig.includes
@@ -31,7 +30,7 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
     });
 
     if (files.length === 0) {
-        console.log(`[BUILD] No source files found matching patterns: ${includes.join(', ')}`);
+        console.log(t('BUILD_NO_FILES', includes.join(', ')));
         return;
     }
 
@@ -84,7 +83,7 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
                 actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
             }
 
-            console.log(`[BUILD] Compiling ${relativeFile} ${targetLang ? `[${targetLang}]` : ''} -> ${path.relative(cwd, actualDest)}`);
+            console.log(t('BUILD_COMPILING', relativeFile, targetLang ? `[${targetLang}]` : '', path.relative(cwd, actualDest)));
 
             try {
                 const dir = path.dirname(actualDest);
@@ -94,17 +93,17 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
 
                 const compiledContent = await compileFile(absoluteFile, actualDest, new Set(), targetLang);
                 fs.writeFileSync(actualDest, compiledContent, 'utf8');
-                console.log(`[BUILD] ✅ Success: ${path.relative(cwd, actualDest)}`);
+                console.log(t('BUILD_SUCCESS', path.relative(cwd, actualDest)));
 
                 if (verify) {
-                    const verified = await verifyCompiledContent(compiledContent, model, finalVerifyLang);
+                    const verified = await verifyCompiledContent(compiledContent, model);
                     if (!verified) {
-                        console.log(`[BUILD] 🛑 Verification failed for ${relativeFile} (${targetLang}), aborting further builds.`);
+                        console.log(t('BUILD_VERIFY_FAILED', relativeFile, targetLang || 'auto'));
                         process.exit(1);
                     }
                 }
             } catch (e: any) {
-                console.error(`[BUILD] ❌ Failed to compile ${relativeFile} (${targetLang}): ${e.message}`);
+                console.error(t('BUILD_ERR_WORKSPACE', relativeFile, targetLang || 'auto', e.message));
                 console.error(e);
             }
         }
