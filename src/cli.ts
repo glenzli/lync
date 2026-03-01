@@ -398,7 +398,8 @@ baseDir: "."
                         }
                         const verified = await verifyCompiledContent(bestVerifyContent, options.model);
                         if (!verified.passed) {
-                            if (verified.error && options.verifyContinueOnError) {
+                            const continueOnError = options.verifyContinueOnError !== undefined ? options.verifyContinueOnError : buildConfig.verifyContinueOnError;
+                            if (verified.error && continueOnError) {
                                 console.log(t('LINT_ERR_CONTINUE'));
                             } else {
                                 process.exit(1);

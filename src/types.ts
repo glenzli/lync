@@ -50,4 +50,5 @@ export interface LyncBuild {
     baseDir?: string;
     targetLangs?: string[];
     routing?: BuildRoutingRule[];
+    verifyContinueOnError?: boolean;
 }

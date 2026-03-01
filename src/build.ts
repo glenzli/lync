@@ -129,7 +129,8 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
             }
             const verified = await verifyCompiledContent(bestVerifyContent, model);
             if (!verified.passed) {
-                if (verified.error && cliOptions?.verifyContinueOnError) {
+                const continueOnError = cliOptions?.verifyContinueOnError ?? buildConfig.verifyContinueOnError;
+                if (verified.error && continueOnError) {
                     console.log(t('LINT_ERR_CONTINUE'));
                 } else {
                     console.log(t('BUILD_VERIFY_FAILED', relativeFile, bestLang));
