@@ -4,10 +4,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { loadBuildConfig } from './config';
 import { compileFile, extractTargetLangs } from './compiler';
-import { verifyCompiledContent } from './verify';
+import { verifyCompiledContent, analyzeSemanticDiff } from './verify';
 import { t } from './i18n';
 
-export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
+export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[]; diff?: boolean }) {
     const buildConfig = loadBuildConfig(cwd);
 
     const includes = buildConfig.includes && buildConfig.includes.length > 0
@@ -91,6 +91,11 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
                     fs.mkdirSync(dir, { recursive: true });
                 }
 
+                let oldContent = '';
+                if (cliOptions?.diff && fs.existsSync(actualDest)) {
+                    oldContent = fs.readFileSync(actualDest, 'utf8');
+                }
+
                 const compiledContent = await compileFile(absoluteFile, actualDest, new Set(), targetLang);
                 fs.writeFileSync(actualDest, compiledContent, 'utf8');
                 console.log(t('BUILD_SUCCESS', path.relative(cwd, actualDest)));
@@ -101,6 +106,10 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
                         console.log(t('BUILD_VERIFY_FAILED', relativeFile, targetLang || 'auto'));
                         process.exit(1);
                     }
+                }
+
+                if (cliOptions?.diff && oldContent && oldContent !== compiledContent) {
+                    await analyzeSemanticDiff(oldContent, compiledContent, model);
                 }
             } catch (e: any) {
                 console.error(t('BUILD_ERR_WORKSPACE', relativeFile, targetLang || 'auto', e.message));

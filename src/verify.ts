@@ -2,6 +2,7 @@ import { generateText } from 'ai';
 import { getLLMModel } from './llmProvider';
 import * as crypto from 'crypto';
 import { t, getVerifyLang } from './i18n';
+import { estimateTokens } from './utils';
 
 const LINT_PROMPT = `
 You are Lync, an advanced AI compiler and static analyzer for the LLM era.
@@ -81,5 +82,55 @@ export async function verifyCompiledContent(content: string, modelOverride?: str
     } catch (e: any) {
         console.error(t('LINT_ERR_FAILED', e.message));
         return false;
+    }
+}
+
+const DIFF_PROMPT = `
+You are Lync, an expert AI Semantic Diff Analyzer for Prompt Engineering.
+You are given two versions of a compiled Prompt (Old and New).
+Your task is to analyze the semantic and structural differences between them.
+
+Focus on:
+1. Did the core persona or system constraints change?
+2. Were any critical rules added or removed?
+3. Did the tone or specific instructions shift?
+
+Provide a concise, human-readable summary of the IMPACT of these changes. Do not just list text diffs; explain what the change MEANS for the LLM that will consume this prompt.
+If the changes are purely superficial (e.g., whitespace, exact synonyms) and do not alter the prompt's structural behavior, state that "No structural or semantic changes detected".
+
+Please explain the analysis using the following language: {VERIFY_LANG}.
+
+=== OLD PROMPT CONTEXT START ===
+{OLD_CONTENT}
+=== OLD PROMPT CONTEXT END ===
+
+=== NEW PROMPT CONTEXT START ===
+{NEW_CONTENT}
+=== NEW PROMPT CONTEXT END ===
+`;
+
+export async function analyzeSemanticDiff(oldContent: string, newContent: string, modelOverride?: string): Promise<void> {
+    const finalLang = getVerifyLang();
+
+    console.log(t('DIFF_INIT', finalLang));
+
+    const countOld = estimateTokens(oldContent);
+    const countNew = estimateTokens(newContent);
+
+    console.log(t('DIFF_ANALYZING', countOld, countNew));
+
+    try {
+        const { text } = await generateText({
+            model: getLLMModel(modelOverride),
+            prompt: DIFF_PROMPT.replace('{OLD_CONTENT}', oldContent).replace('{NEW_CONTENT}', newContent).replace('{VERIFY_LANG}', finalLang),
+        });
+
+        if (text.trim().toLowerCase().includes('no structural or semantic changes')) {
+            console.log(t('DIFF_NO_CHANGES'));
+        } else {
+            console.log(t('DIFF_RESULT_PREFIX', text.trim()));
+        }
+    } catch (e: any) {
+        console.error(t('DIFF_ERR_FAILED', e.message));
     }
 }

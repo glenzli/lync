@@ -11,6 +11,7 @@ import { verifyCompiledContent } from './verify';
 import * as path from 'path';
 import * as fs from 'fs';
 import { initI18n, t } from './i18n';
+import { generateGraph } from './graph';
 
 export function setupCLI(): Command {
     const program = new Command();
@@ -317,8 +318,9 @@ baseDir: "."
         .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
         .option('--target-langs <langs>', 'Comma-separated list of target languages for i18n compilation')
         .option('--verify', 'Perform native LLM semantic linting on the compiled markdown')
+        .option('--diff', 'Analyze semantic differences between the old and new compiled output using an LLM')
         .option('--model <model>', 'Specify the LLM model to use for verification (default: gpt-4o)')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; model?: string }) => {
+        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; model?: string; diff?: boolean }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 // Compile single file
@@ -357,6 +359,11 @@ baseDir: "."
                             currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
                         }
 
+                        let oldContent = '';
+                        if (options?.diff && fs.existsSync(currentDest)) {
+                            oldContent = fs.readFileSync(currentDest, 'utf8');
+                        }
+
                         const content = await compileFile(absoluteEntry, currentDest, new Set(), targetLang);
                         const dir = path.dirname(currentDest);
                         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -369,13 +376,36 @@ baseDir: "."
                                 process.exit(1);
                             }
                         }
+
+                        if (options && options.diff && oldContent && oldContent !== content) {
+                            // Note: analyzeSemanticDiff is imported inside the action or at top of file
+                            // We need to make sure verify.ts exports it
+                            const { analyzeSemanticDiff } = await import('./verify');
+                            await analyzeSemanticDiff(oldContent, content, options.model);
+                        }
                     }
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, diff: options?.diff });
+            }
+        });
+
+    program
+        .command('graph [entry]')
+        .description(t('CLI_DESC_GRAPH'))
+        .action(async (entry) => {
+            try {
+                if (!entry) {
+                    console.error(t('BUILD_ERR_ENTRY_NOT_FOUND', 'undefined'));
+                    process.exit(1);
+                }
+                await generateGraph(entry, process.cwd());
+            } catch (err: any) {
+                console.error(t('BUILD_ERR_WORKSPACE', entry, 'graph', err.message));
+                process.exit(1);
             }
         });
 

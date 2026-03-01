@@ -9,7 +9,7 @@ import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import { directiveToMarkdown } from 'mdast-util-directive';
 import { visitParents } from 'unist-util-visit-parents';
 import { visit } from 'unist-util-visit';
-import { detectLanguage, iso639_3_map } from './utils';
+import { detectLanguage, iso639_3_map, estimateTokens } from './utils';
 import { loadLockfile } from './config';
 import { Root, Link, Parent } from 'mdast';
 import { translateMarkdownContent } from './translate';
@@ -284,5 +284,16 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
     }
 
     callStack.delete(filePath);
-    return toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml'])] });
+
+    const output = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml'])] });
+
+    // Only check tokens for the root assembled file
+    if (callStack.size === 0) {
+        const tokens = estimateTokens(output);
+        if (tokens > 20000) {
+            console.warn(t('WARN_TOKEN_LIMIT', tokens));
+        }
+    }
+
+    return output;
 }

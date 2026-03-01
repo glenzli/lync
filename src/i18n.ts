@@ -31,6 +31,7 @@ const dictionaries: Record<string, Dictionary> = {
         'UPDATE_CLEARED_ALL': '[CLI] Cleared locked cache for all dependencies.',
 
         // Build CLI
+        'CLI_DESC_GRAPH': 'Generate an ASCII dependency graph for the specified entry file.',
         'BUILD_ERR_ENTRY_NOT_FOUND': '[ERROR] Entry file not found: {0}',
         'BUILD_SUCCESS_SINGLE': '[BUILD] ✅ Compiled {0} {1} -> {2}',
         'BUILD_ERR_SINGLE': '[BUILD] ❌ Failed to compile {0}: {1}',
@@ -42,6 +43,7 @@ const dictionaries: Record<string, Dictionary> = {
         'BUILD_VERIFY_FAILED': '[BUILD] 🛑 Verification failed for {0} ({1}), aborting further builds.',
         'BUILD_WARN_EXTRACT': '[WARN] Skipping unknown language \'{0}\' in {1}',
         'BUILD_ERR_WORKSPACE': '[BUILD] ❌ Failed to compile {0} ({1}): {2}',
+        'WARN_TOKEN_LIMIT': '\\n[WARN] ⚠️ The compiled output contains approximately {0} tokens, which exceeds the recommended 20,000 token limit for System Prompts. Consider refactoring or trimming your context window.',
 
         // Verify
         'verify.lang': 'en', // Explicit mapping for exactly what verifyLLMLang needs
@@ -52,6 +54,13 @@ const dictionaries: Record<string, Dictionary> = {
         'LINT_BLOCK': '\\n[LINT] 🛑 Critical system destruction risk detected! Result: BLOCK.',
         'LINT_UNKNOWN': '\\n[LINT] ❓ Unknown verification result format. Assuming BLOCK for safety.',
         'LINT_ERR_FAILED': '[LINT] ❌ Failed to run LLM verification: {0}',
+
+        // Diff
+        'DIFF_INIT': '\\n[DIFF] 🤖 Initiating LLM Semantic Diff Analysis (Lang: {0})...',
+        'DIFF_ANALYZING': '[DIFF] Diffing contexts: {0} chars (old) vs {1} chars (new)...\\n',
+        'DIFF_ERR_FAILED': '[DIFF] ❌ LLM Diff Analysis failed: {0}',
+        'DIFF_NO_CHANGES': '[DIFF] ⚪ No structural or semantic changes detected by LLM.',
+        'DIFF_RESULT_PREFIX': '[DIFF] 📝 Analysis Report:\\n{0}\\n',
 
         // Network / Sync
         'SYNC_START': '[SYNC] Fetching dependencies...',
@@ -103,6 +112,7 @@ const dictionaries: Record<string, Dictionary> = {
         'UPDATE_CLEARED_ALL': '[CLI] 已清除所有依赖的 lock 缓存。',
 
         // Build CLI
+        'CLI_DESC_GRAPH': '为指定的入口文件生成依赖关系拓扑图。',
         'BUILD_ERR_ENTRY_NOT_FOUND': '[ERROR] 找不到入口文件: {0}',
         'BUILD_SUCCESS_SINGLE': '[BUILD] ✅ 编译成功 {0} {1} -> {2}',
         'BUILD_ERR_SINGLE': '[BUILD] ❌ 编译失败 {0}: {1}',
@@ -114,6 +124,7 @@ const dictionaries: Record<string, Dictionary> = {
         'BUILD_VERIFY_FAILED': '[BUILD] 🛑 目标文件 {0} ({1}) 语义验证失败，中止后续构建。',
         'BUILD_WARN_EXTRACT': '[WARN] 跳过 {1} 中的未知语言 \'{0}\'',
         'BUILD_ERR_WORKSPACE': '[BUILD] ❌ 编译失败 {0} ({1}): {2}',
+        'WARN_TOKEN_LIMIT': '\\n[WARN] ⚠️ 编译后的产物大约包含 {0} 个 Token。这超过了 System Prompt 推荐的安全阈值 (20,000)，请合理管控以防大模型注意力丢失或触发截断。',
 
         // Verify
         'verify.lang': 'zh-CN',
@@ -124,6 +135,13 @@ const dictionaries: Record<string, Dictionary> = {
         'LINT_BLOCK': '\\n[LINT] 🛑 探测到严重的系统破坏风险！结果: BLOCK(阻断)。',
         'LINT_UNKNOWN': '\\n[LINT] ❓ 未知的验证结果格式。为安全起见假定为 BLOCK。',
         'LINT_ERR_FAILED': '[LINT] ❌ 大模型验证运行失败: {0}',
+
+        // Diff
+        'DIFF_INIT': '\\n[DIFF] 🤖 正在启动大模型语义 Diff 分析 (语言: {0})...',
+        'DIFF_ANALYZING': '[DIFF] 正在比对上下文区块: {0} 字符 (旧) vs {1} 字符 (新)...\\n',
+        'DIFF_ERR_FAILED': '[DIFF] ❌ 大模型 Diff 分析失败: {0}',
+        'DIFF_NO_CHANGES': '[DIFF] ⚪ 大模型未检测到结构性或重大的语义变化。',
+        'DIFF_RESULT_PREFIX': '[DIFF] 📝 变更分析报告:\\n{0}\\n',
 
         // Network / Sync
         'SYNC_START': '[SYNC] 正在探测依赖状态...',

@@ -1,4 +1,5 @@
 import { francAll } from 'franc-min';
+import { encodingForModel } from 'js-tiktoken';
 
 export const iso639_3_map: Record<string, string[]> = {
     'cmn': ['zh', 'zh-cn', 'zh-tw', 'zh-hk'],
@@ -52,4 +53,19 @@ export function detectLanguage(text: string, threshold = 0.4): string | undefine
     }
 
     return undefined;
+}
+
+/**
+ * Accurately estimates the number of OpenAI tokens in a given string.
+ */
+export function estimateTokens(text: string): number {
+    try {
+        // gpt-4o and cl100k_base are standard for modern OpenAI models
+        const enc = encodingForModel("gpt-4o");
+        const tokens = enc.encode(text);
+        return tokens.length;
+    } catch (e) {
+        // Fallback heuristic if js-tiktoken fails
+        return Math.ceil(text.length / 4);
+    }
 }
