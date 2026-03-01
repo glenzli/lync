@@ -54,6 +54,7 @@ const dictionaries: Record<string, Dictionary> = {
         'LINT_BLOCK': '\\n[LINT] 🛑 Critical system destruction risk detected! Result: BLOCK.',
         'LINT_UNKNOWN': '\\n[LINT] ❓ Unknown verification result format. Assuming BLOCK for safety.',
         'LINT_ERR_FAILED': '[LINT] ❌ Failed to run LLM verification: {0}',
+        'LINT_SELECT_BEST': '\\n[LINT] ⚖️ Selected best variant for verification: {0} ({1} tokens)',
 
         // Diff
         'DIFF_INIT': '\\n[DIFF] 🤖 Initiating LLM Semantic Diff Analysis (Lang: {0})...',
@@ -135,6 +136,7 @@ const dictionaries: Record<string, Dictionary> = {
         'LINT_BLOCK': '\\n[LINT] 🛑 探测到严重的系统破坏风险！结果: BLOCK(阻断)。',
         'LINT_UNKNOWN': '\\n[LINT] ❓ 未知的验证结果格式。为安全起见假定为 BLOCK。',
         'LINT_ERR_FAILED': '[LINT] ❌ 大模型验证运行失败: {0}',
+        'LINT_SELECT_BEST': '\\n[LINT] ⚖️ 选择最佳变体验证: {0} ({1} tokens)',
 
         // Diff
         'DIFF_INIT': '\\n[DIFF] 🤖 正在启动大模型语义 Diff 分析 (语言: {0})...',

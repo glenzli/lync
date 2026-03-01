@@ -4,7 +4,7 @@ import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
 import { runWorkspaceBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
-import { detectLanguage } from './utils';
+import { detectLanguage, estimateTokens } from './utils';
 import { fetchMarkdown } from './network';
 import matter from 'gray-matter';
 import { verifyCompiledContent } from './verify';
@@ -353,6 +353,10 @@ baseDir: "."
                         fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
                     }
 
+                    let bestVerifyContent = '';
+                    let minTokens = Infinity;
+                    let bestLang = 'auto';
+
                     for (const targetLang of fileLangsToProcess!) {
                         let currentDest = finalDest;
                         if (targetLang) {
@@ -371,9 +375,11 @@ baseDir: "."
                         console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
 
                         if (options && options.verify) {
-                            const verified = await verifyCompiledContent(content, options.model);
-                            if (!verified) {
-                                process.exit(1);
+                            const tokens = estimateTokens(content);
+                            if (tokens < minTokens) {
+                                minTokens = tokens;
+                                bestVerifyContent = content;
+                                bestLang = targetLang || 'auto';
                             }
                         }
 
@@ -382,6 +388,16 @@ baseDir: "."
                             // We need to make sure verify.ts exports it
                             const { analyzeSemanticDiff } = await import('./verify');
                             await analyzeSemanticDiff(oldContent, content, options.model);
+                        }
+                    }
+
+                    if (options && options.verify && bestVerifyContent) {
+                        if (fileLangsToProcess!.length > 1) {
+                            console.log(t('LINT_SELECT_BEST', bestLang, minTokens));
+                        }
+                        const verified = await verifyCompiledContent(bestVerifyContent, options.model);
+                        if (!verified) {
+                            process.exit(1);
                         }
                     }
                 } catch (e: any) {

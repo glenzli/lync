@@ -6,6 +6,7 @@ import { loadBuildConfig } from './config';
 import { compileFile, extractTargetLangs } from './compiler';
 import { verifyCompiledContent, analyzeSemanticDiff } from './verify';
 import { t } from './i18n';
+import { estimateTokens } from './utils';
 
 export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[]; diff?: boolean }) {
     const buildConfig = loadBuildConfig(cwd);
@@ -76,6 +77,10 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
             fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
         }
 
+        let bestVerifyContent = '';
+        let minTokens = Infinity;
+        let bestLang = 'auto';
+
         for (const targetLang of fileLangsToProcess!) {
             let actualDest = finalDest;
             if (targetLang) {
@@ -101,10 +106,11 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
                 console.log(t('BUILD_SUCCESS', path.relative(cwd, actualDest)));
 
                 if (verify) {
-                    const verified = await verifyCompiledContent(compiledContent, model);
-                    if (!verified) {
-                        console.log(t('BUILD_VERIFY_FAILED', relativeFile, targetLang || 'auto'));
-                        process.exit(1);
+                    const tokens = estimateTokens(compiledContent);
+                    if (tokens < minTokens) {
+                        minTokens = tokens;
+                        bestVerifyContent = compiledContent;
+                        bestLang = targetLang || 'auto';
                     }
                 }
 
@@ -114,6 +120,17 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
             } catch (e: any) {
                 console.error(t('BUILD_ERR_WORKSPACE', relativeFile, targetLang || 'auto', e.message));
                 console.error(e);
+            }
+        }
+
+        if (verify && bestVerifyContent) {
+            if (fileLangsToProcess!.length > 1) {
+                console.log(t('LINT_SELECT_BEST', bestLang, minTokens));
+            }
+            const verified = await verifyCompiledContent(bestVerifyContent, model);
+            if (!verified) {
+                console.log(t('BUILD_VERIFY_FAILED', relativeFile, bestLang));
+                process.exit(1);
             }
         }
     }
