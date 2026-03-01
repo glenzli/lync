@@ -1,0 +1,9 @@
+includes:
+  - 'main.lync.md'
+targetLangs: []
+outDir: '.'
+routing:
+  - match: 'main.lync.md'
+    dest: 'lync-expert.md'
+output:
+  flat: true
