@@ -122,15 +122,25 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             }
         } else {
             // Legacy/Global Mode (entire file)
-            // Determine if it actually needs translation (NLP)
-            const detected = detectLanguage(rawContent);
-            let nlpSkipped = false;
 
-            if (detected) {
-                const mappedTargets = iso639_3_map[detected] || [detected];
-                if (mappedTargets.includes(targetLang.toLowerCase()) || detected.toLowerCase() === targetLang.toLowerCase()) {
-                    console.log(t('COMPILER_NLP_SKIP', targetLang));
-                    nlpSkipped = true;
+            // Check if it's a pure routing module (only @import:inline links and punctuation/formatting)
+            const contentWithoutFrontmatter = rawContent.replace(/^---\n[\s\S]*?\n---/, '');
+            const contentWithoutInlineImports = contentWithoutFrontmatter.replace(/\[[^\]]*\]\([^)]*["']@import:inline["'][^)]*\)/g, '');
+            const pureAlphaNum = contentWithoutInlineImports.replace(/[^a-zA-Z\u4e00-\u9fa50-9]/g, '');
+
+            let nlpSkipped = false;
+            if (pureAlphaNum.length === 0) {
+                console.log(t('COMPILER_ROUTER_SKIP', targetLang));
+                nlpSkipped = true;
+            } else {
+                // Determine if it actually needs translation (NLP)
+                const detected = detectLanguage(rawContent);
+                if (detected) {
+                    const mappedTargets = iso639_3_map[detected] || [detected];
+                    if (mappedTargets.includes(targetLang.toLowerCase()) || detected.toLowerCase() === targetLang.toLowerCase()) {
+                        console.log(t('COMPILER_NLP_SKIP', targetLang));
+                        nlpSkipped = true;
+                    }
                 }
             }
 
