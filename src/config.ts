@@ -41,10 +41,10 @@ export function saveLockfile(lock: LyncLock, cwd: string = process.cwd()): void 
 export function loadBuildConfig(cwd: string = process.cwd()): LyncBuild {
     const buildPath = path.join(cwd, LyncBuildYAML);
     if (!fs.existsSync(buildPath)) {
-        return { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [] };
+        return { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [], verifyLang: undefined };
     }
     const content = fs.readFileSync(buildPath, 'utf8');
-    return yaml.parse(content) as LyncBuild || { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [] };
+    return yaml.parse(content) as LyncBuild || { includes: [], outDir: './dist', baseDir: '.', targetLangs: [], routing: [], verifyLang: undefined };
 }
 
 /**

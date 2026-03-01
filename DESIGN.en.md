@@ -168,7 +168,7 @@ Since Lync assembles prompts for Large Language Models, traditional module resol
 When running `lync build --verify`, Lync calls an LLM (requires `OPENAI_API_KEY` in environment, customizable via `--model`) to perform static analysis on the assembled text. It checks for:
 *   **Instruction Conflicts**: Contradictory rules from different nested dependencies.
 *   **Persona Consistency**: Inconsistent role definitions or tones.
-*   **Security Risks**: Malicious instructions or prompt injection attempts in remote modules.
+*   **Security Risks**: Malicious instructions or system destruction risks in remote modules.
 *   **Logic Redundancy**: Unnecessary repetitions wasting token space.
 
 > **Extensible LLM Providers**

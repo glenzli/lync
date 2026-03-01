@@ -58,6 +58,9 @@ baseDir: "."
 # routing:
 #   - match: "src/agents/*.lync.md"
 #     dest: "./dist/agents/"
+
+# Language to use for verification output (optional)
+# verifyLang: "zh-CN"
 `;
             fs.writeFileSync(configPath, defaultConfig, 'utf8');
             console.log(`[INIT] ✅ Successfully created lync-build.yaml!`);
@@ -309,8 +312,9 @@ baseDir: "."
         .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
         .option('--target-langs <langs>', 'Comma-separated list of target languages for i18n compilation')
         .option('--verify', 'Perform native LLM semantic linting on the compiled markdown')
+        .option('--verify-lang <lang>', 'Specify the language for LLM verification output (e.g. zh-CN)')
         .option('--model <model>', 'Specify the LLM model to use for verification (default: gpt-4o)')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; model?: string }) => {
+        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; verifyLang?: string; model?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 // Compile single file
@@ -356,7 +360,7 @@ baseDir: "."
                         console.log(`[BUILD] ✅ Compiled ${entry} ${targetLang ? `[${targetLang}]` : ''} -> ${path.relative(process.cwd(), currentDest)}`);
 
                         if (options && options.verify) {
-                            const verified = await verifyCompiledContent(content, options.model);
+                            const verified = await verifyCompiledContent(content, options.model, options.verifyLang);
                             if (!verified) {
                                 process.exit(1);
                             }
@@ -367,7 +371,7 @@ baseDir: "."
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, verifyLang: options?.verifyLang });
             }
         });
 

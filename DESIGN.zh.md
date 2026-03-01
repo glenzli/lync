@@ -172,7 +172,7 @@ routing:
 在执行 `lync build` 时携带 `--verify` 标志，Lync 会在编译完成后调用 LLM 进行静态分析（需配置 `OPENAI_API_KEY`，可通过 `--model` 指定模型）。主要检查：
 *   **指令冲突 (Instruction Conflict)**：不同组件引入了自相矛盾的格式或行为要求。
 *   **设定一致性 (Persona Consistency)**：上下文中的人设或语气是否存在分裂。
-*   **安全风险 (Security Risk)**：第三方模块中是否包含 Prompt Injection（提示词注入攻击）。
+*   **安全风险 (Security Risk)**：第三方模块中是否包含系统破坏风险（试图执行恶意代码或越权操作）。
 *   **逻辑冗余 (Redundancy)**：概念是否被多次重复定义以节省 Token。
 
 > **可扩展的 LLM 提供商 (Extensible LLM Providers)**

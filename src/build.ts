@@ -6,8 +6,10 @@ import { loadBuildConfig } from './config';
 import { compileFile, extractTargetLangs } from './compiler';
 import { verifyCompiledContent } from './verify';
 
-export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
+export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[]; verifyLang?: string }) {
     const buildConfig = loadBuildConfig(cwd);
+
+    const finalVerifyLang = cliOptions?.verifyLang || buildConfig.verifyLang;
 
     const includes = buildConfig.includes && buildConfig.includes.length > 0
         ? buildConfig.includes
@@ -95,7 +97,7 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
                 console.log(`[BUILD] ✅ Success: ${path.relative(cwd, actualDest)}`);
 
                 if (verify) {
-                    const verified = await verifyCompiledContent(compiledContent, model);
+                    const verified = await verifyCompiledContent(compiledContent, model, finalVerifyLang);
                     if (!verified) {
                         console.log(`[BUILD] 🛑 Verification failed for ${relativeFile} (${targetLang}), aborting further builds.`);
                         process.exit(1);
