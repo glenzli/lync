@@ -318,9 +318,10 @@ baseDir: "."
         .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
         .option('--target-langs <langs>', 'Comma-separated list of target languages for i18n compilation')
         .option('--verify', 'Perform native LLM semantic linting on the compiled markdown')
+        .option('--verify-continue-on-error', 'Continue the build process even if the LLM verify API call fails')
         .option('--diff', 'Analyze semantic differences between the old and new compiled output using an LLM')
         .option('--model <model>', 'Specify the LLM model to use for verification (default: gpt-4o)')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; model?: string; diff?: boolean }) => {
+        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; verifyContinueOnError?: boolean; model?: string; diff?: boolean }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 // Compile single file
@@ -396,8 +397,12 @@ baseDir: "."
                             console.log(t('LINT_SELECT_BEST', bestLang, minTokens));
                         }
                         const verified = await verifyCompiledContent(bestVerifyContent, options.model);
-                        if (!verified) {
-                            process.exit(1);
+                        if (!verified.passed) {
+                            if (verified.error && options.verifyContinueOnError) {
+                                console.log(t('LINT_ERR_CONTINUE'));
+                            } else {
+                                process.exit(1);
+                            }
                         }
                     }
                 } catch (e: any) {
@@ -405,7 +410,7 @@ baseDir: "."
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, diff: options?.diff });
+                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, diff: options?.diff, verifyContinueOnError: options?.verifyContinueOnError });
             }
         });
 

@@ -43,9 +43,14 @@ Reasoning: <Detailed reasoning>
 // though usually the CLI runs once per command. We can build a file cache later.
 let lastVerifiedHash: string = '';
 
-export async function verifyCompiledContent(content: string, modelOverride?: string): Promise<boolean> {
+export interface VerifyResult {
+    passed: boolean;
+    error?: boolean;
+}
+
+export async function verifyCompiledContent(content: string, modelOverride?: string): Promise<VerifyResult> {
     const hash = crypto.createHash('sha256').update(content).digest('hex');
-    if (hash === lastVerifiedHash) return true; // unchanged
+    if (hash === lastVerifiedHash) return { passed: true }; // unchanged
 
     const finalLang = getVerifyLang();
 
@@ -64,24 +69,24 @@ export async function verifyCompiledContent(content: string, modelOverride?: str
         if (lastLine === 'LINT_PASS') {
             console.log(t('LINT_PASS'));
             lastVerifiedHash = hash;
-            return true;
+            return { passed: true };
         } else if (lastLine === 'LINT_WARN') {
             console.log(text.replace('LINT_WARN', '').trim());
             console.log(t('LINT_WARN'));
             lastVerifiedHash = hash;
-            return true;
+            return { passed: true };
         } else if (lastLine === 'LINT_BLOCK') {
             console.log(text.replace('LINT_BLOCK', '').trim());
             console.log(t('LINT_BLOCK'));
-            return false; // blocks the build
+            return { passed: false }; // blocks the build correctly
         } else {
             console.log(text);
             console.log(t('LINT_UNKNOWN'));
-            return false;
+            return { passed: false, error: true }; // Unknown output format acts as an error
         }
     } catch (e: any) {
         console.error(t('LINT_ERR_FAILED', e.message));
-        return false;
+        return { passed: false, error: true }; // True API failure
     }
 }
 

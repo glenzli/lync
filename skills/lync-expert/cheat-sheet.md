@@ -34,6 +34,8 @@ Use `lync build` to compile`.lync.md` files into finalized `.md` prompts.
 
 - `lync build <file>`: Compile a specific file.
 - `lync build <file> --target-langs zh-CN,ja`: Compile the file specifically into multiple target languages.
+- `lync build <file> --verify`: Locally run LLM semantic linting on the final unified prompt logic.
+- `lync build <file> --verify-continue-on-error`: Continue compiling even if the LLM verify API call fails.
 - `lync build <file> --diff`: Compile the file and use the LLM to semantically compare the new output against the previously compiled version (if it existed), outputting a summary of the semantic structural changes.
 - `lync graph <file>`: Statically analyze the AST and print a visual ASCII tree of all nested `@import` dependencies.
 - `lync seal <patterns...>`: Inject `lync` metadata (Version, Alias) and generic `<!-- lang -->` tags into standard markdown files, upgrading them to Lync modules. (e.g., `lync seal src/*.md`)

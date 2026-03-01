@@ -8,7 +8,7 @@ import { verifyCompiledContent, analyzeSemanticDiff } from './verify';
 import { t } from './i18n';
 import { estimateTokens } from './utils';
 
-export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[]; diff?: boolean }) {
+export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: boolean, model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[]; diff?: boolean; verifyContinueOnError?: boolean }) {
     const buildConfig = loadBuildConfig(cwd);
 
     const includes = buildConfig.includes && buildConfig.includes.length > 0
@@ -128,9 +128,13 @@ export async function runWorkspaceBuild(cwd: string = process.cwd(), verify?: bo
                 console.log(t('LINT_SELECT_BEST', bestLang, minTokens));
             }
             const verified = await verifyCompiledContent(bestVerifyContent, model);
-            if (!verified) {
-                console.log(t('BUILD_VERIFY_FAILED', relativeFile, bestLang));
-                process.exit(1);
+            if (!verified.passed) {
+                if (verified.error && cliOptions?.verifyContinueOnError) {
+                    console.log(t('LINT_ERR_CONTINUE'));
+                } else {
+                    console.log(t('BUILD_VERIFY_FAILED', relativeFile, bestLang));
+                    process.exit(1);
+                }
             }
         }
     }
