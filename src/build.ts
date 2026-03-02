@@ -41,9 +41,11 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
 
     let globalTargetLangs = cliOptions?.targetLangs;
 
+    const defaultIgnore = ['node_modules/**', '.lync/**', 'dist/**'];
+    const userExcludes = buildConfig.excludes || [];
     const files = await glob(includes, {
         cwd: cwd,
-        ignore: ['node_modules/**', '.lync/**', 'dist/**']
+        ignore: [...defaultIgnore, ...userExcludes]
     });
 
     if (files.length === 0) {

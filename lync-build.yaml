@@ -2,6 +2,10 @@ includes:
   - "docs-src/*.lync.md"
   - "skill-src/lync-expert/lync-expert.lync.md"
 
+excludes:
+  # extract-lync-knowledge 是临时 Prompt 文件，只在 update-lync-expert workflow 中手动触发
+  - "skill-src/lync-expert/extract-*.lync.md"
+
 output:
   dir: "./dist"
 
@@ -20,10 +24,6 @@ routing:
   # 文档源文件直接路由到项目根目录
   - match: "docs-src/*.lync.md"
     dest: "./"
-
-  # extract-lync-knowledge 是临时 Prompt 文件，产物输出到 .lync/（gitignore）
-  - match: "skill-src/lync-expert/extract-lync-knowledge.lync.md"
-    dest: "./.lync/"
 
   # lync-expert 技能源文件路由到 skills 目录
   - match: "skill-src/lync-expert/*.lync.md"

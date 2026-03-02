@@ -53,6 +53,7 @@ export interface BuildRoutingRule {
 
 export interface LyncBuild {
     includes?: string[];
+    excludes?: string[];
     output?: {
         dir?: string;
         flat?: boolean;
