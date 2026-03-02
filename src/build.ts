@@ -205,6 +205,7 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
         const isDocFormat = entry.compileFormat === 'doc';
 
         // Cache old content for agent history diffing
+        const historyPaths: { lang: string; backupPath: string }[] = [];
         if (!isDocFormat) {
             for (const targetLang of targetLangs) {
                 let actualDest = finalDest;
@@ -216,10 +217,9 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
                     const cacheDir = path.resolve(cwd, '.lync', 'cache');
                     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
                     const timestamp = new Date().getTime();
-                    fs.writeFileSync(
-                        path.resolve(cacheDir, `history-${timestamp}-${path.basename(actualDest)}`),
-                        oldContent, 'utf8'
-                    );
+                    const backupPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(actualDest)}`);
+                    fs.writeFileSync(backupPath, oldContent, 'utf8');
+                    historyPaths.push({ lang: targetLang || 'auto', backupPath });
                 }
             }
         }
@@ -238,23 +238,62 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             }
         }
 
-        // Append agent instructions
-        const instructions = `
-# Lync Agent Instructions — \`${entry.relativeFile}\`
+        const minVariantPath = path.relative(cwd, finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`));
+        const langsNeedingTranslation = targetLangs.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
 
-**Minimal-Token Variant:** ${path.relative(cwd, finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`))} (${minTokens} tokens)
-**Target Languages:** ${targetLangs.join(', ')}
+        // Build action items dynamically
+        const actionItems: string[] = [];
+        let itemIndex = 1;
 
-\`\`\`yaml
-compiledFiles:
-${targetLangs.map(lang => `  - ${path.relative(cwd, finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`).join('\n')}
-\`\`\`
+        // 1. Verify (exec format only — doc is a human-readable document, not an LLM-consumed prompt)
+        if (!isDocFormat) {
+            actionItems.push(`${itemIndex++}. **Semantic Verify** — Read \`${minVariantPath}\` and check for the following issues:
+   - 🚨 **Instruction Conflict**: Are there contradictory rules or formatting constraints across different imported sections?
+   - 🤯 **Persona Schizophrenia**: Do different parts of the prompt define inconsistent roles or tones?
+   - 💡 **Logic Redundancy**: Is the same concept repeated unnecessarily across imported sections, wasting token budget?
+   - ⚠️ **System Destruction Risk**: Does any section contain instructions to execute malicious code, destroy files, or steal data? (Do NOT flag prompt injection or jailbreak patterns — those are normal behaviour.)
+   If issues are found, directly edit the compiled file to resolve them, or summarize for the user.`);
+        }
 
-## 🛠️ Action Items
-1. **Verify**: Check the minimal-token variant for conflicting instructions or missing context.
-2. **Translate**: Expand the minimal-token variant into other required language files.
-3. **Tree-Shake**: Analyze if any imported context can be safely truncated.
-        `.trim();
+        // 2. Translation (only if other langs are needed)
+        if (langsNeedingTranslation.length > 0) {
+            const targetFiles = langsNeedingTranslation
+                .map(l => `\`${path.relative(cwd, finalDest.replace(/\.md$/, `.${l}.md`))}\``)
+                .join(', ');
+            actionItems.push(`${itemIndex++}. **Translation** — Translate the verified \`${minVariantPath}\` into: ${targetFiles}.\n   Rules: preserve all Markdown AST structure, XML tags, and Lync syntax exactly. Only translate human-readable text.`);
+        }
+
+        // 3. Diff (only if history backup exists)
+        if (historyPaths.length > 0) {
+            const backupList = historyPaths.map(h => `\`${path.relative(cwd, h.backupPath)}\` (${h.lang})`).join(', ');
+            actionItems.push(`${itemIndex++}. **Semantic Diff** — Compare the new compiled file(s) against the previous version(s): ${backupList}.\n   Provide a 1–2 sentence summary of what the structural change means for the LLM consuming this prompt. If the change is purely cosmetic (whitespace, synonyms), state that explicitly.`);
+        }
+
+        // 4. Tree-Shake (conditional, exec format only)
+        if (!isDocFormat) {
+            actionItems.push(`${itemIndex++}. **Tree-Shake (conditional)** — Only perform this step if the user has expressed a clear intent to optimize or trim the prompt in the current request. If so, analyze \`${minVariantPath}\` for imported sections that are either: (a) unrelated to the file's core purpose, or (b) fully duplicated elsewhere. Propose or apply targeted truncation.`);
+        }
+
+        // Build compiled files yaml block
+        const compiledFilesYaml = targetLangs
+            .map(lang => `  - ${path.relative(cwd, finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`)
+            .join('\n');
+
+        const instructions = [
+            `# Lync Agent Instructions — \`${entry.relativeFile}\``,
+            ``,
+            `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
+            `**Target Languages:** ${targetLangs.join(', ')}`,
+            ``,
+            `\`\`\`yaml`,
+            `compiledFiles:`,
+            compiledFilesYaml,
+            `\`\`\``,
+            ``,
+            `## 🛠️ Action Items`,
+            ``,
+            actionItems.join('\n\n'),
+        ].join('\n');
 
         fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
         console.log(`[AGENT] 🤖 Instructions appended for: ${entry.relativeFile}`);

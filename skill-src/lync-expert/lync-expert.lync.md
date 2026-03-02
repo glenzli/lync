@@ -11,17 +11,18 @@ Lync 是一个颠覆性的新型编译器，专为处理 AI 提示词工程而�
 
 ### 给 AI 编辑器的核心指令
 1. **不要猜测语法**。当用户要求你编写或修复 Lync 提示词时，请严格遵守下方速查表（Cheat Sheet）中定义的规则。
-2. **优先使用 CLI 验证**。当用户对他们的 `*.lync.md` 文件进行结构性更改时：
-   - 主动执行 `lync graph <entry_file>` 来验证依赖 AST 树的完整性，并排查循环链接或缺失的文件。
-   - 主动执行 `lync diff <compiled_file>` 来对比编译前后的语义变化，并向用户准确解释他们的编辑是如何影响全局提示词行为的。
+2. **编译始终使用 `lync agent`**。当用户对他们的 `*.lync.md` 文件进行结构性更改，需要重新编译时：
+   - 执行 `lync agent <entry_file>`，完成后立即读取 `.lync/agent-instructions.md` 并按其中步骤执行。
+   - 如需检查依赖树完整性，执行 `lync graph <entry_file>`。
+   - **禁止使用 `lync build`**——该命令会触发内部 LLM 调用，是人类专用命令。
 3. **保持上下文扁平化**。如果用户试图深度嵌套 `@import:inline` 层级（超过 3 层深），请警告他们这会导致主流 LLM 发生严重的注意力缺失（幻觉）。建议他们将架构扁平化。
 
-### Lync 协议语法与 CLI 参考
-以下部分是 Lync 的绝对唯一事实来源。请仔细研读。
+### Lync 知识手册
+以下是 Lync 的完整背景知识、项目结构指南、语法规范与 AI 专用 CLI 参考。请仔细研读。
 
-[速查表](./cheat-sheet.md "@import:inline")
+[Lync 知识手册](./lync-knowledge.md "@import:inline")
 
-### Agentic 编译协调规程（`--agent` 模式）
-以下是当用户以 `lync build --agent` 模式执行构建时，你作为 AI 协调器应当遵循的完整操作规程。
+### Agentic 编译协调规程（`lync agent` 模式）
+以下是当用户执行 `lync agent` 命令时，你作为 AI 协调器应当遵循的完整操作规程。
 
 [Agent 协调规程](./agent-coordinator.lync.md "@import:inline")

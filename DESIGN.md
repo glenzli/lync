@@ -8,7 +8,7 @@
 
 1. **意图即源码，Prompt 即编译产物**：在 AI-Native 架构中，系统级的指令（如 System-Prompt、固化的 SKILL 流程说明）应当被严格视为用于驱动底层模型的“汇编语言（Assembly / Machine Code）”。人类开发者的“自然语言意图”和抽象拓扑结构（通过 `lync:alias` 组合）才是真正的 Source Code（源码）。
 2. **拒绝手工字句微调 (No Manual Prompt Tweaking)**：人类不应当，也不需要直接在文本级手工雕琢已被验证的高维 Prompt。Prompt 的唯一评价标准是“能否稳定触发底层模型的正确动作”。这种模块化组装应该交给像 Lync 这样的静态链接器，系统严禁基于“玄学”的手工微调。
-3. **闭环编译体系 (Agentic Compilation Workflow)**：对系统 Prompt 的功能性修改必须借由 LLM 自主生成、执行、验证、修正的闭环完成。Lync 的 `--agent` 模式正是这一流程的物理载体，将 Lync 提升为了客观的“编译器前端”，由外部 Agent 读取 AST 指令后接管编译的后半段过程（优化、剪裁与翻译）。
+3. **闭环编译体系 (Agentic Compilation Workflow)**：对系统 Prompt 的功能性修改必须借由 LLM 自主生成、执行、验证、修正的闭环完成。Lync 的 `lync agent` 命令正是这一流程的物理载体，将 Lync 提升为了客观的“编译器前端”，由外部 Agent 读取 AST 指令后接管编译的后半段过程（优化、剪裁与翻译）。
 4. **多语种交叉编译 (Cross-Compilation Targets)**：当 Prompt 被视为机器码，它的具体语种就不再是传统意义上的"国际化（i18n）"，而是指定"CPU 架构"（各模型对不同语系的解析性能不同）。Lync 支持使用母语编写意图源文件（高级语言），然后利用 LLM 交叉编译出纯正目标语种的高效 Prompt 机器指令，从而消灭了在同一份大文件中杂糅双语对照而导致的 Token 浪费与幻觉问题。
 
 Lync 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与 **跨平台编译器**。它将 Markdown 视为高级工程抽象代码，提供依赖管理、内联组合和确定性构建机制，且不依赖任何中心化注册表。
@@ -159,7 +159,7 @@ lync:
 
 对于必须引入的嵌套依赖，Lync 采用全局扁平的 Alias 命名空间，不允许多版本嵌套（像 npm 那样）。
 当主项目和子依赖需要同一个模块时，Lync 不会像传统包管理器那样对组件进行暴力的“命名空间硬覆盖替换”。因为自然语言构成的 Prompt 强行替换往往会导致上下文断裂和逻辑失控。
-遇到逻辑或定义分歧时，Lync 将问题交由 **LLM Linter** 处理。在编译完成后执行 `--verify`，让大模型来判断不同模块拼装在一起后是否存在无法调和的冲突，再由开发者根据报告进行针对性的重构。
+遇到逻辑或定义分歧时，Lync 将问题交由 **LLM Linter** 处理。编译完成后执行 `lync lint <file>`，让大模型来判断不同模块拼装在一起后是否存在无法调和的冲突，再由开发者根据报告进行针对性的重构。
 
 ### 4. 基于 Hash 的本地锁定 (Hash-Based Locking)
 
@@ -197,7 +197,7 @@ skill-src/lync-expert/                     # 工程源码目录
 │   ├── @import:inline cheat-sheet.md     #   ← 速查表原材料
 │   └── @import:inline agent-coordinator  #   ← Agent 协调规程
 ├── cheat-sheet.md                        # 知识蒸馏产物（由 LLM 生成）
-├── agent-coordinator.lync.md             # --agent 模式操作手册
+├── agent-coordinator.lync.md             # lync agent 模式操作手册
 └── extract-cheat-sheet.lync.md           # 提取流水线 Prompt（生成 cheat-sheet 的指令）
 
 skills/lync-expert/                        # 编译产物目录（纯净）
@@ -224,7 +224,7 @@ skills/lync-expert/                        # 编译产物目录（纯净）
 
 ### 3. 设计原则
 
-* **自包含（Static Linking）**：最终产出的技能文件必须是一个自包含的闭包。AI 编辑器只需加载 `lync-expert.md` 这一个文件，即可同时获得语法速查、CLI 参考和 `--agent` 模式操作规程。不允许出现运行时的外部依赖——"加载即可用，零断链"。
+* **自包含（Static Linking）**：最终产出的技能文件必须是一个自包含的闭包。AI 编辑器只需加载 `lync-expert.md` 这一个文件，即可同时获得语法速查、CLI 参考和 `lync agent` 模式操作规程。不允许出现运行时的外部依赖——"加载即可用，零断链"。
 * **知识蒸馏分离**：`cheat-sheet.md` 是由 LLM 根据 `extract-cheat-sheet.lync.md` 的指令从源文档中蒸馏出来的精华。它不是手写的，而是随时可以通过重新执行提取流水线来再生的中间产物。
 * **流水线即 Prompt**：`extract-cheat-sheet.lync.md` 本身就是一个 Lync 源文件，它通过 `@import:inline` 拉入最新的编译文档作为上下文，指导 LLM 生成新的速查表。这意味着**提取流水线本身也是由 Lync 管理的模块化代码**。
 * **语种一致性**：技能文件（`exec` 格式）内部的所有内联素材必须与目标编译语种保持一致，避免在单一可执行体中混杂多种语言而导致 LLM 注意力分散。

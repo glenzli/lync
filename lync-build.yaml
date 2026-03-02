@@ -21,6 +21,10 @@ routing:
   - match: "docs-src/*.lync.md"
     dest: "./"
 
+  # extract-lync-knowledge 是临时 Prompt 文件，产物输出到 .lync/（gitignore）
+  - match: "skill-src/lync-expert/extract-lync-knowledge.lync.md"
+    dest: "./.lync/"
+
   # lync-expert 技能源文件路由到 skills 目录
   - match: "skill-src/lync-expert/*.lync.md"
     dest: "./skills/lync-expert/"

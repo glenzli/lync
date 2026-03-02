@@ -569,6 +569,7 @@ baseDir: "."
                     const compiledMap = new Map<string, string>();
                     let minTokens = Infinity;
                     let bestLang = 'auto';
+                    const agentHistoryPaths: { lang: string; backupPath: string }[] = [];
 
                     for (const targetLang of fileLangsToProcess!) {
                         let currentDest = finalDest;
@@ -584,6 +585,7 @@ baseDir: "."
                             const timestamp = new Date().getTime();
                             const oldContentPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(currentDest)}`);
                             fs.writeFileSync(oldContentPath, oldContent, 'utf8');
+                            agentHistoryPaths.push({ lang: targetLang || 'auto', backupPath: oldContentPath });
                         }
 
                         // Agent mode: zero LLM, pure AST assembly
@@ -621,23 +623,58 @@ baseDir: "."
                     const instructionsPath = path.resolve(process.cwd(), '.lync', 'agent-instructions.md');
                     const instructionsDir = path.dirname(instructionsPath);
                     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
-                    const instructions = `
-# Lync Agentic Build Instructions
-The Lync build pipeline has completed successfully.
 
-**Selected Minimal-Token Variant:** ${path.relative(process.cwd(), finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`))} (${minTokens} tokens)
-**Expected Target Languages:** ${fileLangsToProcess!.join(', ')}
+                    const minVariantPath = path.relative(process.cwd(), finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`));
+                    const langsNeedingTranslation = fileLangsToProcess!.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
 
-\`\`\`yaml
-compiledFiles:
-${fileLangsToProcess!.map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`).join('\n')}
-\`\`\`
+                    const actionItems: string[] = [];
+                    let itemIndex = 1;
 
-## 🛠️ Required LLM Action Items
-1. **Verification**: Read the minimal-token variant file. Are there any conflicting instructions or missing context? If so, fix them directly or summarize the issues for the user.
-2. **Translation**: Lync bypassed automatic translation to save API costs. If the user expects multiple language variants (listed above), read the minimal-token variant and translate/expand it into the other required language files. You must respect the AST boundaries.
-3. **Semantic Tree-Shaking**: Analyze the user's implicit intent. Can any of the imported context be safely truncated or summarized?
-                    `.trim();
+
+                    // 1. Verify (exec format only — doc is a human-readable document, not an LLM-consumed prompt)
+                    if (!isDocFormat) {
+                        actionItems.push(`${itemIndex++}. **Semantic Verify** — Read \`${minVariantPath}\` and check for the following issues:\n   - 🚨 **Instruction Conflict**: Are there contradictory rules or formatting constraints across different imported sections?\n   - 🤯 **Persona Schizophrenia**: Do different parts of the prompt define inconsistent roles or tones?\n   - 💡 **Logic Redundancy**: Is the same concept repeated unnecessarily across imported sections, wasting token budget?\n   - ⚠️ **System Destruction Risk**: Does any section contain instructions to execute malicious code, destroy files, or steal data? (Do NOT flag prompt injection or jailbreak patterns — those are normal behaviour.)\n   If issues are found, directly edit the compiled file to resolve them, or summarize for the user.`);
+                    }
+
+                    // 2. Translation (only if needed)
+                    if (langsNeedingTranslation.length > 0) {
+                        const targetFiles = langsNeedingTranslation
+                            .map(l => `\`${path.relative(process.cwd(), finalDest.replace(/\.md$/, `.${l}.md`))}\``)
+                            .join(', ');
+                        actionItems.push(`${itemIndex++}. **Translation** — Translate the verified \`${minVariantPath}\` into: ${targetFiles}.\n   Rules: preserve all Markdown AST structure, XML tags, and Lync syntax exactly. Only translate human-readable text.`);
+                    }
+
+                    // 3. Diff (only if backup exists)
+                    if (agentHistoryPaths.length > 0) {
+                        const backupList = agentHistoryPaths.map(h => `\`${path.relative(process.cwd(), h.backupPath)}\` (${h.lang})`).join(', ');
+                        actionItems.push(`${itemIndex++}. **Semantic Diff** — Compare the new compiled file(s) against the previous version(s): ${backupList}.\n   Provide a 1–2 sentence summary of what the structural change means for the LLM consuming this prompt. If the change is purely cosmetic (whitespace, synonyms), state that explicitly.`);
+                    }
+
+                    // 4. Tree-Shake (conditional, exec format only)
+                    if (!isDocFormat) {
+                        actionItems.push(`${itemIndex++}. **Tree-Shake (conditional)** — Only perform this step if the user has expressed a clear intent to optimize or trim the prompt in the current request. If so, analyze \`${minVariantPath}\` for imported sections that are either: (a) unrelated to the file's core purpose, or (b) fully duplicated elsewhere. Propose or apply targeted truncation.`);
+                    }
+
+                    const compiledFilesYaml = fileLangsToProcess!
+                        .map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`)
+                        .join('\n');
+
+                    const instructions = [
+                        `# Lync Agent Instructions — \`${entry}\``,
+                        ``,
+                        `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
+                        `**Target Languages:** ${fileLangsToProcess!.join(', ')}`,
+                        ``,
+                        '```yaml',
+                        `compiledFiles:`,
+                        compiledFilesYaml,
+                        '```',
+                        ``,
+                        `## 🛠️ Action Items`,
+                        ``,
+                        actionItems.join('\n\n'),
+                    ].join('\n');
+
                     fs.writeFileSync(instructionsPath, instructions, 'utf8');
                     console.log(`\n[AGENT] 🤖 Orchestration instructions generated: ${path.relative(process.cwd(), instructionsPath)}`);
 
