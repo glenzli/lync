@@ -30,13 +30,13 @@ Lync 支持使用 AST 指令对 Prompt 进行原生多语言支持：
 # 通用系统规则
 你是一个代码专家。
 
-:::lang{lang="en"}
+<!-- lang:en -->
 Please explain the code step by step.
-:::
+<!-- /lang -->
 
-:::lang{lang="zh-CN"}
+<!-- lang:zh-CN -->
 请逐步解释代码。
-:::
+<!-- /lang -->
 ```
 
 生成时，使用 `--target-langs` 参数指定你需要生成的语言。Lync 会自动过滤 AST 树，分别输出纯净的各语言产物。

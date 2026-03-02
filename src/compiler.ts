@@ -47,9 +47,17 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         const langMarker = `<!-- lang:${targetLang} -->`;
         const langEndMarker = `<!-- /lang -->`;
 
-        if (rawContent.includes('<!-- lang:')) {
+        // Protect fenced code blocks from lang processing
+        const codeBlockPlaceholders: string[] = [];
+        const protectedContent = rawContent.replace(/```[\s\S]*?```/g, (match) => {
+            const idx = codeBlockPlaceholders.length;
+            codeBlockPlaceholders.push(match);
+            return `\x00CODEBLOCK_${idx}\x00`;
+        });
+
+        if (protectedContent.includes('<!-- lang:')) {
             // Check if our specific target language exists
-            if (rawContent.includes(langMarker)) {
+            if (protectedContent.includes(langMarker)) {
                 console.log(t('COMPILER_USE_EXISTING_BLOCK', targetLang, filePath));
 
                 // 1. Identify all language blocks
@@ -58,11 +66,11 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
                 // Simple pattern: find all blocks and filter
                 const allBlocksRegex = /<!--\s*lang:([a-zA-Z-]+)\s*-->([\s\S]*?)<!--\s*\/lang\s*-->/g;
-                let processedContent = rawContent;
+                let processedContent = protectedContent;
                 let match;
                 const replacements: { start: number, end: number, content: string }[] = [];
 
-                while ((match = allBlocksRegex.exec(rawContent)) !== null) {
+                while ((match = allBlocksRegex.exec(protectedContent)) !== null) {
                     const blockLang = match[1];
                     const innerContent = match[2];
                     if (blockLang.toLowerCase() === targetLang.toLowerCase()) {
@@ -80,7 +88,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 rawContent = processedContent;
             } else {
                 // Fallback Translation
-                const firstBlockMatch = /<!--\s*lang:([a-zA-Z-]+)\s*-->([\s\S]*?)<!--\s*\/lang\s*-->/.exec(rawContent);
+                const firstBlockMatch = /<!--\s*lang:([a-zA-Z-]+)\s*-->([\s\S]*?)<!--\s*\/lang\s*-->/.exec(protectedContent);
                 if (firstBlockMatch) {
                     const sourceContentToTranslate = firstBlockMatch[2].trim();
 
@@ -103,12 +111,12 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
                     // Replace all blocks: first one with translation, others with empty
                     const allBlocksRegex = /<!--\s*lang:([a-zA-Z-]+)\s*-->([\s\S]*?)<!--\s*\/lang\s*-->/g;
-                    let processedContent = rawContent;
+                    let processedContent = protectedContent;
                     let match;
                     const replacements: { start: number, end: number, content: string }[] = [];
                     let first = true;
 
-                    while ((match = allBlocksRegex.exec(rawContent)) !== null) {
+                    while ((match = allBlocksRegex.exec(protectedContent)) !== null) {
                         if (first) {
                             replacements.push({ start: match.index, end: match.index + match[0].length, content: translatedText });
                             first = false;
@@ -161,6 +169,13 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                     }
                 }
             }
+        }
+
+        // Restore protected code blocks
+        if (codeBlockPlaceholders.length > 0) {
+            rawContent = rawContent.replace(/\x00CODEBLOCK_(\d+)\x00/g, (_, idx) => {
+                return codeBlockPlaceholders[parseInt(idx, 10)];
+            });
         }
     }
     // -------------------------------------------------------
