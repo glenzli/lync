@@ -17,16 +17,24 @@ import { t } from './i18n';
 /**
  * Pre-scans a Markdown file to extract all unique language markers defined in `<!-- lang:xx -->` HTML comments.
  */
+/** Strip fenced code blocks and inline code from content to avoid false-positive lang marker detection inside example code. */
+function stripCodeBlocks(content: string): string {
+    return content
+        .replace(/```[\s\S]*?```/g, '\x00')  // fenced code blocks
+        .replace(/`[^`\n]+`/g, '\x00');        // inline code
+}
+
 export function extractTargetLangs(filePath: string): string[] {
     if (!fs.existsSync(filePath)) return [];
 
     const rawContent = fs.readFileSync(filePath, 'utf8');
+    // Strip code blocks first to avoid picking up lang markers in syntax examples
+    const safeContent = stripCodeBlocks(rawContent);
     const langs = new Set<string>();
 
-    // Use regex to find all <!-- lang:xx --> markers
     const langRegex = /<!--\s*lang:([a-zA-Z-]+)\s*-->/g;
     let match;
-    while ((match = langRegex.exec(rawContent)) !== null) {
+    while ((match = langRegex.exec(safeContent)) !== null) {
         langs.add(match[1]);
     }
 
@@ -46,9 +54,13 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         const langMarker = `<!-- lang:${targetLang} -->`;
         const langEndMarker = `<!-- /lang -->`;
 
-        // Protect fenced code blocks from lang processing
+        // Protect fenced code blocks and inline code from lang processing
         const codeBlockPlaceholders: string[] = [];
         const protectedContent = rawContent.replace(/```[\s\S]*?```/g, (match) => {
+            const idx = codeBlockPlaceholders.length;
+            codeBlockPlaceholders.push(match);
+            return `\x00CODEBLOCK_${idx}\x00`;
+        }).replace(/`[^`\n]+`/g, (match) => {
             const idx = codeBlockPlaceholders.length;
             codeBlockPlaceholders.push(match);
             return `\x00CODEBLOCK_${idx}\x00`;

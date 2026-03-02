@@ -26,9 +26,9 @@ Lync 是一个颠覆性的新型编译器，专为处理 AI 提示词工程而�
 
 核心类比：`.lync.md` 是人类编写的**源码**（意图/高级语言），`.md` 是编译产物（**机器码**）。两者职责严格分离——**禁止手工修改产物文件**，所有修改必须在源文件中进行，然后重新编译。
 
-编译是纯确定性的 AST 组装过程：解析 `@import` 依赖 → 展开/重写链接 → 过滤语种区块 → 剥离 Frontmatter → 输出纯净 Markdown。全程零 LLM 调用。
+编译过程是纯确定性的 AST 组装：解析 `@import` 依赖 → 展开/重写链接 → 过滤语种区块 → 剥离 Frontmatter → 输出纯净 Markdown。整个过程零 LLM 调用。
 
-**AI 编辑器的角色**：你是智能的大脑，Lync 是确定性的肌肉。运行 `lync agent` 后，Lync 完成 AST 组装并生成 `.lync/agent-instructions.md`，你负责接管后续的语义任务（语义校验、翻译、Diff）。
+**AI 编辑器的角色**：你是智能的大脑，Lync 是确定性的肌肉。运行 `lync agent` 后，Lync 完成 AST 组装并生成 `.lync/agent-instructions.md`，你负责接管后续语义任务（校验、翻译、Diff）。
 
 ***
 
@@ -56,10 +56,10 @@ my-project/
 | `exec` | AI 直接消费的可执行指令 | 单语种分别输出（`main.en.md`、`main.zh-CN.md`） | System Prompt、技能文件 |
 | `doc` | 供人类阅读的文档 | 多语种内容合并到同一文件 | README、HELP、DESIGN |
 
-### `@import` 模式的选择原则
+### `@import` 模式选择原则
 
-* **`@import:inline`**：把目标文件完整内容嵌入当前位置。用于组装大型 Prompt（合并多个模块到一个可执行体）。⚠️ 嵌套超过 3 层会导致 LLM 注意力缺失，建议扁平化。
-* **`@import:link`**：仅把别名重写为本地相对路径，保留超链接结构。用于文档交叉引用（`exec` 格式中一般不用）。
+* **`@import:inline`**：把目标文件完整内容嵌入当前位置。用于组装大型 Prompt。⚠️ 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化。
+* **`@import:link`**：仅将别名重写为本地相对路径，保留超链接结构。用于文档交叉引用。
 
 ***
 
@@ -72,7 +72,7 @@ my-project/
 [技能内容](lync:my-skill "@import:inline")
 [技能链接](lync:my-skill "@import:link")
 
-<!-- 本地相对路径引入（无需注册，直接使用） -->
+<!-- 本地相对路径引入（无需注册，直接使用，天然支持热修改） -->
 [人格设定](./fragments/persona.lync.md "@import:inline")
 ```
 
@@ -128,7 +128,7 @@ lync add https://example.com/skill.md      # 注册远程依赖
 lync sync                                  # 安装所有依赖
 # 编写 *.lync.md 源文件...
 lync agent main.lync.md                    # 编译 + 生成 AI 指令清单
-# → 读取 .lync/agent-instructions.md，执行其中的 Action Items
+# → 读取 .lync/agent-instructions.md，按 Action Items 顺序执行
 ```
 
 ### 注意事项
@@ -136,6 +136,7 @@ lync agent main.lync.md                    # 编译 + 生成 AI 指令清单
 * 远程依赖通过 Hash 锁定；上游内容变更后需执行 `lync sync --update <alias>` 才生效。
 * `exec` 格式文件的所有内联素材必须与目标语种一致，避免混杂多语言导致 LLM 注意力分散。
 * `lync-lock.yaml` 应提交到版本控制；`.lync/` 目录应加入 `.gitignore`。
+* 本地相对路径引用（`./` 或 `../` 开头）无需在 `lync.yaml` 注册，天然支持热修改，不做 Hash 锁定。
 
 ### Agentic 编译协调规程（`lync agent` 模式）
 

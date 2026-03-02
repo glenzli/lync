@@ -193,16 +193,16 @@ Lync 不仅是编译器，它还通过自身的编译能力来维护和更新自
 以 Lync 自身附带的 `lync-expert` 技能为例，其工程拓扑如下：
 
 ```
-skill-src/lync-expert/                     # 工程源码目录
-├── lync-expert.lync.md                   # 主入口（高级语言源码）
-│   ├── @import:inline cheat-sheet.md     #   ← 速查表原材料
-│   └── @import:inline agent-coordinator  #   ← Agent 协调规程
-├── cheat-sheet.md                        # 知识蒸馏产物（由 LLM 生成）
-├── agent-coordinator.lync.md             # lync agent 模式操作手册
-└── extract-cheat-sheet.lync.md           # 提取流水线 Prompt（生成 cheat-sheet 的指令）
+skill-src/lync-expert/                       # 工程源码目录
+├── lync-expert.lync.md                     # 主入口（高级语言源码）
+│   ├── @import:inline lync-knowledge.md    #   ← AI 知识手册
+│   └── @import:inline agent-coordinator    #   ← Agent 协调规程
+├── lync-knowledge.md                       # 知识手册（由 LLM 蒸馏生成）
+├── agent-coordinator.lync.md              # lync agent 模式操作手册
+└── extract-lync-knowledge.lync.md         # 提取流水线 Prompt（生成知识手册的指令）
 
-skills/lync-expert/                        # 编译产物目录（纯净）
-└── lync-expert.md                        # 唯一的可执行文件（静态链接体）
+skills/lync-expert/                         # 编译产物目录（纯净）
+└── lync-expert.md                          # 唯一的可执行文件（静态链接体）
 ```
 
 ### 2. 飞轮循环
@@ -210,24 +210,24 @@ skills/lync-expert/                        # 编译产物目录（纯净）
 当 Lync 的设计文档或 CLI 发生变更时，飞轮自动运转：
 
 ```
-  ┌─────────────────────────────────────────────────┐
-  │  DESIGN.lync.md / HELP.lync.md 发生变更         │
-  │          ↓ lync build (编译文档)                  │
-  │  DESIGN.md / HELP.md (最新编译产物)               │
-  │          ↓ extract-cheat-sheet.lync.md           │
-  │          ↓ (展开后作为 Prompt 喂给 LLM)           │
-  │  LLM 输出新的 cheat-sheet.md (知识蒸馏)           │
-  │          ↓ 覆写 skill-src/.../cheat-sheet.md     │
-  │          ↓ lync build (重编译技能)                │
-  │  skills/lync-expert/lync-expert.md (更新后的机器码)│
-  └─────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────┐
+  │  DESIGN.lync.md / HELP.lync.md 发生变更              │
+  │          ↓ lync build (编译文档)                      │
+  │  DESIGN.md / HELP.md (最新编译产物)                   │
+  │          ↓ extract-lync-knowledge.lync.md            │
+  │          ↓ (展开后作为 Prompt 喂给 AI 编辑器)          │
+  │  AI 编辑器输出新的 lync-knowledge.md (知识手册蒸馏)    │
+  │          ↓ 覆写 skill-src/.../lync-knowledge.md      │
+  │          ↓ lync build (重编译技能)                    │
+  │  skills/lync-expert/lync-expert.md (更新后的机器码)   │
+  └──────────────────────────────────────────────────────┘
 ```
 
 ### 3. 设计原则
 
 *   **自包含（Static Linking）**：最终产出的技能文件必须是一个自包含的闭包。AI 编辑器只需加载 `lync-expert.md` 这一个文件，即可同时获得语法速查、CLI 参考和 `lync agent` 模式操作规程。不允许出现运行时的外部依赖——"加载即可用，零断链"。
-*   **知识蒸馏分离**：`cheat-sheet.md` 是由 LLM 根据 `extract-cheat-sheet.lync.md` 的指令从源文档中蒸馏出来的精华。它不是手写的，而是随时可以通过重新执行提取流水线来再生的中间产物。
-*   **流水线即 Prompt**：`extract-cheat-sheet.lync.md` 本身就是一个 Lync 源文件，它通过 `@import:inline` 拉入最新的编译文档作为上下文，指导 LLM 生成新的速查表。这意味着**提取流水线本身也是由 Lync 管理的模块化代码**。
+*   **知识蒸馏分离**：`lync-knowledge.md` 是由 AI 编辑器根据 `extract-lync-knowledge.lync.md` 的指令从源文档中蒸馏出来的 AI 专用知识手册。它不是手写的，而是随时可以通过重新执行提取流水线来再生的中间产物。
+*   **流水线即 Prompt**：`extract-lync-knowledge.lync.md` 本身就是一个 Lync 源文件，它通过 `@import:inline` 拉入最新的编译文档作为上下文，指导 AI 编辑器生成新的知识手册。这意味着**提取流水线本身也是由 Lync 管理的模块化代码**。
 *   **语种一致性**：技能文件（`exec` 格式）内部的所有内联素材必须与目标编译语种保持一致，避免在单一可执行体中混杂多种语言而导致 LLM 注意力分散。
 
 ---
