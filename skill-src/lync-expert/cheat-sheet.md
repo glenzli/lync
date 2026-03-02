@@ -1,7 +1,9 @@
 # Lync 编译器速查表
 
 ## 核心语法与引入协议
+
 ### 1. 引入语法
+
 `[链接文本](lync:alias "@lync-directive")`
 
 - **链接模式 (`@import:link`)**：将 `lync:alias` URI 替换为目标文件的本地相对物理路径，保留超链接结构。
@@ -16,10 +18,10 @@
 ```markdown
 <!-- lang:en -->
 English explanation block here.
-<!-- /lang:en -->
+<!-- /lang -->
 <!-- lang:zh-CN -->
 中文解释语段在这里。
-<!-- /lang:zh-CN -->
+<!-- /lang -->
 ```
 
 ---
@@ -27,8 +29,8 @@ English explanation block here.
 ## 🛠️ CLI 命令与 Agent 编排
 
 - `lync init`：在当前目录下生成默认的 `lync-build.yaml` 配置。
-- `lync sync`：安装 `lync.yaml` 中声明的所有依赖，并生成 `lync-lock.yaml` 锁定文件以确保确定性构建。
-- `lync add <url>`：下载一个依赖并将其别名自动注册到 `lync.yaml`。
+- `lync sync`：安装 `lync.yaml` 中声明的所有远程依赖，并生成 `lync-lock.yaml` 锁定文件以确保确定性构建。
+- `lync add <url>`：下载一个远程依赖并将其别名自动注册到 `lync.yaml`。
 - `lync build <file>`：将目标 `.lync.md` 文件编译为干净、扁平的 `.md` 产物。
 - `lync build <file> --target-langs zh-CN,ja`：将文件交叉编译到多个目标语种。
 - `lync build <file> --verify`：在本地使用 LLM 对最终组装的指令逻辑进行语义校验。
