@@ -11,4 +11,7 @@ export default defineConfig({
     banner: {
         js: '#!/usr/bin/env node',
     },
+    esbuildOptions(options) {
+        options.loader = { ...options.loader, '.md': 'text' };
+    },
 });

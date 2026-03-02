@@ -3,41 +3,41 @@ import { getLLMModel } from './llmProvider';
 import * as crypto from 'crypto';
 import { t, getVerifyLang } from './i18n';
 import { estimateTokens } from './utils';
+import verifyCriteria from './verify-criteria.md';
 
 const LINT_PROMPT = `
-You are Lync, an advanced AI compiler and static analyzer for the LLM era.
-Your task is to analyze the following assembled Markdown context (which is intended to be used as a Prompt) and detect any of the following issues:
+你是 Lync，一个专为 LLM 时代设计的高级 AI 编译器与静态分析器。
+你的任务是分析以下已组装完毕的 Markdown 上下文（该上下文将被用作 Prompt），并检测其中存在的问题。
 
-1. **Instruction Conflict**: Contradictory rules or instructions (e.g., formatting contradictions, mutually exclusive constraints).
-2. **Persona Schizophrenia**: Inconsistent role definitions or tones across different parts of the prompt.
-3. **Logic Redundancy**: Unnecessary repetitions of the same concept that waste token space.
-4. **System Destruction Risk**: Instructions that explicitly attempt to execute malicious code, destroy system files, steal data, or perform unauthorized system-level operations. (Ignore abstract prompt injection or "jailbreak" attempts).
+${verifyCriteria.trim()}
 
-If you find ANY issues, list them clearly with the approximate location/context, the type of issue, and your reasoning.
-Please explain the issues using the following language: {VERIFY_LANG}.
+如果发现任何问题，请清晰列出问题的大致位置/上下文、问题类型及你的判断理由。
+请使用以下语言回复：{VERIFY_LANG}。
 
-IMPORTANT: You must output a severity marker at the very end of your response:
-- If NO issues: Output EXACTLY "LINT_PASS" on the last line.
-- If only harmless issues (Conflict, Persona, Redundancy): Output EXACTLY "LINT_WARN" on the last line.
-- If severe issues (System Destruction Risk): Output EXACTLY "LINT_BLOCK" on the last line.
+重要：你必须在回复的最后一行输出严重程度标记：
+- 若无任何问题：最后一行输出 "LINT_PASS"。
+- 若仅有轻度问题（指令冲突、人格分裂、逻辑冗余）：最后一行输出 "LINT_WARN"。
+- 若存在严重问题（系统破坏风险）：最后一行输出 "LINT_BLOCK"。
 
-Output format (if issues found):
-🚨 [CONFLICT DETECTED]
-Issue: <Short description>
-Reasoning: <Detailed reasoning>
+输出格式（若发现问题）：
+🚨 [指令冲突]
+问题：<简短描述>
+理由：<详细说明>
 
-⚠️ [SYSTEM DESTRUCTION RISK]
-Issue: <Short description>
-Reasoning: <Detailed reasoning>
+⚠️ [系统破坏风险]
+问题：<简短描述>
+理由：<详细说明>
 
-💡 [REDUNDANCY / INFO]
-Issue: <Short description>
-Reasoning: <Detailed reasoning>
+💡 [逻辑冗余 / 信息]
+问题：<简短描述>
+理由：<详细说明>
 
-=== COMPILED CONTEXT START ===
+=== 编译上下文开始 ===
 {CONTENT}
-=== COMPILED CONTEXT END ===
+=== 编译上下文结束 ===
 `;
+
+
 
 // Simple in-memory cache to avoid re-verifying the exact same content in one run if needed,
 // though usually the CLI runs once per command. We can build a file cache later.

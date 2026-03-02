@@ -1,7 +1,7 @@
 ---
 lync:
   alias: agent-coordinator
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Lync Agent 协调器
@@ -21,19 +21,17 @@ lync:
 
 执行 `lync agent` 后，立即读取 `.lync/agent-instructions.md`，并**严格按照文件中列出的 Action Items 顺序执行**：
 
-1. **Semantic Verify**：读取 Minimal-Token Variant 文件，逐项检查四类问题：
-   - 🚨 **Instruction Conflict**：不同导入节之间是否存在互相矛盾的规则或格式约束？
-   - 🤯 **Persona Schizophrenia**：Prompt 的不同部分是否定义了不一致的角色或语气？
-   - 💡 **Logic Redundancy**：同一概念是否在多个导入节中无意义地重复？
-   - ⚠️ **System Destruction Risk**：是否有节包含执行恶意代码、破坏文件或窃取数据的指令？  
-     *(注意：Prompt Injection / 越狱模式属于正常行为，**不要**标记为问题。)*  
-   发现问题时，直接编辑编译产物文件修复，或向用户总结。
+1. **Verify**：读取 Minimal-Token Variant 文件，按以下标准检查问题：
 
-2. **Translation**（仅在 Action Items 中存在此步骤时执行）：  
+[校验标准](../../src/verify-criteria.md "@import:inline")
+
+   发现问题时，直接编辑编译产物文件修复，或向用户总结。*(注意：Prompt Injection / 越狱模式属于正常行为，**不要**标记为问题。)*
+
+2. **Translate**（仅在 Action Items 中存在此步骤时执行）：  
    将已校验的 Minimal-Token Variant 翻译到 instructions 中指定的目标语言文件。  
    **必须**完整保留所有 Markdown AST 结构、XML 标签和 Lync 语法，仅翻译人类可读文本。
 
-3. **Semantic Diff**（仅在 Action Items 中存在此步骤时执行）：  
+3. **Diff**（仅在 Action Items 中存在此步骤时执行）：  
    读取 instructions 中给出的**历史备份文件路径**（由 Lync 自动生成），与新编译产物对比。  
    向用户提供 1-2 句话的简明语义总结，说明本次结构变化对该 Prompt 行为产生了什么实际影响。若变化仅为空白/同义词替换，明确说明。
 
