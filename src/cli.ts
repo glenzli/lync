@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { glob } from 'glob';
+import { minimatch } from 'minimatch';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
 import { runWorkspaceBuild, runAgentBuild } from './build';
@@ -342,6 +343,22 @@ baseDir: "."
                     }
                 }
 
+                // Apply routing interceptors (same logic as workspace build)
+                if (buildConfig.routing && buildConfig.routing.length > 0) {
+                    for (const rule of buildConfig.routing) {
+                        if (minimatch(entry, rule.match, { matchBase: true })) {
+                            const destBase = path.resolve(process.cwd(), rule.dest);
+                            if (!path.extname(destBase)) {
+                                const basename = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                                finalDest = path.join(destBase, basename);
+                            } else {
+                                finalDest = destBase;
+                            }
+                            break;
+                        }
+                    }
+                }
+
                 try {
                     let fileLangsToProcess: string[] | undefined;
 
@@ -412,6 +429,7 @@ baseDir: "."
                     }
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
+                    process.exit(1);
                 }
             } else {
                 // Run workspace build
@@ -499,6 +517,22 @@ baseDir: "."
                     finalDest = absoluteEntry.replace(/\.lync\.md$/, '.md');
                     if (finalDest === absoluteEntry) {
                         finalDest = finalDest + '.compiled.md';
+                    }
+                }
+
+                // Apply routing interceptors (same logic as workspace build)
+                if (buildConfig.routing && buildConfig.routing.length > 0) {
+                    for (const rule of buildConfig.routing) {
+                        if (minimatch(entry, rule.match, { matchBase: true })) {
+                            const destBase = path.resolve(process.cwd(), rule.dest);
+                            if (!path.extname(destBase)) {
+                                const basename = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                                finalDest = path.join(destBase, basename);
+                            } else {
+                                finalDest = destBase;
+                            }
+                            break;
+                        }
                     }
                 }
 
@@ -613,6 +647,7 @@ ${fileLangsToProcess!.map(lang => `  - ${path.relative(process.cwd(), finalDest.
 
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
+                    process.exit(1);
                 }
             } else {
                 // Run workspace build in agent mode
