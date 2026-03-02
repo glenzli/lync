@@ -21,6 +21,18 @@ export interface LyncConfig {
     dependencies?: Record<string, DependencyDeclaration>;
 }
 
+export interface LyncFrontmatter {
+    lync?: {
+        alias?: string;
+        version?: string;
+        compile?: {
+            format?: 'doc' | 'exec';
+            targetLangs?: string[];
+        };
+        dependencies?: Record<string, DependencyDeclaration>;
+    }
+}
+
 export interface LockDependency {
     url: string;
     dest?: string;
@@ -48,7 +60,14 @@ export interface LyncBuild {
         inPlace?: boolean;
     };
     baseDir?: string;
-    targetLangs?: string[];
+    targetLangs?: string[];  // legacy fallback
     routing?: BuildRoutingRule[];
-    verifyContinueOnError?: boolean;
+    compile?: {
+        doc?: {
+            targetLangs?: string[];
+        };
+        exec?: {
+            targetLangs?: string[];
+        };
+    };
 }

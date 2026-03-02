@@ -34,7 +34,7 @@ export function extractTargetLangs(filePath: string): string[] {
     return Array.from(langs);
 }
 
-export async function compileFile(filePath: string, outPath?: string, callStack: Set<string> = new Set(), targetLang?: string): Promise<string> {
+export async function compileFile(filePath: string, outPath?: string, callStack: Set<string> = new Set(), targetLang?: string, agentMode?: boolean): Promise<string> {
     if (callStack.has(filePath)) {
         throw new Error(`[FATAL] Circular dependency detected:\n  -> ${Array.from(callStack).join('\n  -> ')}\n  -> ${filePath} (Loop!)`);
     }
@@ -42,7 +42,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     let rawContent = fs.readFileSync(filePath, 'utf8');
 
-    // ----- [NEW v2] HTML Comment i18n Block Processing -----
+    // ----- HTML Comment Language Block Processing -----
     if (targetLang) {
         const langMarker = `<!-- lang:${targetLang} -->`;
         const langEndMarker = `<!-- /lang -->`;
@@ -83,18 +83,22 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 const firstBlockMatch = /<!--\s*lang:([a-zA-Z-]+)\s*-->([\s\S]*?)<!--\s*\/lang\s*-->/.exec(rawContent);
                 if (firstBlockMatch) {
                     const sourceContentToTranslate = firstBlockMatch[2].trim();
-                    console.log(t('COMPILER_TRANS_START', targetLang, filePath));
 
-                    const translatedResult = await translateMarkdownContent(sourceContentToTranslate, targetLang);
-                    let translatedText = sourceContentToTranslate; // Default to untranslated on fail
-                    if (translatedResult) {
-                        if (translatedResult.usage) {
-                            const inTokens = translatedResult.usage.inputTokens ?? 0;
-                            const outTokens = translatedResult.usage.outputTokens ?? 0;
-                            const totalTokens = translatedResult.usage.totalTokens ?? (inTokens + outTokens);
-                            console.log(t('COMPILER_TRANS_TOKENS', inTokens, outTokens, totalTokens));
+                    let translatedText = sourceContentToTranslate;
+                    if (agentMode) {
+                        console.log(`[COMPILER] 🤖 Agent Mode: Bypassing fallback translation for '${targetLang}' in ${filePath}`);
+                    } else {
+                        console.log(t('COMPILER_TRANS_START', targetLang, filePath));
+                        const translatedResult = await translateMarkdownContent(sourceContentToTranslate, targetLang);
+                        if (translatedResult) {
+                            if (translatedResult.usage) {
+                                const inTokens = translatedResult.usage.inputTokens ?? 0;
+                                const outTokens = translatedResult.usage.outputTokens ?? 0;
+                                const totalTokens = translatedResult.usage.totalTokens ?? (inTokens + outTokens);
+                                console.log(t('COMPILER_TRANS_TOKENS', inTokens, outTokens, totalTokens));
+                            }
+                            translatedText = translatedResult.text;
                         }
-                        translatedText = translatedResult.text;
                     }
 
                     // Replace all blocks: first one with translation, others with empty
@@ -123,10 +127,12 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         } else {
             // Legacy/Global Mode (entire file)
 
-            // Check if it's a pure routing module (only @import:inline links and punctuation/formatting)
+            // Check if it's a pure routing module (only headings, @import:inline links, and punctuation/formatting)
             const contentWithoutFrontmatter = rawContent.replace(/^---\n[\s\S]*?\n---/, '');
-            const contentWithoutInlineImports = contentWithoutFrontmatter.replace(/\[[^\]]*\]\([^)]*["']@import:inline["'][^)]*\)/g, '');
-            const pureAlphaNum = contentWithoutInlineImports.replace(/[^a-zA-Z\u4e00-\u9fa50-9]/g, '');
+            const contentWithoutImportsAndHeadings = contentWithoutFrontmatter
+                .replace(/\[[^\]]*\]\([^)]*["']@import:inline["'][^)]*\)/g, '')  // strip inline imports
+                .replace(/^#{1,6}\s+.*$/gm, '');                                  // strip heading lines
+            const pureAlphaNum = contentWithoutImportsAndHeadings.replace(/[^a-zA-Z\u4e00-\u9fa50-9]/g, '');
 
             let nlpSkipped = false;
             if (pureAlphaNum.length === 0) {
@@ -145,10 +151,14 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             }
 
             if (!nlpSkipped) {
-                console.log(t('COMPILER_TRANS_FULL', targetLang));
-                const translatedResult = await translateMarkdownContent(rawContent, targetLang);
-                if (translatedResult) {
-                    rawContent = translatedResult.text;
+                if (agentMode) {
+                    console.log(`[COMPILER] 🤖 Agent Mode: Bypassing NLP translation for '${targetLang}'`);
+                } else {
+                    console.log(t('COMPILER_TRANS_FULL', targetLang));
+                    const translatedResult = await translateMarkdownContent(rawContent, targetLang);
+                    if (translatedResult) {
+                        rawContent = translatedResult.text;
+                    }
                 }
             }
         }
@@ -249,7 +259,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             throw new Error(`[FATAL] Missing physical file for '${resolveName}'. Cannot import inline.`);
         }
 
-        const expandedText = await compileFile(lockedDestPath, outPath, callStack, targetLang);
+        const expandedText = await compileFile(lockedDestPath, outPath, callStack, targetLang, agentMode);
         const subAst = processor.parse(expandedText) as Root;
 
         // Determine how to inject the subAst into the parent.

@@ -1,0 +1,195 @@
+const { describe, it, before, after } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const CLI = path.join(__dirname, '..', 'dist', 'index.js');
+const FIXTURES = path.join(__dirname, 'fixtures', 'contract');
+
+function run(args, cwd = FIXTURES) {
+    return execSync(`node ${CLI} ${args}`, { cwd, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
+}
+
+// ─── Setup ──────────────────────────────────────────────────────────
+
+before(() => {
+    // Ensure dist is built
+    execSync('npm run build', { cwd: path.join(__dirname, '..'), stdio: 'ignore' });
+
+    // Create fixture workspace
+    fs.mkdirSync(FIXTURES, { recursive: true });
+    fs.mkdirSync(path.join(FIXTURES, '.lync'), { recursive: true });
+
+    // Dependency file for import tests
+    fs.writeFileSync(path.join(FIXTURES, '.lync', 'greeter.md'), '# Greeter Module\n\nHello from greeter!\n', 'utf8');
+
+    // lync.yaml declaring the dependency
+    fs.writeFileSync(path.join(FIXTURES, 'lync.yaml'), 'dependencies:\n  greeter: "https://example.com/greeter.md"\n', 'utf8');
+
+    // Lockfile
+    const crypto = require('crypto');
+    const hash = crypto.createHash('sha256').update('# Greeter Module\n\nHello from greeter!\n').digest('hex');
+    fs.writeFileSync(path.join(FIXTURES, 'lync-lock.yaml'),
+        `version: 1\ndependencies:\n  greeter:\n    url: "https://example.com/greeter.md"\n    hash: "${hash}"\n    fetchedAt: "2026-01-01T00:00:00.000Z"\n`, 'utf8');
+
+    // --- Fixture: @import:link ---
+    fs.writeFileSync(path.join(FIXTURES, 'link-test.lync.md'),
+        '# Link Test\n\n[Greeter](lync:greeter "@import:link")\n', 'utf8');
+
+    // --- Fixture: @import:inline ---
+    fs.writeFileSync(path.join(FIXTURES, 'inline-test.lync.md'),
+        '# Inline Test\n\n[Greeter](lync:greeter "@import:inline")\n', 'utf8');
+
+    // --- Fixture: Language blocks ---
+    fs.writeFileSync(path.join(FIXTURES, 'lang-test.lync.md'),
+        [
+            '---',
+            'lync:',
+            '  alias: lang-test',
+            '  compile:',
+            '    format: exec',
+            '---',
+            '# Language Block Test',
+            '',
+            '<!-- lang:en -->',
+            'This is English content.',
+            '<!-- /lang -->',
+            '',
+            '<!-- lang:zh-CN -->',
+            '这是中文内容。',
+            '<!-- /lang -->',
+            ''
+        ].join('\n'), 'utf8');
+
+    // --- Fixture: Workspace batch build ---
+    fs.mkdirSync(path.join(FIXTURES, 'ws-src'), { recursive: true });
+    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'a.lync.md'), '# File A\n\nContent A\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'b.lync.md'), '# File B\n\nContent B\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'ws-build.yaml'),
+        'includes:\n  - "ws-src/*.lync.md"\noutput:\n  dir: "./ws-out"\nbaseDir: "./ws-src"\n', 'utf8');
+
+    // --- Fixture: Seal ---
+    fs.writeFileSync(path.join(FIXTURES, 'raw-prompt.md'), '# My Raw Prompt\n\nDo something useful.\n', 'utf8');
+});
+
+after(() => {
+    fs.rmSync(FIXTURES, { recursive: true, force: true });
+});
+
+// ─── Contract 1: @import:link ─────────────────────────────────────
+
+describe('Contract: @import:link rewrites alias to relative path', () => {
+    it('output contains relative path and no lync:alias', async () => {
+        const outDir = path.join(FIXTURES, 'out-link');
+        run(`build link-test.lync.md -o ${outDir}`);
+        const output = fs.readFileSync(path.join(outDir, 'link-test.md'), 'utf8');
+        assert.ok(!output.includes('lync:greeter'), 'Must not contain lync:greeter alias');
+        assert.ok(output.includes('.lync/greeter.md'), 'Must contain relative path to .lync/greeter.md');
+        fs.rmSync(outDir, { recursive: true, force: true });
+    });
+});
+
+// ─── Contract 2: @import:inline ───────────────────────────────────
+
+describe('Contract: @import:inline expands content in-place', () => {
+    it('output contains inlined content and no lync:alias', async () => {
+        const outDir = path.join(FIXTURES, 'out-inline');
+        run(`build inline-test.lync.md -o ${outDir}`);
+        const output = fs.readFileSync(path.join(outDir, 'inline-test.md'), 'utf8');
+        assert.ok(!output.includes('lync:greeter'), 'Must not contain lync:greeter alias');
+        assert.ok(output.includes('Hello from greeter!'), 'Must contain inlined content');
+        fs.rmSync(outDir, { recursive: true, force: true });
+    });
+});
+
+// ─── Contract 3: Language block filtering ─────────────────────────
+
+describe('Contract: Cross-compilation filters language blocks', () => {
+    it('--target-langs en keeps only English', async () => {
+        const outDir = path.join(FIXTURES, 'out-lang-en');
+        run(`build lang-test.lync.md --target-langs en -o ${outDir}`);
+        const output = fs.readFileSync(path.join(outDir, 'lang-test.md'), 'utf8');
+        assert.ok(output.includes('English content'), 'Must contain English content');
+        assert.ok(!output.includes('中文内容'), 'Must not contain Chinese content');
+        fs.rmSync(outDir, { recursive: true, force: true });
+    });
+
+    it('--target-langs zh-CN keeps only Chinese', async () => {
+        const outDir = path.join(FIXTURES, 'out-lang-zh');
+        run(`build lang-test.lync.md --target-langs zh-CN -o ${outDir}`);
+        const output = fs.readFileSync(path.join(outDir, 'lang-test.md'), 'utf8');
+        assert.ok(output.includes('中文内容'), 'Must contain Chinese content');
+        assert.ok(!output.includes('English content'), 'Must not contain English content');
+        fs.rmSync(outDir, { recursive: true, force: true });
+    });
+});
+
+// ─── Contract 4: Workspace batch build ────────────────────────────
+
+describe('Contract: Workspace build compiles all matched files', () => {
+    it('produces output files for each source', async () => {
+        // Use a custom build config via symlink trick: rename during test
+        const buildYaml = path.join(FIXTURES, 'lync-build.yaml');
+        const origBuildYaml = path.join(FIXTURES, 'ws-build.yaml');
+        fs.copyFileSync(origBuildYaml, buildYaml);
+
+        try {
+            run('build');
+            const outDir = path.join(FIXTURES, 'ws-out');
+            assert.ok(fs.existsSync(path.join(outDir, 'a.md')), 'a.md must exist');
+            assert.ok(fs.existsSync(path.join(outDir, 'b.md')), 'b.md must exist');
+
+            const a = fs.readFileSync(path.join(outDir, 'a.md'), 'utf8');
+            const b = fs.readFileSync(path.join(outDir, 'b.md'), 'utf8');
+            assert.ok(a.includes('Content A'), 'a.md must contain Content A');
+            assert.ok(b.includes('Content B'), 'b.md must contain Content B');
+
+            fs.rmSync(outDir, { recursive: true, force: true });
+        } finally {
+            fs.unlinkSync(buildYaml);
+        }
+    });
+});
+
+// ─── Contract 5: Seal ─────────────────────────────────────────────
+
+describe('Contract: seal injects Frontmatter and renames file', () => {
+    it('creates .lync.md with Frontmatter', async () => {
+        const sealSource = path.join(FIXTURES, 'seal-test.md');
+        fs.writeFileSync(sealSource, '# Seal Target\n\nSome content.\n', 'utf8');
+
+        run(`seal seal-test.md`);
+
+        const sealedPath = path.join(FIXTURES, 'seal-test.lync.md');
+        assert.ok(fs.existsSync(sealedPath), 'seal-test.lync.md must exist');
+
+        const content = fs.readFileSync(sealedPath, 'utf8');
+        assert.ok(content.includes('---'), 'Must contain Frontmatter markers');
+        assert.ok(content.includes('lync:'), 'Must contain lync metadata');
+        assert.ok(content.includes('alias:'), 'Must contain alias field');
+
+        // Cleanup
+        if (fs.existsSync(sealSource)) fs.unlinkSync(sealSource);
+        fs.unlinkSync(sealedPath);
+    });
+});
+
+// ─── Contract 6: Agent instructions ───────────────────────────────
+
+describe('Contract: lync agent generates agent-instructions.md', () => {
+    it('produces .lync/agent-instructions.md with compiled file list', async () => {
+        const outDir = path.join(FIXTURES, 'out-agent');
+        run(`agent inline-test.lync.md -o ${outDir}`);
+
+        const instructionsPath = path.join(FIXTURES, '.lync', 'agent-instructions.md');
+        assert.ok(fs.existsSync(instructionsPath), 'agent-instructions.md must exist');
+
+        const content = fs.readFileSync(instructionsPath, 'utf8');
+        assert.ok(content.includes('compiledFiles'), 'Must contain compiledFiles section');
+        assert.ok(content.includes('Action Items'), 'Must contain Action Items section');
+
+        fs.rmSync(outDir, { recursive: true, force: true });
+        // Don't remove .lync — other tests may need it
+    });
+});

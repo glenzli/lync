@@ -8,7 +8,7 @@ const path = require('path');
 // For unit tests we need individual modules, so we compile with tsc to a temp dir.
 const { execSync } = require('child_process');
 
-const FIXTURES = path.join(__dirname, 'fixtures');
+const FIXTURES = path.join(__dirname, 'fixtures', 'unit');
 const TSC_OUT = path.join(__dirname, '.tsc-out');
 
 // Compile with tsc to get individual modules for unit testing

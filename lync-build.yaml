@@ -1,0 +1,26 @@
+includes:
+  - "docs-src/*.lync.md"
+  - "skill-src/lync-expert/lync-expert.lync.md"
+
+output:
+  dir: "./dist"
+
+baseDir: "./"
+
+# 交叉编译目标语种（按输出格式分别配置）
+compile:
+  doc:
+    targetLangs:
+      - "zh-CN"
+  exec:
+    targetLangs:
+      - "zh-CN"
+
+routing:
+  # 文档源文件直接路由到项目根目录
+  - match: "docs-src/*.lync.md"
+    dest: "./"
+
+  # lync-expert 技能源文件路由到 skills 目录
+  - match: "skill-src/lync-expert/*.lync.md"
+    dest: "./skills/lync-expert/"

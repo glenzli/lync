@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { glob } from 'glob';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
-import { runWorkspaceBuild } from './build';
+import { runWorkspaceBuild, runAgentBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
 import { detectLanguage, estimateTokens } from './utils';
 import { fetchMarkdown } from './network';
@@ -12,6 +12,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { initI18n, t } from './i18n';
 import { generateGraph } from './graph';
+import type { LyncFrontmatter } from './types';
+import * as yaml from 'yaml';
+import { mergeCompiledLangs } from './merge';
 
 export function setupCLI(): Command {
     const program = new Command();
@@ -53,20 +56,19 @@ output:
 # Strip this prefix directory from the original paths
 baseDir: "."
 
-# Target languages for multi-language generation (optional)
-# By default, Lync infers languages automatically from :::lang=xxx blocks in your source.
-# Uncomment below to force explicit language generation for all matched files:
-# targetLangs:
-#  - "en"
-#  - "zh-CN"
+# Cross-compilation targets per output format (optional)
+# By default, Lync infers languages automatically from <!-- lang:xxx --> blocks in your source.
+# Uncomment below to force explicit language generation:
+# compile:
+#   doc:                          # Document format: multi-language merge into one file
+#     targetLangs: ["en", "zh-CN"]
+#   exec:                         # Executable prompt format: one file per language
+#     targetLangs: ["en"]
 
 # Advanced Routing Interceptors (optional)
 # routing:
 #   - match: "src/agents/*.lync.md"
 #     dest: "./dist/agents/"
-
-# Language to use for verification output (optional)
-# verifyLang: "zh-CN"
 `;
             fs.writeFileSync(configPath, defaultConfig, 'utf8');
             console.log(t('INIT_SUCCESS'));
@@ -184,7 +186,7 @@ baseDir: "."
         .command('seal [patterns...]')
         .description('Convert standard markdown files into Lync modules by injecting Frontmatter. Supports wildcards.')
         .option('--alias <alias>', 'Explicitly set the alias name (only recommended for single files)')
-        .option('--lang <lang>', 'Wrap content in a specific i18n block (e.g. ja, zh-CN)')
+        .option('--lang <lang>', 'Wrap content in a specific language block (e.g. ja, zh-CN)')
         .action(async (patterns: string[], options: { alias?: string; lang?: string }) => {
             if (!patterns || patterns.length === 0) {
                 console.error(t('SEAL_ERR_NO_FILES'));
@@ -252,7 +254,7 @@ baseDir: "."
                 };
                 parsed.data.lync = lyncMetadata;
 
-                // ----- [NEW] i18n Auto-wrapping -----
+                // ----- Cross-compilation Language Auto-wrapping -----
                 let content = parsed.content;
                 if (!content.includes('<!-- lang:')) {
                     const targetLang = options.lang || detectLanguage(content);
@@ -316,12 +318,8 @@ baseDir: "."
         .description('Compile a specific file or run workspace build via lync-build.yaml')
         .option('-o, --out-dir <dir>', 'Specify output directory (works for both single file and workspace)')
         .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
-        .option('--target-langs <langs>', 'Comma-separated list of target languages for i18n compilation')
-        .option('--verify', 'Perform native LLM semantic linting on the compiled markdown')
-        .option('--verify-continue-on-error', 'Continue the build process even if the LLM verify API call fails')
-        .option('--diff', 'Analyze semantic differences between the old and new compiled output using an LLM')
-        .option('--model <model>', 'Specify the LLM model to use for verification (default: gpt-4o)')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; verify?: boolean; verifyContinueOnError?: boolean; model?: string; diff?: boolean }) => {
+        .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
+        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 // Compile single file
@@ -340,70 +338,76 @@ baseDir: "."
                 } else {
                     finalDest = absoluteEntry.replace(/\.lync\.md$/, '.md');
                     if (finalDest === absoluteEntry) {
-                        finalDest = finalDest + '.compiled.md'; // Fallback to avoid destroying entry
+                        finalDest = finalDest + '.compiled.md';
                     }
                 }
 
                 try {
-                    let fileLangsToProcess = targetLangsArray && targetLangsArray.length > 0 ? targetLangsArray : undefined;
-                    if (!fileLangsToProcess && buildConfig.targetLangs && buildConfig.targetLangs.length > 0) {
-                        fileLangsToProcess = buildConfig.targetLangs;
+                    let fileLangsToProcess: string[] | undefined;
+
+                    // 1. Determine compile format from frontmatter (default: exec)
+                    let compileFormat: 'doc' | 'exec' = 'exec';
+                    let frontmatterTargetLangs: string[] | undefined;
+                    const rawSourceContent = fs.readFileSync(absoluteEntry, 'utf8');
+                    const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
+                    if (fmMatch) {
+                        try {
+                            const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
+                            if (fm?.lync?.compile?.format) {
+                                compileFormat = fm.lync.compile.format;
+                            }
+                            if (fm?.lync?.compile?.targetLangs) {
+                                frontmatterTargetLangs = fm.lync.compile.targetLangs;
+                            }
+                        } catch (e) { }
                     }
-                    if (!fileLangsToProcess) {
+
+                    // 2. Resolve targetLangs: frontmatter > per-format global > CLI > legacy global > extract
+                    if (frontmatterTargetLangs && frontmatterTargetLangs.length > 0) {
+                        fileLangsToProcess = frontmatterTargetLangs;
+                    } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
+                        fileLangsToProcess = buildConfig.compile.doc.targetLangs;
+                    } else if (compileFormat === 'exec' && buildConfig.compile?.exec?.targetLangs?.length) {
+                        fileLangsToProcess = buildConfig.compile.exec.targetLangs;
+                    } else if (targetLangsArray && targetLangsArray.length > 0) {
+                        fileLangsToProcess = targetLangsArray;
+                    } else if (buildConfig.targetLangs && buildConfig.targetLangs.length > 0) {
+                        fileLangsToProcess = buildConfig.targetLangs;
+                    } else {
                         const extracted = extractTargetLangs(absoluteEntry);
                         fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
                     }
 
-                    let bestVerifyContent = '';
-                    let minTokens = Infinity;
-                    let bestLang = 'auto';
+                    const isDocFormat = compileFormat === 'doc' && fileLangsToProcess!;
+                    const compiledMap = new Map<string, string>();
 
                     for (const targetLang of fileLangsToProcess!) {
                         let currentDest = finalDest;
-                        if (targetLang) {
+                        if (!isDocFormat && targetLang && targetLang !== 'auto' && fileLangsToProcess!.length > 1) {
                             currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
                         }
 
-                        let oldContent = '';
-                        if (options?.diff && fs.existsSync(currentDest)) {
-                            oldContent = fs.readFileSync(currentDest, 'utf8');
-                        }
-
                         const content = await compileFile(absoluteEntry, currentDest, new Set(), targetLang);
-                        const dir = path.dirname(currentDest);
-                        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                        fs.writeFileSync(currentDest, content, 'utf8');
-                        console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
+                        compiledMap.set(targetLang || 'auto', content);
 
-                        if (options && options.verify) {
-                            const tokens = estimateTokens(content);
-                            if (tokens < minTokens) {
-                                minTokens = tokens;
-                                bestVerifyContent = content;
-                                bestLang = targetLang || 'auto';
-                            }
-                        }
-
-                        if (options && options.diff && oldContent && oldContent !== content) {
-                            // Note: analyzeSemanticDiff is imported inside the action or at top of file
-                            // We need to make sure verify.ts exports it
-                            const { analyzeSemanticDiff } = await import('./verify');
-                            await analyzeSemanticDiff(oldContent, content, options.model);
+                        if (!isDocFormat) {
+                            const dir = path.dirname(currentDest);
+                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                            fs.writeFileSync(currentDest, content, 'utf8');
+                            console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
                         }
                     }
 
-                    if (options && options.verify && bestVerifyContent) {
-                        if (fileLangsToProcess!.length > 1) {
-                            console.log(t('LINT_SELECT_BEST', bestLang, minTokens));
-                        }
-                        const verified = await verifyCompiledContent(bestVerifyContent, options.model);
-                        if (!verified.passed) {
-                            const continueOnError = options.verifyContinueOnError !== undefined ? options.verifyContinueOnError : buildConfig.verifyContinueOnError;
-                            if (verified.error && continueOnError) {
-                                console.log(t('LINT_ERR_CONTINUE'));
-                            } else {
-                                process.exit(1);
-                            }
+                    if (isDocFormat) {
+                        try {
+                            const dir = path.dirname(finalDest);
+                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                            console.log(`[MERGE] 🪄 Merging ${compiledMap.size} languages into ${path.relative(process.cwd(), finalDest)}...`);
+                            const mergedContent = mergeCompiledLangs(compiledMap);
+                            fs.writeFileSync(finalDest, mergedContent, 'utf8');
+                            console.log(t('BUILD_SUCCESS_SINGLE', entry, '[merged]', path.relative(process.cwd(), finalDest)));
+                        } catch (e: any) {
+                            console.error(`[MERGE_ERR] ❌ Failed to merge ${entry}: ${e.message}`);
                         }
                     }
                 } catch (e: any) {
@@ -411,7 +415,208 @@ baseDir: "."
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), options?.verify, options?.model, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, diff: options?.diff, verifyContinueOnError: options?.verifyContinueOnError });
+                await runWorkspaceBuild(process.cwd(), false, undefined, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+            }
+        });
+
+    // ===== LLM Enhanced Tools =====
+
+    program
+        .command('lint <file>')
+        .description('Run LLM-powered semantic linting on a compiled markdown file')
+        .option('--model <model>', 'Specify the LLM model to use (default: gpt-4o)')
+        .option('--continue-on-error', 'Exit with 0 even if the LLM API call fails')
+        .action(async (file: string, options?: { model?: string; continueOnError?: boolean }) => {
+            const absoluteFile = path.resolve(process.cwd(), file);
+            if (!fs.existsSync(absoluteFile)) {
+                console.error(`[LINT] ❌ File not found: ${absoluteFile}`);
+                process.exit(1);
+            }
+            const content = fs.readFileSync(absoluteFile, 'utf8');
+            console.log(`[LINT] 🔍 Running semantic linting on ${file}...`);
+            const verified = await verifyCompiledContent(content, options?.model);
+            if (!verified.passed) {
+                if (verified.error && options?.continueOnError) {
+                    console.log(t('LINT_ERR_CONTINUE'));
+                } else {
+                    process.exit(1);
+                }
+            }
+        });
+
+    program
+        .command('diff <file> [old-file]')
+        .description('Analyze semantic differences between compiled outputs using an LLM')
+        .option('--model <model>', 'Specify the LLM model to use (default: gpt-4o)')
+        .action(async (file: string, oldFile?: string, options?: { model?: string }) => {
+            const absoluteFile = path.resolve(process.cwd(), file);
+            if (!fs.existsSync(absoluteFile)) {
+                console.error(`[DIFF] ❌ File not found: ${absoluteFile}`);
+                process.exit(1);
+            }
+            const newContent = fs.readFileSync(absoluteFile, 'utf8');
+            let oldContent = '';
+            if (oldFile) {
+                const absoluteOld = path.resolve(process.cwd(), oldFile);
+                if (!fs.existsSync(absoluteOld)) {
+                    console.error(`[DIFF] ❌ Old file not found: ${absoluteOld}`);
+                    process.exit(1);
+                }
+                oldContent = fs.readFileSync(absoluteOld, 'utf8');
+            }
+            if (oldContent === newContent) {
+                console.log(`[DIFF] ✅ Files are identical. No semantic differences.`);
+                return;
+            }
+            const { analyzeSemanticDiff } = await import('./verify');
+            await analyzeSemanticDiff(oldContent, newContent, options?.model);
+        });
+
+    // ===== Agent Tool =====
+
+    program
+        .command('agent [entry]')
+        .description('Compile for AI editors: deterministic AST assembly + output agent-instructions.md')
+        .option('-o, --out-dir <dir>', 'Specify output directory')
+        .option('--base-dir <dir>', 'Specify base directory for workspace compilation')
+        .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
+        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
+            const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
+            if (entry) {
+                const absoluteEntry = path.resolve(process.cwd(), entry);
+                if (!fs.existsSync(absoluteEntry)) {
+                    console.error(t('BUILD_ERR_ENTRY_NOT_FOUND', absoluteEntry));
+                    process.exit(1);
+                }
+
+                const buildConfig = loadBuildConfig(process.cwd());
+                const configuredOutDir = options?.outDir || buildConfig.outDir || buildConfig.output?.dir;
+                let finalDest;
+                if (configuredOutDir) {
+                    const outName = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                    finalDest = path.resolve(process.cwd(), configuredOutDir, outName);
+                } else {
+                    finalDest = absoluteEntry.replace(/\.lync\.md$/, '.md');
+                    if (finalDest === absoluteEntry) {
+                        finalDest = finalDest + '.compiled.md';
+                    }
+                }
+
+                try {
+                    let fileLangsToProcess: string[] | undefined;
+                    let compileFormat: 'doc' | 'exec' = 'exec';
+                    let frontmatterTargetLangs: string[] | undefined;
+                    const rawSourceContent = fs.readFileSync(absoluteEntry, 'utf8');
+                    const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
+                    if (fmMatch) {
+                        try {
+                            const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
+                            if (fm?.lync?.compile?.format) {
+                                compileFormat = fm.lync.compile.format;
+                            }
+                            if (fm?.lync?.compile?.targetLangs) {
+                                frontmatterTargetLangs = fm.lync.compile.targetLangs;
+                            }
+                        } catch (e) { }
+                    }
+
+                    if (frontmatterTargetLangs && frontmatterTargetLangs.length > 0) {
+                        fileLangsToProcess = frontmatterTargetLangs;
+                    } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
+                        fileLangsToProcess = buildConfig.compile.doc.targetLangs;
+                    } else if (compileFormat === 'exec' && buildConfig.compile?.exec?.targetLangs?.length) {
+                        fileLangsToProcess = buildConfig.compile.exec.targetLangs;
+                    } else if (targetLangsArray && targetLangsArray.length > 0) {
+                        fileLangsToProcess = targetLangsArray;
+                    } else if (buildConfig.targetLangs && buildConfig.targetLangs.length > 0) {
+                        fileLangsToProcess = buildConfig.targetLangs;
+                    } else {
+                        const extracted = extractTargetLangs(absoluteEntry);
+                        fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
+                    }
+
+                    const isDocFormat = compileFormat === 'doc' && fileLangsToProcess!;
+                    const compiledMap = new Map<string, string>();
+                    let minTokens = Infinity;
+                    let bestLang = 'auto';
+
+                    for (const targetLang of fileLangsToProcess!) {
+                        let currentDest = finalDest;
+                        if (!isDocFormat && targetLang && targetLang !== 'auto' && fileLangsToProcess!.length > 1) {
+                            currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+                        }
+
+                        // Cache old content for agent diff
+                        if (fs.existsSync(currentDest) && !isDocFormat) {
+                            const oldContent = fs.readFileSync(currentDest, 'utf8');
+                            const cacheDir = path.resolve(process.cwd(), '.lync', 'cache');
+                            if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+                            const timestamp = new Date().getTime();
+                            const oldContentPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(currentDest)}`);
+                            fs.writeFileSync(oldContentPath, oldContent, 'utf8');
+                        }
+
+                        // Agent mode: zero LLM, pure AST assembly
+                        const content = await compileFile(absoluteEntry, currentDest, new Set(), targetLang, true);
+                        compiledMap.set(targetLang || 'auto', content);
+
+                        if (!isDocFormat) {
+                            const dir = path.dirname(currentDest);
+                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                            fs.writeFileSync(currentDest, content, 'utf8');
+                            console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
+                        }
+
+                        const tokens = estimateTokens(content);
+                        if (tokens < minTokens) {
+                            minTokens = tokens;
+                            bestLang = targetLang || 'auto';
+                        }
+                    }
+
+                    if (isDocFormat) {
+                        try {
+                            const dir = path.dirname(finalDest);
+                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                            console.log(`[MERGE] 🪄 Merging ${compiledMap.size} languages into ${path.relative(process.cwd(), finalDest)}...`);
+                            const mergedContent = mergeCompiledLangs(compiledMap);
+                            fs.writeFileSync(finalDest, mergedContent, 'utf8');
+                            console.log(t('BUILD_SUCCESS_SINGLE', entry, '[merged]', path.relative(process.cwd(), finalDest)));
+                        } catch (e: any) {
+                            console.error(`[MERGE_ERR] ❌ Failed to merge ${entry}: ${e.message}`);
+                        }
+                    }
+
+                    // Output agent instructions
+                    const instructionsPath = path.resolve(process.cwd(), '.lync', 'agent-instructions.md');
+                    const instructionsDir = path.dirname(instructionsPath);
+                    if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
+                    const instructions = `
+# Lync Agentic Build Instructions
+The Lync build pipeline has completed successfully.
+
+**Selected Minimal-Token Variant:** ${path.relative(process.cwd(), finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`))} (${minTokens} tokens)
+**Expected Target Languages:** ${fileLangsToProcess!.join(', ')}
+
+\`\`\`yaml
+compiledFiles:
+${fileLangsToProcess!.map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`).join('\n')}
+\`\`\`
+
+## 🛠️ Required LLM Action Items
+1. **Verification**: Read the minimal-token variant file. Are there any conflicting instructions or missing context? If so, fix them directly or summarize the issues for the user.
+2. **Translation**: Lync bypassed automatic translation to save API costs. If the user expects multiple language variants (listed above), read the minimal-token variant and translate/expand it into the other required language files. You must respect the AST boundaries.
+3. **Semantic Tree-Shaking**: Analyze the user's implicit intent. Can any of the imported context be safely truncated or summarized?
+                    `.trim();
+                    fs.writeFileSync(instructionsPath, instructions, 'utf8');
+                    console.log(`\n[AGENT] 🤖 Orchestration instructions generated: ${path.relative(process.cwd(), instructionsPath)}`);
+
+                } catch (e: any) {
+                    console.error(t('BUILD_ERR_SINGLE', entry, e.message));
+                }
+            } else {
+                // Run workspace build in agent mode
+                await runAgentBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
             }
         });
 
