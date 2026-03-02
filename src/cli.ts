@@ -538,17 +538,17 @@ baseDir: "."
                     let fileLangsToProcess: string[] | undefined;
                     let compileFormat: 'doc' | 'exec' = 'exec';
                     let frontmatterTargetLangs: string[] | undefined;
+                    let vision: string | undefined;
+                    let fixMode: 'suggest' | 'auto' = 'suggest';
                     const rawSourceContent = fs.readFileSync(absoluteEntry, 'utf8');
                     const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
                     if (fmMatch) {
                         try {
                             const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
-                            if (fm?.lync?.compile?.format) {
-                                compileFormat = fm.lync.compile.format;
-                            }
-                            if (fm?.lync?.compile?.targetLangs) {
-                                frontmatterTargetLangs = fm.lync.compile.targetLangs;
-                            }
+                            if (fm?.lync?.compile?.format) compileFormat = fm.lync.compile.format;
+                            if (fm?.lync?.compile?.targetLangs) frontmatterTargetLangs = fm.lync.compile.targetLangs;
+                            if (fm?.lync?.vision) vision = fm.lync.vision.trim();
+                            if (fm?.lync?.fix) fixMode = fm.lync.fix;
                         } catch (e) { }
                     }
 
@@ -624,7 +624,8 @@ baseDir: "."
                     const instructionsDir = path.dirname(instructionsPath);
                     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
 
-                    const minVariantPath = path.relative(process.cwd(), finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`));
+                    const needsLangSuffix = !isDocFormat && fileLangsToProcess!.length > 1;
+                    const minVariantPath = path.relative(process.cwd(), finalDest.replace(/\.md$/, needsLangSuffix && bestLang !== 'auto' ? `.${bestLang}.md` : '.md'));
                     const langsNeedingTranslation = fileLangsToProcess!.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
 
                     const actionItems: string[] = [];
@@ -633,7 +634,12 @@ baseDir: "."
 
                     // 1. Verify (exec only)
                     if (!isDocFormat) {
-                        actionItems.push(`${itemIndex++}. **Verify** \`${minVariantPath}\``);
+                        const verifyLabel = vision
+                            ? (fixMode === 'auto'
+                                ? `**Verify & Auto-Fix** \`${minVariantPath}\` — check against vision + 4 criteria; directly edit product to fix any issues`
+                                : `**Verify** \`${minVariantPath}\` — check against vision + 4 criteria; if issues found, output suggested edits (do NOT modify product)`)
+                            : `**Verify** \`${minVariantPath}\``;
+                        actionItems.push(`${itemIndex++}. ${verifyLabel}`);
                     }
 
                     // 2. Translation (only if needed)
@@ -656,15 +662,19 @@ baseDir: "."
                     }
 
                     const compiledFilesYaml = fileLangsToProcess!
-                        .map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`)
+                        .map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, (!isDocFormat && fileLangsToProcess!.length > 1 && lang !== 'auto' && lang) ? `.${lang}.md` : '.md'))}`)
                         .join('\n');
+
+                    const visionLines = vision
+                        ? [`**Vision:** ${vision.replace(/\n/g, ' ')}`, `**Fix Mode:** ${fixMode}`, ``]
+                        : [];
 
                     const instructions = [
                         `# Lync Agent Instructions — \`${entry}\``,
                         ``,
                         `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
                         `**Target Languages:** ${fileLangsToProcess!.join(', ')}`,
-                        ``,
+                        ...visionLines,
                         '```yaml',
                         `compiledFiles:`,
                         compiledFilesYaml,

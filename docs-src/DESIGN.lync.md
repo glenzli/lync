@@ -16,6 +16,8 @@ lync:
 2. **拒绝手工字句微调 (No Manual Prompt Tweaking)**：人类不应当，也不需要直接在文本级手工雕琢已被验证的高维 Prompt。Prompt 的唯一评价标准是“能否稳定触发底层模型的正确动作”。这种模块化组装应该交给像 Lync 这样的静态链接器，系统严禁基于“玄学”的手工微调。
 3. **闭环编译体系 (Agentic Compilation Workflow)**：对系统 Prompt 的功能性修改必须借由 LLM 自主生成、执行、验证、修正的闭环完成。Lync 的 `lync agent` 命令正是这一流程的物理载体，将 Lync 提升为了客观的“编译器前端”，由外部 Agent 读取 AST 指令后接管编译的后半段过程（优化、剪裁与翻译）。
 4. **多语种交叉编译 (Cross-Compilation Targets)**：当 Prompt 被视为机器码，它的具体语种就不再是传统意义上的"国际化（i18n）"，而是指定"CPU 架构"（各模型对不同语系的解析性能不同）。Lync 支持使用母语编写意图源文件（高级语言），然后利用 LLM 交叉编译出纯正目标语种的高效 Prompt 机器指令，从而消灭了在同一份大文件中杂糅双语对照而导致的 Token 浪费与幻觉问题。
+5. **语义编译与意图规约 (Semantic Compilation via Vision)**：真正的编译器不只做结构变换，还要保证语义正确性。Lync 允许开发者在源文件 Frontmatter 中声明 `vision`（产物应达成的语义目标），并通过 `fix: suggest | auto` 控制修复策略。在 `lync agent` 的 Verify Pass 中，AI 协调器将对照 vision 检查编译产物的意图对齐程度——`suggest` 模式输出修改建议等待确认，`auto` 模式直接编辑产物文件并报告变更摘要。这将 Lync 从"结构链接器"升格为"语义编译器"。
+
 
 Lync 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与 **跨平台编译器**。它将 Markdown 视为高级工程抽象代码，提供依赖管理、内联组合和确定性构建机制，且不依赖任何中心化注册表。
 

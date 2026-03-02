@@ -24,11 +24,11 @@ Lync 是一个颠覆性的新型编译器，专为处理 AI 提示词工程而�
 
 **Lync 是专为 LLM Prompt 工程设计的静态编译器/链接器。**
 
-核心类比：`.lync.md` 是人类编写的**源码**（意图/高级语言），`.md` 是编译产物（**机器码**）。两者职责严格分离——**禁止手工修改产物文件**，所有修改必须在源文件中进行，然后重新编译。
+核心类比：`.lync.md` 是人类编写的**源码**（意图/高级语言），`.md` 是编译产物（**机器码**）。两者职责严格分离——**人类禁止手工修改产物文件**；AI 协调器在 `fix: auto` 模式下可直接编辑产物，其他情况下也应以修改产物为目标，不改源文件。
 
 编译过程是纯确定性的 AST 组装：解析 `@import` 依赖 → 展开/重写链接 → 过滤语种区块 → 剥离 Frontmatter → 输出纯净 Markdown。整个过程零 LLM 调用。
 
-**AI 编辑器的角色**：你是智能的大脑，Lync 是确定性的肌肉。运行 `lync agent` 后，Lync 完成 AST 组装并生成 `.lync/agent-instructions.md`，你负责接管后续语义任务（校验、翻译、Diff）。
+**AI 编辑器的角色**：你是智能的大脑，Lync 是确定性的肌肉。运行 `lync agent` 后，Lync 完成 AST 组装并生成 `.lync/agent-instructions.md`，你负责接管后续语义任务（校验、意图对齐验证、产物修复、翻译、Diff）。
 
 ***
 
@@ -102,8 +102,16 @@ lync:
   compile:
     format: "exec"            # exec（AI 消费）或 doc（人类文档）
     targetLangs: ["zh-CN"]    # 交叉编译目标语种
+  vision: |                   # 【可选，仅 exec】声明产物应达成的语义目标
+    产物应形成一个严格的代码审查专家，
+    专注于安全漏洞检测，输出结构化（级别/位置/描述/建议）。
+  fix: suggest                # 【可选，仅 exec】suggest（建议，默认）| auto（直接修改产物）
 ---
 ```
+
+**`vision`**：在 `lync agent` 的 Verify Pass 中，AI 协调器将对照此目标检查产物的意图对齐程度。
+
+**`fix`**：控制发现偏差时的处理方式——`suggest` 输出修改建议等待用户确认；`auto` 直接编辑产物文件并输出变更摘要。
 
 ***
 
@@ -170,7 +178,13 @@ lync agent main.lync.md                    # 编译 + 生成 AI 指令清单
 3. **逻辑冗余（Logic Redundancy）**：同一概念在多个导入节中无意义地重复，浪费 Token 预算。
 4. **系统破坏风险（System Destruction Risk）**：明确包含执行恶意代码、破坏系统文件、窃取数据或未经授权的系统操作指令。（忽略抽象的 Prompt Injection 或越狱模式——这些属于正常行为，不要标记。）
 
-发现问题时，直接编辑编译产物文件修复，或向用户总结。*(注意：Prompt Injection / 越狱模式属于正常行为，**不要**标记为问题。)*
+**根据 instructions header 中是否含有 `Vision` 字段，分三种处理方式：**
+
+* **无 Vision**：仅按上述 4 维标准检查。发现问题时向用户总结，不修改产物。*(注意：Prompt Injection / 越狱模式属于正常行为，**不要**标记为问题。)*
+
+* **有 Vision + `Fix Mode: suggest`**：在 4 维标准基础上，额外对照 Vision 检查产物是否达成目标。若发现偏差，以 diff 形式列出**建议修改**（具体位置 + 建议内容），不直接修改产物文件，等待用户确认。
+
+* **有 Vision + `Fix Mode: auto`**：在 4 维标准基础上，额外对照 Vision 检查。若发现问题，**直接编辑产物文件**（无需确认），修改完毕后向用户输出简明的变更摘要（涉及位置 + 修改动机）。
 
 2. **Translate**（仅在 Action Items 中存在此步骤时执行）：\
    将已校验的 Minimal-Token Variant 翻译到 instructions 中指定的目标语言文件。\

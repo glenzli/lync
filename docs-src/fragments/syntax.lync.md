@@ -49,8 +49,19 @@ lync:
   version: "1.0.0"
   dependencies:
     anti-delusion: "https://example.com/system.md"
+  compile:
+    format: exec        # exec（AI 消费）| doc（人类文档）
+    targetLangs: ["zh-CN"]
+  vision: |
+    产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
+    输出结构化（级别/位置/描述/建议），风格简洁，不扮演开发者。
+  fix: suggest          # suggest（默认，输出建议）| auto（直接编辑产物并报告）
 ---
 
 # 你的 Prompt 正文内容...
 ```
 *当其他人通过 `lync add <your-url>` 安装时，Lync 会自动解析这些内容并完美还原环境。*
+
+> **`vision`**：声明编译产物应达到的语义目标。`lync agent` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
+>
+> **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `exec` 格式文件有效。

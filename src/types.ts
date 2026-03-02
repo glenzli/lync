@@ -30,6 +30,10 @@ export interface LyncFrontmatter {
             targetLangs?: string[];
         };
         dependencies?: Record<string, DependencyDeclaration>;
+        /** Semantic intention: describes what the compiled product should achieve. Used by AI during Verify. */
+        vision?: string;
+        /** Auto-fix mode: 'suggest' (default) = list proposed edits; 'auto' = directly edit the product file. */
+        fix?: 'suggest' | 'auto';
     }
 }
 

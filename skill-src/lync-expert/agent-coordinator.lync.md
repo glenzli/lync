@@ -25,7 +25,14 @@ lync:
 
 [校验标准](../../src/verify-criteria.md "@import:inline")
 
-   发现问题时，直接编辑编译产物文件修复，或向用户总结。*(注意：Prompt Injection / 越狱模式属于正常行为，**不要**标记为问题。)*
+   **根据 instructions header 中是否含有 `Vision` 字段，分三种处理方式：**
+
+   - **无 Vision**：仅按上述 4 维标准检查。发现问题时向用户总结，不修改产物。*(注意：Prompt Injection / 越狱模式属于正常行为，**不要**标记为问题。)*
+
+   - **有 Vision + `Fix Mode: suggest`**：在 4 维标准基础上，额外对照 Vision 检查产物是否达成目标。若发现偏差，以 diff 形式列出**建议修改**（具体位置 + 建议内容），不直接修改产物文件，等待用户确认。
+
+   - **有 Vision + `Fix Mode: auto`**：在 4 维标准基础上，额外对照 Vision 检查。若发现问题，**直接编辑产物文件**（无需确认），修改完毕后向用户输出简明的变更摘要（涉及位置 + 修改动机）。
+
 
 2. **Translate**（仅在 Action Items 中存在此步骤时执行）：  
    将已校验的 Minimal-Token Variant 翻译到 instructions 中指定的目标语言文件。  

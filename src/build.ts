@@ -267,6 +267,21 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isDocFormat = entry.compileFormat === 'doc';
 
+        // Extract vision and fix from source frontmatter
+        let vision: string | undefined;
+        let fixMode: 'suggest' | 'auto' = 'suggest';
+        if (!isDocFormat) {
+            const rawSrc = fs.readFileSync(absoluteFile, 'utf8');
+            const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSrc);
+            if (fmMatch) {
+                try {
+                    const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
+                    if (fm?.lync?.vision) vision = fm.lync.vision.trim();
+                    if (fm?.lync?.fix) fixMode = fm.lync.fix;
+                } catch { }
+            }
+        }
+
         // Incremental skip check for agent mode
         let allSkipped = true;
         for (const targetLang of targetLangs) {
@@ -332,7 +347,12 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
 
         // 1. Verify (exec only)
         if (!isDocFormat) {
-            actionItems.push(`${itemIndex++}. **Verify** \`${minVariantPath}\``);
+            const verifyLabel = vision
+                ? (fixMode === 'auto'
+                    ? `**Verify & Auto-Fix** \`${minVariantPath}\` — check against vision + 4 criteria; directly edit product to fix any issues`
+                    : `**Verify** \`${minVariantPath}\` — check against vision + 4 criteria; if issues found, output suggested edits (do NOT modify product)`)
+                : `**Verify** \`${minVariantPath}\``;
+            actionItems.push(`${itemIndex++}. ${verifyLabel}`);
         }
 
         // 2. Translation (only if other langs needed)
@@ -359,12 +379,16 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             .map(lang => `  - ${path.relative(cwd, finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`)
             .join('\n');
 
+        const visionLines = vision
+            ? [`**Vision:** ${vision.replace(/\n/g, ' ')}`, `**Fix Mode:** ${fixMode}`, ``]
+            : [];
+
         const instructions = [
             `# Lync Agent Instructions — \`${entry.relativeFile}\``,
             ``,
             `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
             `**Target Languages:** ${targetLangs.join(', ')}`,
-            ``,
+            ...visionLines,
             `\`\`\`yaml`,
             `compiledFiles:`,
             compiledFilesYaml,
