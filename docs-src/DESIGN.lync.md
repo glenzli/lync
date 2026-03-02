@@ -237,3 +237,34 @@ skills/lync-expert/                         # 编译产物目录（纯净）
 *   **严格防范循环依赖 (Strict DAG Enforcement)**: 在执行 `lync build` 时，如果被引入的文件又递归引入了其他文件，编译器必须维护调用栈。一旦检测到闭环（`A -> B -> C -> A`），必须立即报致命错误。
 *   **本地写入冲突防范**: 执行 `sync` 之前，Lync 必须做静态预检。如果在 `lync.yaml` 中发现两个不同的 Alias 被赋予了完全一样的 `dest` 写入路径，必须立即抛出致命冲突错误。
 *   **未知别名拦截**: 如果 `build` 过程中遇到了未在清单中注册的 `lync:unknown-alias`，编译器应立即终止，并提示开发者先去 `lync.yaml` 中安装该依赖。
+
+---
+
+## Part 7: 增量构建 (Incremental Build)
+
+Lync 支持基于内容 Hash 的增量构建，对用户完全透明——命令不变，构建自动加速。
+
+### 工作原理
+
+每次成功编译后，Lync 将所有源文件（入口文件 + 所有传递依赖）的内容 SHA-256 签名写入 `lync-build-state.yaml`：
+
+```yaml
+version: 1
+entries:
+  "docs-src/DESIGN.lync.md|merged":
+    inputSignature: "abc123..."
+    outputFile: DESIGN.md
+    targetLang: zh-CN
+```
+
+下次执行 `lync build` 时，对每个条目：
+
+1. 静态遍历依赖图，重新计算签名
+2. 若签名匹配 **且** 产物文件存在 → ⚡️ **直接跳过**
+3. 若签名不匹配（任意源文件变更）→ 正常编译，更新缓存
+
+### 设计要点
+
+*   **可提交（Committable）**：`lync-build-state.yaml` 基于内容 Hash，与机器无关，应提交到版本控制，团队成员可直接共享增量缓存。
+*   **自动失效**：任何源文件（包括任意层级的传递依赖）变更，签名随之变化，增量 skip 自动失效，确保构建结果始终正确。
+*   **对 Agent 模式透明**：`lync agent` 同样支持增量构建。若构建被跳过，`.lync/agent-instructions.md` 中不会生成对应条目，AI 编辑器自然跳过后续语义任务。

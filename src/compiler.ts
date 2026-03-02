@@ -340,3 +340,39 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     return output;
 }
+
+/**
+ * Statically collects all transitive dependency paths for a given entry file
+ * by DFS-traversing @import:inline and @import:link references.
+ * Does NOT compile or call any LLM — pure file graph traversal.
+ */
+export function collectDependencies(filePath: string, cwd: string, visited: Set<string> = new Set()): Set<string> {
+    if (visited.has(filePath) || !fs.existsSync(filePath)) return visited;
+    visited.add(filePath);
+
+    const rawContent = fs.readFileSync(filePath, 'utf8');
+    const lock = loadLockfile(cwd);
+
+    // Use a lightweight regex scan to find import links (faster than full AST parse)
+    const importRegex = /\[([^\]]*)\]\(([^)]+)"@import:(inline|link)"[^)]*\)/g;
+    let match;
+    while ((match = importRegex.exec(rawContent)) !== null) {
+        const url = match[2].trim();
+        let depPath: string;
+        if (url.startsWith('lync:')) {
+            const alias = url.replace('lync:', '');
+            const lockedDep = lock.dependencies[alias];
+            if (!lockedDep) continue;
+            depPath = lockedDep.dest
+                ? path.resolve(cwd, lockedDep.dest)
+                : path.resolve(cwd, '.lync', alias + '.md');
+        } else if (url.startsWith('./') || url.startsWith('../')) {
+            depPath = path.resolve(path.dirname(filePath), url);
+        } else {
+            continue;
+        }
+        collectDependencies(depPath, cwd, visited);
+    }
+
+    return visited;
+}

@@ -3,12 +3,13 @@ import { minimatch } from 'minimatch';
 import * as path from 'path';
 import * as fs from 'fs';
 import { loadBuildConfig } from './config';
-import { compileFile, extractTargetLangs } from './compiler';
+import { compileFile, extractTargetLangs, collectDependencies } from './compiler';
 import { t } from './i18n';
 import { LyncFrontmatter } from './types';
 import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 import { estimateTokens } from './utils';
+import { loadBuildState, saveBuildState, computeInputSignature, buildStateKey } from './buildstate';
 
 // ========== Types ==========
 
@@ -185,14 +186,74 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
 /** Pure deterministic build — used by `lync build` */
 export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
+    const buildState = loadBuildState(cwd);
+    let stateChanged = false;
+
     for (const entry of entries) {
+        const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
+        const isDocFormat = entry.compileFormat === 'doc';
+        const outputFile = isDocFormat ? finalDest : finalDest; // both point to finalDest for cache key
+
+        // Check incremental cache for each lang
+        let allSkipped = true;
+        for (const targetLang of targetLangs) {
+            let actualDest = finalDest;
+            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+            } else if (isDocFormat) {
+                actualDest = finalDest;
+            }
+            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
+            const cached = buildState.entries[key];
+            if (cached && fs.existsSync(actualDest)) {
+                // Lazily compute signature only when needed
+                const deps = collectDependencies(absoluteFile, cwd);
+                const sig = computeInputSignature(deps);
+                if (cached.inputSignature === sig) {
+                    // skip this lang
+                    continue;
+                }
+            }
+            allSkipped = false;
+            break;
+        }
+
+        if (allSkipped) {
+            console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
+            continue;
+        }
+
+        // Full compile
         await compileEntry(entry, cwd, false);
+
+        // Update cache after successful compile
+        const deps = collectDependencies(absoluteFile, cwd);
+        const sig = computeInputSignature(deps);
+        for (const targetLang of targetLangs) {
+            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
+            let actualDest = finalDest;
+            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+            }
+            buildState.entries[key] = {
+                inputSignature: sig,
+                outputFile: path.relative(cwd, isDocFormat ? finalDest : actualDest),
+                targetLang: targetLang || 'auto',
+            };
+        }
+        stateChanged = true;
+    }
+
+    if (stateChanged) {
+        saveBuildState(buildState, cwd);
     }
 }
 
 /** Agent build — used by `lync agent` workspace mode */
 export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
+    const buildState = loadBuildState(cwd);
+    let stateChanged = false;
 
     // Clear previous agent instructions
     const instructionsPath = path.resolve(cwd, '.lync', 'agent-instructions.md');
@@ -201,8 +262,30 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
     fs.writeFileSync(instructionsPath, '', 'utf8');
 
     for (const entry of entries) {
-        const { finalDest, targetLangs } = entry;
+        const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isDocFormat = entry.compileFormat === 'doc';
+
+        // Incremental skip check for agent mode
+        let allSkipped = true;
+        for (const targetLang of targetLangs) {
+            let actualDest = finalDest;
+            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+            }
+            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
+            const cached = buildState.entries[key];
+            if (cached && fs.existsSync(actualDest)) {
+                const deps = collectDependencies(absoluteFile, cwd);
+                const sig = computeInputSignature(deps);
+                if (cached.inputSignature === sig) continue;
+            }
+            allSkipped = false;
+            break;
+        }
+        if (allSkipped) {
+            console.log(`[AGENT] ⚡️ Skipped (unchanged): ${relativeFile}`);
+            continue;
+        }
 
         // Cache old content for agent history diffing
         const historyPaths: { lang: string; backupPath: string }[] = [];
@@ -292,7 +375,29 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
 
         fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
         console.log(`[AGENT] 🤖 Instructions appended for: ${entry.relativeFile}`);
+
+        // Update incremental build cache after successful agent compile
+        const deps = collectDependencies(absoluteFile, cwd);
+        const sig = computeInputSignature(deps);
+        for (const targetLang of targetLangs) {
+            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
+            let actualDest = finalDest;
+            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+            }
+            buildState.entries[key] = {
+                inputSignature: sig,
+                outputFile: path.relative(cwd, isDocFormat ? finalDest : actualDest),
+                targetLang: targetLang || 'auto',
+            };
+        }
+        stateChanged = true;
+    }
+
+    if (stateChanged) {
+        saveBuildState(buildState, cwd);
     }
 
     console.log(`\n[AGENT] 📋 Full instructions: ${path.relative(cwd, instructionsPath)}`);
 }
+
