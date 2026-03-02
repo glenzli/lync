@@ -34,14 +34,11 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
         ? buildConfig.includes
         : ['**/*.lync.md'];
 
-    const configuredOutDir = cliOptions?.outDir || buildConfig.outDir || buildConfig.output?.dir || './dist';
+    const configuredOutDir = cliOptions?.outDir || buildConfig.output?.dir || './dist';
     const finalOutDir = path.resolve(cwd, configuredOutDir);
     const finalBaseDir = path.resolve(cwd, cliOptions?.baseDir || buildConfig.baseDir || '.');
 
     let globalTargetLangs = cliOptions?.targetLangs;
-    if (!globalTargetLangs || globalTargetLangs.length === 0) {
-        globalTargetLangs = buildConfig.targetLangs;
-    }
 
     const files = await glob(includes, {
         cwd: cwd,
@@ -158,6 +155,9 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
         } catch (e: any) {
             console.error(t('BUILD_ERR_WORKSPACE', relativeFile, targetLang || 'auto', e.message));
             console.error(e);
+            if (e.message && e.message.startsWith('[FATAL]')) {
+                throw e;
+            }
         }
     }
 
@@ -183,7 +183,7 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
 // ========== Layer 3: Command Composers ==========
 
 /** Pure deterministic build — used by `lync build` */
-export async function runWorkspaceBuild(cwd: string, _verify?: boolean, _model?: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
+export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
     for (const entry of entries) {
         await compileEntry(entry, cwd, false);

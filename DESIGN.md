@@ -103,7 +103,7 @@ Lync CLI 采用严格的关注点分离原则，将命令分为三类：
 
 **确定性工具（零 LLM 调用）**：
 
-* `lync build [file]`：纯确定性编译器。执行 AST 遍历、`@import` 解析、交叉编译翻译。翻译是编译器核心能力（相当于 gcc 的交叉编译后端），不属于"增强功能"。
+* `lync build [file]`：纯确定性编译器。执行 AST 遍历、`@import` 解析、交叉编译翻译。翻译是编译器核心能力（相当于 gcc 的交叉编译后端），不属于"增强功能"。注意：LLM 翻译后端仅在人类直接调用时生效；AI 编辑器应使用 `lync agent` 以绕过所有 LLM 调用。
 * `lync graph <file>`：静态分析 AST 并打印依赖关系的可视化 ASCII 树。
 * `lync seal <patterns>`：将普通 Markdown 封装为 Lync 模块（注入 Frontmatter、语言标签）。
 * `lync sync`、`lync add`、`lync init`：依赖管理与项目初始化。

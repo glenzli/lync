@@ -331,7 +331,7 @@ baseDir: "."
                 }
 
                 const buildConfig = loadBuildConfig(process.cwd());
-                const configuredOutDir = options?.outDir || buildConfig.outDir || buildConfig.output?.dir;
+                const configuredOutDir = options?.outDir || buildConfig.output?.dir;
                 let finalDest;
                 if (configuredOutDir) {
                     const outName = path.basename(entry).replace(/\.lync\.md$/, '.md');
@@ -388,8 +388,6 @@ baseDir: "."
                         fileLangsToProcess = buildConfig.compile.exec.targetLangs;
                     } else if (targetLangsArray && targetLangsArray.length > 0) {
                         fileLangsToProcess = targetLangsArray;
-                    } else if (buildConfig.targetLangs && buildConfig.targetLangs.length > 0) {
-                        fileLangsToProcess = buildConfig.targetLangs;
                     } else {
                         const extracted = extractTargetLangs(absoluteEntry);
                         fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
@@ -433,7 +431,7 @@ baseDir: "."
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), false, undefined, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                await runWorkspaceBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
             }
         });
 
@@ -508,7 +506,7 @@ baseDir: "."
                 }
 
                 const buildConfig = loadBuildConfig(process.cwd());
-                const configuredOutDir = options?.outDir || buildConfig.outDir || buildConfig.output?.dir;
+                const configuredOutDir = options?.outDir || buildConfig.output?.dir;
                 let finalDest;
                 if (configuredOutDir) {
                     const outName = path.basename(entry).replace(/\.lync\.md$/, '.md');
@@ -562,8 +560,6 @@ baseDir: "."
                         fileLangsToProcess = buildConfig.compile.exec.targetLangs;
                     } else if (targetLangsArray && targetLangsArray.length > 0) {
                         fileLangsToProcess = targetLangsArray;
-                    } else if (buildConfig.targetLangs && buildConfig.targetLangs.length > 0) {
-                        fileLangsToProcess = buildConfig.targetLangs;
                     } else {
                         const extracted = extractTargetLangs(absoluteEntry);
                         fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
@@ -656,7 +652,7 @@ ${fileLangsToProcess!.map(lang => `  - ${path.relative(process.cwd(), finalDest.
         });
 
     program
-        .command('graph [entry]')
+        .command('graph <entry>')
         .description(t('CLI_DESC_GRAPH'))
         .action(async (entry) => {
             try {

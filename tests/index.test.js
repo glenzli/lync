@@ -77,7 +77,7 @@ describe('Config Layer', () => {
         const { loadBuildConfig } = load('config');
         const build = loadBuildConfig(FIXTURES);
         assert.deepStrictEqual(build.includes, []);
-        assert.strictEqual(build.outDir, './dist');
+        assert.strictEqual(build.outDir, undefined);
     });
 });
 

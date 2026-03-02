@@ -35,9 +35,9 @@ lync sync
 ```
 
 **4. 执行编译（简单一对一）**
-目前 Lync 支持直接的一对一编译，将你的 `.lync.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费：
+目前 Lync 支持直接的一对一编译，将你的 `.lync.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费（`-o` 指定输出目录）：
 ```bash
-lync build main.lync.md -o main.md
+lync build main.lync.md -o ./dist
 ```
 
 **5. 语义校验 (LLM 驱动)**

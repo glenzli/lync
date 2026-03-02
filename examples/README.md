@@ -1,8 +1,8 @@
-# Lync v2 Examples
+# Lync Examples
 
 This directory demonstrates Lync's powerful cross-compilation and modular prompt design.
 
-## Key Features in v2
+## Key Features
 
 - **Language blocks**: Using `<!-- lang:xx -->` for standard Markdown compatibility.
 - **Deep Cascading**: `@import:inline` now propagates target languages recursively.

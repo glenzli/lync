@@ -31,12 +31,12 @@ English explanation block here.
 - `lync init`：在当前目录下生成默认的 `lync-build.yaml` 配置。
 - `lync sync`：安装 `lync.yaml` 中声明的所有远程依赖，并生成 `lync-lock.yaml` 锁定文件以确保确定性构建。
 - `lync add <url>`：下载一个远程依赖并将其别名自动注册到 `lync.yaml`。
-- `lync build <file>`：将目标 `.lync.md` 文件编译为干净、扁平的 `.md` 产物。
-- `lync build <file> --target-langs zh-CN,ja`：将文件交叉编译到多个目标语种。
-- `lync build <file> --verify`：在本地使用 LLM 对最终组装的指令逻辑进行语义校验。
-- `lync build <file> --verify-continue-on-error`：即使 LLM 校验 API 调用失败也继续编译。
-- `lync build <file> --agent`：**LLM 自治驱动模式**。绕过所有 Lync 内部的 LLM API 调用（翻译、校验）以节省 Token。Lync 仅执行确定性文件合并/AST 遍历，并输出编排计划 (`.lync/agent-instructions.md`) 供外部 AI 编辑器执行。
-- `lync build <file> --diff`：编译文件并使用 LLM 对新旧编译产物进行语义对比分析。
+- `lync build [file]`：将目标 `.lync.md` 文件编译为干净、扁平的 `.md` 产物。无参数时执行工作区批量编译。
+- `lync build [file] --target-langs zh-CN,ja`：将文件交叉编译到多个目标语种。
+- `lync lint <file>`：对已编译产物执行 LLM 驱动的语义冲突检测（独立于编译流程）。
+- `lync lint <file> --continue-on-error`：即使 LLM 校验 API 调用失败也不阻断退出。
+- `lync diff <file> [old-file]`：使用 LLM 对新旧编译产物进行语义差异分析。
+- `lync agent [entry]`：**AI 编辑器自治模式**。绕过所有 Lync 内部的 LLM API 调用（翻译、校验）以节省 Token。Lync 仅执行确定性 AST 遍历与文件合并，并输出编排计划 (`.lync/agent-instructions.md`) 供外部 AI 编辑器执行。
 - `lync graph <file>`：静态分析 AST 并打印所有嵌套 `@import` 依赖的可视化 ASCII 树。
 - `lync seal <patterns...>`：向标准 Markdown 文件注入 `lync` 元数据（版本号、别名）和多语言标签，将其升级为 Lync 模块。
 

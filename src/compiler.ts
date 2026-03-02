@@ -8,7 +8,6 @@ import { toMarkdown } from 'mdast-util-to-markdown';
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import { directiveToMarkdown } from 'mdast-util-directive';
 import { visitParents } from 'unist-util-visit-parents';
-import { visit } from 'unist-util-visit';
 import { detectLanguage, iso639_3_map, estimateTokens } from './utils';
 import { loadLockfile } from './config';
 import { Root, Link, Parent } from 'mdast';

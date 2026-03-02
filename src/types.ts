@@ -53,14 +53,12 @@ export interface BuildRoutingRule {
 
 export interface LyncBuild {
     includes?: string[];
-    outDir?: string;
     output?: {
         dir?: string;
         flat?: boolean;
         inPlace?: boolean;
     };
     baseDir?: string;
-    targetLangs?: string[];  // legacy fallback
     routing?: BuildRoutingRule[];
     compile?: {
         doc?: {

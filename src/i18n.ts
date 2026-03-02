@@ -65,13 +65,17 @@ const dictionaries: Record<string, Dictionary> = {
         'DIFF_RESULT_PREFIX': '[DIFF] 📝 Analysis Report:\\n{0}\\n',
 
         // Network / Sync
-        'SYNC_START': '[SYNC] Fetching dependencies...',
-        'SYNC_FETCHING': '[SYNC] Fetching: {0} -> {1}',
-        'SYNC_DOWNLOADED': '  ↳ Downloaded: {0}',
-        'SYNC_DEST_BUILT': '  ↳ Built explicit destination: {0}',
-        'SYNC_ERR_FETCH': '[SYNC] Error fetching {0}: {1}',
-        'SYNC_UP_TO_DATE': '[SYNC] Everything is up-to-date.',
-        'SYNC_DONE': '[SYNC] Done.',
+        'SYNC_WARN_NO_URL': '[SYNC] ⚠️ No URL defined for alias \'{0}\'. Skipping.',
+        'SYNC_WARN_HASH_MISMATCH': '[SYNC] ⚠️ Local hash mismatch for \'{0}\'. Re-fetching.',
+        'SYNC_FETCHING_START': '[SYNC] Fetching: {0} -> {1}',
+        'SYNC_FOUND_VERSION': '  ↳ Found version: {0}',
+        'SYNC_FOUND_NESTED': '  ↳ Found nested dependencies. Inheriting...',
+        'SYNC_INHERITING': '  ↳ Inheriting dependency: {0} -> {1}',
+        'SYNC_SKIPPING_OVERRIDDEN': '  ↳ Skipping \'{0}\' (overridden by root project).',
+        'SYNC_SUCCESS_ALIAS': '  ↳ Synced: {0}',
+        'SYNC_ERR_FAILED': '[SYNC] ❌ Failed to sync \'{0}\': {1}',
+        'SYNC_UP_TO_DATE_ALIAS': '[SYNC] ✅ \'{0}\' is up-to-date.',
+        'SYNC_LOCK_UPDATED': '[SYNC] 🔒 Lockfile updated.',
 
         // Compiler
         'COMPILER_USE_EXISTING_BLOCK': '[COMPILER] ⚡️ Using existing \'{0}\' block for {1}',
@@ -148,13 +152,17 @@ const dictionaries: Record<string, Dictionary> = {
         'DIFF_RESULT_PREFIX': '[DIFF] 📝 变更分析报告:\\n{0}\\n',
 
         // Network / Sync
-        'SYNC_START': '[SYNC] 正在探测依赖状态...',
-        'SYNC_FETCHING': '[SYNC] 正在拉取: {0} -> {1}',
-        'SYNC_DOWNLOADED': '  ↳ 已下载源码: {0}',
-        'SYNC_DEST_BUILT': '  ↳ 已构建指定的物理路径: {0}',
-        'SYNC_ERR_FETCH': '[SYNC] 拉取 {0} 失败: {1}',
-        'SYNC_UP_TO_DATE': '[SYNC] 所有依赖均已是最新状态。',
-        'SYNC_DONE': '[SYNC] 同步完成。',
+        'SYNC_WARN_NO_URL': '[SYNC] ⚠️ 别名 \'{0}\' 未定义 URL，已跳过。',
+        'SYNC_WARN_HASH_MISMATCH': '[SYNC] ⚠️ \'{0}\' 本地哈希不匹配，重新拉取。',
+        'SYNC_FETCHING_START': '[SYNC] 正在拉取: {0} -> {1}',
+        'SYNC_FOUND_VERSION': '  ↳ 发现版本号: {0}',
+        'SYNC_FOUND_NESTED': '  ↳ 发现嵌套依赖，正在继承...',
+        'SYNC_INHERITING': '  ↳ 继承依赖: {0} -> {1}',
+        'SYNC_SKIPPING_OVERRIDDEN': '  ↳ 跳过 \'{0}\'（已被主项目覆写）。',
+        'SYNC_SUCCESS_ALIAS': '  ↳ 同步完成: {0}',
+        'SYNC_ERR_FAILED': '[SYNC] ❌ 同步 \'{0}\' 失败: {1}',
+        'SYNC_UP_TO_DATE_ALIAS': '[SYNC] ✅ \'{0}\' 已是最新。',
+        'SYNC_LOCK_UPDATED': '[SYNC] 🔒 锁文件已更新。',
 
         // Compiler
         'COMPILER_USE_EXISTING_BLOCK': '[COMPILER] ⚡️ 对于文件 {1}，已复用现有的 \'{0}\' 语言块',
