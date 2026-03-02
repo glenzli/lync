@@ -295,6 +295,13 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     callStack.delete(filePath);
 
+    // Rewrite .lync.md references in regular links to .md
+    visitParents(ast, 'link', (node: Link) => {
+        if (node.url && node.url.endsWith('.lync.md')) {
+            node.url = node.url.replace(/\.lync\.md$/, '.md');
+        }
+    });
+
     const output = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml'])] });
 
     // Only check tokens for the root assembled file
