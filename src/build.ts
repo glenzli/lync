@@ -198,26 +198,41 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
 
         // Check incremental cache for each lang
         let allSkipped = true;
-        for (const targetLang of targetLangs) {
-            let actualDest = finalDest;
-            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-            } else if (isDocFormat) {
-                actualDest = finalDest;
-            }
-            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
+        if (isDocFormat) {
+            // Doc format: single merged key, but must also check targetLangs set hasn't changed
+            const key = buildStateKey(relativeFile, 'merged');
             const cached = buildState.entries[key];
-            if (cached && fs.existsSync(actualDest)) {
-                // Lazily compute signature only when needed
+            if (cached && fs.existsSync(finalDest)) {
                 const deps = collectDependencies(absoluteFile, cwd);
                 const sig = computeInputSignature(deps);
-                if (cached.inputSignature === sig) {
-                    // skip this lang
-                    continue;
+                const cachedLangs = [...(cached.targetLangs || [])].sort().join(',');
+                const currentLangs = [...targetLangs].sort().join(',');
+                if (cached.inputSignature === sig && cachedLangs === currentLangs) {
+                    // truly unchanged: same source AND same target languages
+                } else {
+                    allSkipped = false;
                 }
+            } else {
+                allSkipped = false;
             }
-            allSkipped = false;
-            break;
+        } else {
+            for (const targetLang of targetLangs) {
+                let actualDest = finalDest;
+                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+                }
+                const key = buildStateKey(relativeFile, targetLang || 'auto');
+                const cached = buildState.entries[key];
+                if (cached && fs.existsSync(actualDest)) {
+                    const deps = collectDependencies(absoluteFile, cwd);
+                    const sig = computeInputSignature(deps);
+                    if (cached.inputSignature === sig) {
+                        continue;
+                    }
+                }
+                allSkipped = false;
+                break;
+            }
         }
 
         if (allSkipped) {
@@ -231,17 +246,27 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
         // Update cache after successful compile
         const deps = collectDependencies(absoluteFile, cwd);
         const sig = computeInputSignature(deps);
-        for (const targetLang of targetLangs) {
-            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
-            let actualDest = finalDest;
-            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-            }
+        if (isDocFormat) {
+            const key = buildStateKey(relativeFile, 'merged');
             buildState.entries[key] = {
                 inputSignature: sig,
-                outputFile: path.relative(cwd, isDocFormat ? finalDest : actualDest),
-                targetLang: targetLang || 'auto',
+                outputFile: path.relative(cwd, finalDest),
+                targetLang: 'merged',
+                targetLangs: [...targetLangs].sort(),
             };
+        } else {
+            for (const targetLang of targetLangs) {
+                const key = buildStateKey(relativeFile, targetLang || 'auto');
+                let actualDest = finalDest;
+                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+                }
+                buildState.entries[key] = {
+                    inputSignature: sig,
+                    outputFile: path.relative(cwd, actualDest),
+                    targetLang: targetLang || 'auto',
+                };
+            }
         }
         stateChanged = true;
     }
@@ -284,20 +309,36 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
 
         // Incremental skip check for agent mode
         let allSkipped = true;
-        for (const targetLang of targetLangs) {
-            let actualDest = finalDest;
-            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-            }
-            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
+        if (isDocFormat) {
+            const key = buildStateKey(relativeFile, 'merged');
             const cached = buildState.entries[key];
-            if (cached && fs.existsSync(actualDest)) {
+            if (cached && fs.existsSync(finalDest)) {
                 const deps = collectDependencies(absoluteFile, cwd);
                 const sig = computeInputSignature(deps);
-                if (cached.inputSignature === sig) continue;
+                const cachedLangs = [...(cached.targetLangs || [])].sort().join(',');
+                const currentLangs = [...targetLangs].sort().join(',');
+                if (!(cached.inputSignature === sig && cachedLangs === currentLangs)) {
+                    allSkipped = false;
+                }
+            } else {
+                allSkipped = false;
             }
-            allSkipped = false;
-            break;
+        } else {
+            for (const targetLang of targetLangs) {
+                let actualDest = finalDest;
+                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+                }
+                const key = buildStateKey(relativeFile, targetLang || 'auto');
+                const cached = buildState.entries[key];
+                if (cached && fs.existsSync(actualDest)) {
+                    const deps = collectDependencies(absoluteFile, cwd);
+                    const sig = computeInputSignature(deps);
+                    if (cached.inputSignature === sig) continue;
+                }
+                allSkipped = false;
+                break;
+            }
         }
         if (allSkipped) {
             console.log(`[AGENT] ⚡️ Skipped (unchanged): ${relativeFile}`);
@@ -405,17 +446,27 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
         // Update incremental build cache after successful agent compile
         const deps = collectDependencies(absoluteFile, cwd);
         const sig = computeInputSignature(deps);
-        for (const targetLang of targetLangs) {
-            const key = buildStateKey(relativeFile, isDocFormat ? 'merged' : (targetLang || 'auto'));
-            let actualDest = finalDest;
-            if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-            }
+        if (isDocFormat) {
+            const key = buildStateKey(relativeFile, 'merged');
             buildState.entries[key] = {
                 inputSignature: sig,
-                outputFile: path.relative(cwd, isDocFormat ? finalDest : actualDest),
-                targetLang: targetLang || 'auto',
+                outputFile: path.relative(cwd, finalDest),
+                targetLang: 'merged',
+                targetLangs: [...targetLangs].sort(),
             };
+        } else {
+            for (const targetLang of targetLangs) {
+                const key = buildStateKey(relativeFile, targetLang || 'auto');
+                let actualDest = finalDest;
+                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
+                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
+                }
+                buildState.entries[key] = {
+                    inputSignature: sig,
+                    outputFile: path.relative(cwd, actualDest),
+                    targetLang: targetLang || 'auto',
+                };
+            }
         }
         stateChanged = true;
     }

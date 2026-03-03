@@ -1,6 +1,14 @@
 # VASMC - Help & Usage
 
-<a name="syntax"></a>
+[🇨🇳 中文](#zh-cn) | [🌍 English](#en)
+
+***
+
+<a name="zh-cn"></a>
+
+## 🇨🇳 中文
+
+<a name="syntax-zh-cn"></a>
 
 ## 🔮 核心语法与引入协议 (Core Syntax)
 
@@ -43,7 +51,7 @@ Please explain the code step by step.
 
 ***
 
-<a name="publish"></a>
+<a name="publish-zh-cn"></a>
 
 ## 📦 发布模块 (Frontmatter 注入)
 
@@ -76,7 +84,7 @@ vasm:
 >
 > **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `exec` 格式文件有效。
 
-<a name="cli-human"></a>
+<a name="cli-human-zh-cn"></a>
 
 ## 🛠️ CLI 使用方法与编译构建
 
@@ -147,7 +155,7 @@ vasmc lint main.md --model gpt-4o
 
 ***
 
-<a name="workspace"></a>
+<a name="workspace-zh-cn"></a>
 
 ### 🗂️ 进阶用法：工作区批量编译
 
@@ -199,6 +207,216 @@ vasmc build
 ```
 
 *同时支持 CLI 临时覆盖：*
+
+```bash
+vasmc build --out-dir ./doc --base-dir ./src
+```
+
+***
+
+<a name="en"></a>
+
+## 🌍 English
+
+<a name="syntax-en"></a>
+
+## 🔮 Core Syntax and Import Protocols (Core Syntax)
+
+### Import Syntax
+
+`[链接文本](vasm:alias "@vasm-directive")`
+
+* **Link Rewrite Mode (`@import:link`)**:
+  The compiler replaces `vasm:alias` with the local relative physical path of the target file, preserving the hyperlink structure.
+  ```markdown
+  请参阅下方的 [代码审查辅助技能](vasm:coder-skill "@import:link")。
+  ```
+  *Build Output*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
+
+* **Inline Expansion Mode (`@import:inline`)**:
+  The compiler reads the plain text content of the target file and directly replaces the reference link. Primarily used for assembling large Prompt contexts.
+  ```markdown
+  根据本组织的 [公司开发规范](vasm:company-rules "@import:inline")：
+  ```
+  *Build Output*: The original link is removed, and the full text content of `guidelines.md` is inserted at its position.
+
+### Native Multi-language Cross-Compilation (Cross-Compilation)
+
+VASMC supports native multi-language support for Prompts using AST directives:
+
+```markdown
+# 通用系统规则
+你是一个代码专家。
+
+<!-- lang:en -->
+Please explain the code step by step.
+<!-- /lang -->
+
+<!-- lang:zh-CN -->
+请逐步解释代码。
+<!-- /lang -->
+```
+
+During generation, use the `--target-langs` parameter to specify the languages you need to generate. VASMC will automatically filter the AST tree and output clean products for each language respectively.
+
+***
+
+<a name="publish-en"></a>
+
+## 📦 Publishing Modules (Frontmatter Injection)
+
+If you distribute prompt modules via public URLs, it is strongly recommended to add a YAML Frontmatter block at the top of the `.md` file to declare formal aliases and nested dependencies.
+
+Example of manual content injection:
+
+```yaml
+---
+vasm:
+  alias: "my-coder-prompt"
+  version: "1.0.0"
+  dependencies:
+    anti-delusion: "https://example.com/system.md"
+  compile:
+    format: prompt        # exec（AI 消费）| doc（人类文档）
+    targetLangs: ["zh-CN"]
+  vision: |
+    产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
+    输出结构化（级别/位置/描述/建议），风格简洁，不扮演开发者。
+  fix: suggest          # suggest（默认，输出建议）| auto（直接编辑产物并报告）
+---
+
+# 你的 Prompt 正文内容...
+```
+
+*When others install via `vasmc add <your-url>`, VASMC will automatically parse these contents and perfectly restore the environment.*
+
+> **`vision`**: Declares the semantic goal that the compiled product should achieve. When `vasmc agent` is executed, the AI orchestrator will verify the product against this goal for intent alignment (the Verify Pass of semantic compilation).
+>
+> **`fix`**: Controls the fix strategy when issues are found—`suggest` only lists suggestions waiting for user confirmation, while `auto` directly modifies the product files and outputs a change summary. Only valid for `exec` format files.
+
+<a name="cli-human-en"></a>
+
+## 🛠️ CLI Usage and Compilation/Build
+
+**1. Initialize Project**
+You can use the following command to quickly generate a default `vasmc-build.yaml` configuration template in the current directory:
+
+```bash
+vasmc init
+```
+
+Create a `vasmc.yaml` in the project root to declare dependencies:
+
+```yaml
+dependencies:
+  company-rules: "https://example.com/guidelines.md"
+  coder-skill:
+    url: "https://example.com/coder-skill.md"
+    dest: "./skills/coder.md"
+```
+
+*Or use the command line directly:*
+
+```bash
+vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
+```
+
+**2. Version Control Configuration**
+Add `.vasmc/` to `.gitignore` (this is VASMC's internal cache directory). `vasmc-lock.yaml` should be committed to version control—it ensures build determinism.
+
+```gitignore
+.vasmc/
+```
+
+**3. State Convergence (Sync)**
+Install all missing dependencies with one click and generate `vasmc-lock.yaml`:
+
+```bash
+vasmc sync
+```
+
+**4. Execute Compilation (Simple One-to-One)**
+Currently, VASMC supports direct one-to-one compilation, outputting your `.vasm.md` source files and their mounted dependencies precisely as clean, monolithic `.md` artifacts for LLM consumption (`-o` specifies the output directory):
+
+```bash
+vasmc build main.vasm.md -o ./dist
+```
+
+**5. Semantic Linting (LLM-Driven)**
+After compilation, you can use the standalone `vasmc lint` command to perform semantic conflict detection on the artifacts:
+
+```bash
+vasmc build main.vasm.md
+vasmc lint main.md --model gpt-4o
+```
+
+*You need to configure `OPENAI_API_KEY` in your environment variables, or configure a custom LLM node via `.vasmrc`.*
+
+**6. Quick Sealing (Auto-Frontmatter)**
+
+> 💡 **Tip:** You can run the following command to automatically convert regular Markdown files into VASM modules:
+>
+> ```bash
+> vasmc seal my-prompt.md --alias my-custom-name
+> ```
+>
+> *Supports Glob pattern batch operations: `vasmc seal "prompts/**/*.md"`*
+> *This command will automatically infer an alias from the filename or path, inject Frontmatter at the top, and automatically rename the file to `.vasm.md`.*
+
+***
+
+<a name="workspace-en"></a>
+
+### 🗂️ Advanced Usage: Workspace Batch Compilation
+
+For large projects, VASMC supports automated batch compilation via the `vasmc-build.yaml` configuration file.
+
+Create `vasmc-build.yaml` in your project root:
+
+```yaml
+# Which source files should the compiler scan?
+includes:
+  - "src/**/*.vasm.md"
+
+# Where should the build artifacts be output?
+output:
+  dir: "./dist"
+
+# Strip mapping prefix directory
+baseDir: "./src"
+
+# Cross-compilation target languages (configured per output format)
+compile:
+  doc:                          # Document format: Multi-language merge
+    targetLangs: ["en", "zh-CN"]
+  exec:                         # Executable instruction format: Single-language output
+    targetLangs: ["en"]
+
+# [Advanced] Routing Interceptors
+routing:
+  - match: "src/agents/*.vasm.md"
+    dest: "./dist/agents/"
+```
+
+### \[Advanced] Global Configuration (.vasmrc)
+
+VASMC now supports creating a standalone `.vasmrc` configuration file in the user's global directory (`~/.vasmrc`) or the project root (`./.vasmrc`, **please remember to add it to `.gitignore`**) to configure custom LLM nodes.
+
+```yaml
+lang: "en" # Global interaction logs and LLM output language for VASMC
+llm:
+  baseURL: "https://api.deepseek.com/v1"
+  apiKey: "your-custom-api-key"
+  model: "deepseek-chat"
+```
+
+Then, simply execute the build command without parameters:
+
+```bash
+vasmc build
+```
+
+*Also supports CLI temporary overrides:*
 
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src

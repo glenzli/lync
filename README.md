@@ -1,5 +1,13 @@
 # VASMC
 
+[🇨🇳 中文](#zh-cn) | [🌍 English](#en)
+
+***
+
+<a name="zh-cn"></a>
+
+## 🇨🇳 中文
+
 去中心化的 LLM Prompt 编译器 — 模块化导入、交叉编译、AI 原生的 Agent 编排。
 
 在大语言模型时代，Markdown 已经演变为**源代码** — System Prompt、技能包、指令集全部用 Markdown 编写。VASMC 将它们视为一等编译目标：解析 `@import` 依赖、跨语种交叉编译，并编排 AI 编辑器处理那些属于智能而非工具的语义任务。
@@ -37,3 +45,47 @@ vasmc build                   # 编译工作区
 ```
 
 完整 CLI 用法请参阅 **[帮助与用法文档](HELP.md)**。
+
+***
+
+<a name="en"></a>
+
+## 🌍 English
+
+Decentralized LLM Prompt Compiler — Modular imports, cross-compilation, and AI-native Agent orchestration.
+
+In the era of Large Language Models, Markdown has evolved into **source code** — System Prompts, skill sets, and instruction sets are all written in Markdown. VASMC treats them as first-class compilation targets: parsing `@import` dependencies, performing cross-language compilation, and orchestrating AI editors to handle semantic tasks that belong to intelligence rather than tools.
+
+👉 [Read the full design specification](DESIGN.md)
+
+### 📦 Core Features
+
+* **Decentralized Package Management**: Pull Markdown modules directly via URL — no registry, no middleman.
+* **Deterministic Builds**: SHA-256 lock files (`vasmc-lock.yaml`) ensure reproducible builds.
+* **Cross-Compilation**: AST-level language block filtering (`<!-- lang:xx -->`) generates artifacts for various languages; uncovered languages can automatically trigger LLM cross-compilation back-translation.
+* **Dual-Mode Import**:
+  * `@import:link` — Alias rewriting to local relative paths (preserving hyperlink structure).
+  * `@import:inline` — Inline expansion of remote content (assembling large Prompt contexts).
+
+### 🛠️ CLI Command Architecture (v3.0)
+
+| Command | Category | Description |
+|------|------|------|
+| `vasmc build` | Deterministic Tool | Pure compiler — AST assembly + cross-compilation |
+| `vasmc agent` | Agent Tool | Zero-LLM compilation + generation of AI editor orchestration instructions |
+| `vasmc lint` | LLM-Enhanced Tool | Semantic conflict detection for compiled artifacts |
+| `vasmc diff` | LLM-Enhanced Tool | Semantic difference analysis between versions |
+| `vasmc graph` | Deterministic Tool | ASCII dependency graph visualization |
+| `vasmc seal` | Deterministic Tool | Inject Frontmatter into standard Markdown |
+| `vasmc sync` | Deterministic Tool | Install and lock all dependencies |
+
+### 🚀 Quick Start
+
+```bash
+npm install -g @vasm/cli
+vasmc init                    # Generate vasmc-build.yaml
+vasmc add https://example.com/skill.md --alias my-skill
+vasmc build                   # Compile workspace
+```
+
+For full CLI usage, please refer to the **[Help and Usage Documentation](HELP.md)**.
