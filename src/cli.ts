@@ -188,7 +188,8 @@ baseDir: "."
         .description('Convert standard markdown files into VASMC modules by injecting Frontmatter. Supports wildcards.')
         .option('--alias <alias>', 'Explicitly set the alias name (only recommended for single files)')
         .option('--lang <lang>', 'Wrap content in a specific language block (e.g. ja, zh-CN)')
-        .action(async (patterns: string[], options: { alias?: string; lang?: string }) => {
+        .option('--format <format>', 'Compile format: prompt (AI consumption, default) or doc (human documentation, multi-lang merge)')
+        .action(async (patterns: string[], options: { alias?: string; lang?: string; format?: string }) => {
             if (!patterns || patterns.length === 0) {
                 console.error(t('SEAL_ERR_NO_FILES'));
                 process.exit(1);
@@ -249,11 +250,27 @@ baseDir: "."
                     }
                 }
 
-                const vasmMetadata = {
+                // Determine compile format: explicit flag > heuristic from filename
+                const docFilenamePattern = /^(readme|help|design|changelog|contributing|license|docs?|guide|tutorial|manual|api)/i;
+                const isLikelyDoc = docFilenamePattern.test(path.basename(file).split('.')[0]);
+                const compileFormat = options.format || (isLikelyDoc ? 'doc' : 'prompt');
+
+                // Detect source language for targetLangs default
+                const detectedLang = options.lang || detectLanguage(parsed.content) || 'zh-CN';
+
+                const vasmMetadata: Record<string, any> = {
                     alias: alias,
-                    version: "1.0.0"
+                    version: "1.0.0",
+                    compile: {
+                        format: compileFormat,
+                        targetLangs: [detectedLang],
+                    },
                 };
                 parsed.data.vasm = vasmMetadata;
+
+                if (compileFormat !== (options.format || compileFormat)) {
+                    console.log(`[SEAL] 📄 Detected doc-like filename, using format: doc (override with --format prompt)`);
+                }
 
                 // ----- Cross-compilation Language Auto-wrapping -----
                 let content = parsed.content;

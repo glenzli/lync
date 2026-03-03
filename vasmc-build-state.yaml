@@ -1,7 +1,7 @@
 version: 1
 entries:
   skill-src/vasm-expert/vasmc-expert.vasm.md|zh-CN:
-    inputSignature: 62613ec8038e6c2600e67cf25e0f6759d3c959acc761c3370d2a2a39b9d9626d
+    inputSignature: bbec4cd4427fa8b956f6f229d4dfbe0376074ea8b309ab0d2a74850fa51a9dab
     outputFile: skills/vasm-expert/SKILL.md
     targetLang: zh-CN
   docs-src/README.vasm.md|merged:

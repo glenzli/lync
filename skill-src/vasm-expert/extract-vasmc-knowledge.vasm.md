@@ -22,6 +22,8 @@ vasm:
 
 生成且仅生成一份**中文** Markdown 格式的知识手册，**不要**输出这些原始指令或任何对话语气，**只能**输出手册的纯 Markdown 内容。
 
+⚠️ **重要**：手册第一行必须是注释标记 `<!-- 第一章至第四章由飞轮自动生成，第五章为手工维护，禁止覆盖 -->`，你只生成前四章，**不要**生成第五章（第五章由人工维护）。
+
 手册结构如下（**务必按顺序包含全部四个章节**）：
 
 ---
@@ -49,6 +51,9 @@ vasm:
 重点说明两种编译格式的区别（在 Frontmatter 的 `compile.format` 中声明）：
 - **`prompt`**：可执行指令格式，单语种输出，供 LLM 直接消费（System Prompt、技能文件）
 - **`doc`**：文档格式，多语种合并输出，供人类阅读（README、HELP、DESIGN）
+
+**输出路径公式**（简明说明 `output.dir` + `baseDir` + `routing` 的交互关系）：
+默认输出 = `output.dir` + (文件路径 relative to `baseDir`)；`routing` 是拦截覆盖层，优先级最高。
 
 ---
 
@@ -79,7 +84,7 @@ vasm:
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
 | `vasmc sync` | 根据 `vasmc.yaml` 安装所有缺失依赖，生成/更新 `vasmc-lock.yaml` |
-| `vasmc seal <patterns>` | 将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、重命名为 `.vasm.md`） |
+| `vasmc seal <patterns>` | 将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、重命名为 `.vasm.md`）；使用 `--format prompt\|doc` 指定编译格式 |
 
 ---
 
