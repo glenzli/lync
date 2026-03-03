@@ -25,6 +25,10 @@ routing:
   - match: "docs-src/*.lync.md"
     dest: "./"
 
-  # lync-expert 技能源文件路由到 skills 目录
+  # lync-expert 主技能文件，编译产物命名为 SKILL.md（Antigravity skill 标准入口）
+  - match: "skill-src/lync-expert/lync-expert.lync.md"
+    dest: "./skills/lync-expert/SKILL.md"
+
+  # 其他 skill-src 文件（兜底路由，实际由 excludes 过滤）
   - match: "skill-src/lync-expert/*.lync.md"
     dest: "./skills/lync-expert/"

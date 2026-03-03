@@ -1,4 +1,6 @@
 ---
+name: lync-expert
+description: Use this skill when working with Lync, a Markdown-based prompt compiler. Covers @import syntax, lync-build.yaml config, cross-compilation, agent workflow, and frontmatter protocol.
 lync:
   alias: lync-expert
   version: 1.0.0
