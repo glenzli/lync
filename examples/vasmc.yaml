@@ -1,4 +1,4 @@
 dependencies:
   greeting:
-    url: "https://raw.githubusercontent.com/glenzli/lync/main/examples/deps/hello.md"
+    url: "https://raw.githubusercontent.com/glenzli/vasmc/main/examples/deps/hello.md"
     dest: "./deps/hello.md"
