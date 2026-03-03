@@ -47,7 +47,7 @@ lync:
 - **`*.md`（产物）**：纯净的编译产物，供 LLM 消费，禁止手工修改
 
 重点说明两种编译格式的区别（在 Frontmatter 的 `compile.format` 中声明）：
-- **`exec`**：可执行指令格式，单语种输出，供 LLM 直接消费（System Prompt、技能文件）
+- **`prompt`**：可执行指令格式，单语种输出，供 LLM 直接消费（System Prompt、技能文件）
 - **`doc`**：文档格式，多语种合并输出，供人类阅读（README、HELP、DESIGN）
 
 ---
@@ -86,4 +86,4 @@ lync:
 **注意事项（务必包含）**：
 - `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化。
 - 远程依赖通过 Hash 锁定，内容变更需执行 `lync sync --update <alias>` 才生效。
-- `exec` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
+- `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。

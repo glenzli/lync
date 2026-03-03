@@ -16,7 +16,7 @@ compile:
   doc:
     targetLangs:
       - "zh-CN"
-  exec:
+  prompt:
     targetLangs:
       - "zh-CN"
 

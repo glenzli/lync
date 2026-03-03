@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as yaml from 'yaml';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkFrontmatter from 'remark-frontmatter';
@@ -197,11 +198,32 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     const ast = processor.parse(rawContent) as Root;
 
-    // ----- [NEW] Frontmatter Stripping -----
+    // ----- Frontmatter: strip lync: namespace, passthrough any other fields -----
     if (ast.children) {
-        ast.children = ast.children.filter(node => node.type !== 'yaml');
+        const yamlNode = ast.children.find(node => node.type === 'yaml') as any;
+        if (yamlNode) {
+            try {
+                const fm = yaml.parse(yamlNode.value) as Record<string, unknown> | null;
+                if (fm && typeof fm === 'object') {
+                    const { lync: _, ...rest } = fm as any;
+                    const remainingKeys = Object.keys(rest);
+                    if (remainingKeys.length > 0) {
+                        // Rewrite yaml node with only non-lync fields
+                        yamlNode.value = yaml.stringify(rest).trimEnd();
+                    } else {
+                        // No passthrough fields — strip entirely
+                        ast.children = ast.children.filter(node => node.type !== 'yaml');
+                    }
+                } else {
+                    ast.children = ast.children.filter(node => node.type !== 'yaml');
+                }
+            } catch {
+                // Malformed frontmatter — strip to be safe
+                ast.children = ast.children.filter(node => node.type !== 'yaml');
+            }
+        }
     }
-    // ---------------------------------------
+    // -------------------------------------------------------------------------------
 
     const lock = loadLockfile(process.cwd());
 

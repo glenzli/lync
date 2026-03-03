@@ -363,7 +363,7 @@ baseDir: "."
                     let fileLangsToProcess: string[] | undefined;
 
                     // 1. Determine compile format from frontmatter (default: exec)
-                    let compileFormat: 'doc' | 'exec' = 'exec';
+                    let compileFormat: 'doc' | 'prompt' = 'prompt';
                     let frontmatterTargetLangs: string[] | undefined;
                     const rawSourceContent = fs.readFileSync(absoluteEntry, 'utf8');
                     const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
@@ -384,8 +384,8 @@ baseDir: "."
                         fileLangsToProcess = frontmatterTargetLangs;
                     } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
                         fileLangsToProcess = buildConfig.compile.doc.targetLangs;
-                    } else if (compileFormat === 'exec' && buildConfig.compile?.exec?.targetLangs?.length) {
-                        fileLangsToProcess = buildConfig.compile.exec.targetLangs;
+                    } else if (compileFormat === 'prompt' && buildConfig.compile?.prompt?.targetLangs?.length) {
+                        fileLangsToProcess = buildConfig.compile.prompt.targetLangs;
                     } else if (targetLangsArray && targetLangsArray.length > 0) {
                         fileLangsToProcess = targetLangsArray;
                     } else {
@@ -536,7 +536,7 @@ baseDir: "."
 
                 try {
                     let fileLangsToProcess: string[] | undefined;
-                    let compileFormat: 'doc' | 'exec' = 'exec';
+                    let compileFormat: 'doc' | 'prompt' = 'prompt';
                     let frontmatterTargetLangs: string[] | undefined;
                     let vision: string | undefined;
                     let fixMode: 'suggest' | 'auto' = 'suggest';
@@ -556,8 +556,8 @@ baseDir: "."
                         fileLangsToProcess = frontmatterTargetLangs;
                     } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
                         fileLangsToProcess = buildConfig.compile.doc.targetLangs;
-                    } else if (compileFormat === 'exec' && buildConfig.compile?.exec?.targetLangs?.length) {
-                        fileLangsToProcess = buildConfig.compile.exec.targetLangs;
+                    } else if (compileFormat === 'prompt' && buildConfig.compile?.prompt?.targetLangs?.length) {
+                        fileLangsToProcess = buildConfig.compile.prompt.targetLangs;
                     } else if (targetLangsArray && targetLangsArray.length > 0) {
                         fileLangsToProcess = targetLangsArray;
                     } else {

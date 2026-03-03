@@ -17,7 +17,7 @@ export interface WorkspaceEntry {
     relativeFile: string;
     absoluteFile: string;
     finalDest: string;
-    compileFormat: 'doc' | 'exec';
+    compileFormat: 'doc' | 'prompt';
     targetLangs: string[];
 }
 
@@ -87,7 +87,7 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
         }
 
         // Resolve targetLangs & compile format from frontmatter
-        let compileFormat: 'doc' | 'exec' = 'exec';
+        let compileFormat: 'doc' | 'prompt' = 'prompt';
         let frontmatterTargetLangs: string[] | undefined;
         const rawSourceContent = fs.readFileSync(absoluteFile, 'utf8');
         const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
@@ -108,8 +108,8 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
             fileLangsToProcess = frontmatterTargetLangs;
         } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
             fileLangsToProcess = buildConfig.compile.doc.targetLangs;
-        } else if (compileFormat === 'exec' && buildConfig.compile?.exec?.targetLangs?.length) {
-            fileLangsToProcess = buildConfig.compile.exec.targetLangs;
+        } else if (compileFormat === 'prompt' && buildConfig.compile?.prompt?.targetLangs?.length) {
+            fileLangsToProcess = buildConfig.compile.prompt.targetLangs;
         } else if (globalTargetLangs && globalTargetLangs.length > 0) {
             fileLangsToProcess = globalTargetLangs;
         } else {

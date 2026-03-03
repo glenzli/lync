@@ -1,7 +1,7 @@
 version: 1
 entries:
   skill-src/lync-expert/lync-expert.lync.md|zh-CN:
-    inputSignature: b8794e4976574390a1b12ad5ac52593a4f82622ea8d050e577380e8187d449b3
+    inputSignature: b6890b9e94ac4662575dd6c2b813a705b11454205c34955789ca3b82fc551108
     outputFile: skills/lync-expert/lync-expert.md
     targetLang: zh-CN
   docs-src/README.lync.md|merged:
@@ -9,7 +9,7 @@ entries:
     outputFile: README.md
     targetLang: zh-CN
   docs-src/HELP.lync.md|merged:
-    inputSignature: b3bf42ba510dceefaff9fae6db5464220254cec572314c71753d0a9c853f3593
+    inputSignature: 417942be41072f9f0a4e17823f384dc292bfa4a8848079cc372fa6477ae8d2af
     outputFile: HELP.md
     targetLang: zh-CN
   docs-src/DESIGN.lync.md|merged:

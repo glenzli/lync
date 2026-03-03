@@ -50,7 +50,7 @@ lync:
   dependencies:
     anti-delusion: "https://example.com/system.md"
   compile:
-    format: exec        # exec（AI 消费）| doc（人类文档）
+    format: prompt        # exec（AI 消费）| doc（人类文档）
     targetLangs: ["zh-CN"]
   vision: |
     产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，

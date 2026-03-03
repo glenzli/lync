@@ -82,7 +82,7 @@ lync:
   dependencies:               # 声明当前模块的远程依赖（lync sync 自动安装）
     anti-delusion: "https://example.com/system.md"
   compile:
-    format: "exec"            # exec（AI 消费）或 doc（人类文档）
+    format: "prompt"            # exec（AI 消费）或 doc（人类文档）
     targetLangs: ["zh-CN"]    # 交叉编译目标语种
   vision: |                   # 【可选，仅 exec】声明产物应达成的语义目标
     产物应形成一个严格的代码审查专家，

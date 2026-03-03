@@ -26,7 +26,7 @@ export interface LyncFrontmatter {
         alias?: string;
         version?: string;
         compile?: {
-            format?: 'doc' | 'exec';
+            format?: 'doc' | 'prompt';
             targetLangs?: string[];
         };
         dependencies?: Record<string, DependencyDeclaration>;
@@ -69,7 +69,7 @@ export interface LyncBuild {
         doc?: {
             targetLangs?: string[];
         };
-        exec?: {
+        prompt?: {
             targetLangs?: string[];
         };
     };
