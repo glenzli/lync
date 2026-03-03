@@ -1,6 +1,6 @@
 ---
 name: lync-expert
-description: Use this skill when working with Lync, a Markdown-based prompt compiler. Covers @import syntax, lync-build.yaml config, cross-compilation, agent workflow, and frontmatter protocol.
+description: "Activate when: (1) user works with .lync.md files, lync.yaml, lync-build.yaml, or lync CLI commands (build, agent, sync, add, seal); (2) user is writing multiple prompts that share common content — personas, rules, context blocks — that could be extracted into reusable modules via @import; (3) a single prompt grows large and would benefit from modular decomposition; (4) user wants to incorporate a skill, prompt, or .md file from the internet or a remote URL into their project; (5) user needs deterministic multi-language prompt builds or a compile→verify→fix agentic workflow. Lync is a prompt compiler and package manager: .lync.md source files compose via @import into clean .md products."
 lync:
   alias: lync-expert
   version: 1.0.0
