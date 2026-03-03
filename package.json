@@ -4,7 +4,7 @@
   "description": "Vibe Assembly Compiler — a deterministic Markdown prompt compiler and package manager for LLM contexts.",
   "main": "dist/index.js",
   "bin": {
-    "vasmc": "./dist/index.js"
+    "vasmc": "dist/index.js"
   },
   "files": [
     "dist/"
@@ -15,7 +15,7 @@
     "prepublishOnly": "npm run clean && npm run build",
     "test": "tsc --noEmit && node --test tests/*.test.js",
     "login": "npm login --registry=https://registry.npmjs.org",
-    "publish": "npm publish --registry=https://registry.npmjs.org"
+    "publish": "npm publish --registry=https://registry.npmjs.org --access public"
   },
   "keywords": [
     "markdown",
@@ -27,7 +27,7 @@
   "author": "glenzli",
   "repository": {
     "type": "git",
-    "url": "https://github.com/glenzli/vasmc.git"
+    "url": "git+https://github.com/glenzli/vasmc.git"
   },
   "license": "MIT",
   "type": "commonjs",
