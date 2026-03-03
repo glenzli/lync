@@ -670,7 +670,8 @@ baseDir: "."
                     // 3. Diff (only if backup exists)
                     if (agentHistoryPaths.length > 0) {
                         const backupList = agentHistoryPaths.map(h => `\`${path.relative(process.cwd(), h.backupPath)}\` (${h.lang})`).join(', ');
-                        actionItems.push(`${itemIndex++}. **Diff** against ${backupList}`);
+                        const diffPrereq = actionItems.some(a => a.includes('Verify')) ? ' *(prerequisite: Verify & Fix must be completed first)*' : '';
+                        actionItems.push(`${itemIndex++}. **Diff** against ${backupList}${diffPrereq}`);
                     }
 
                     // 4. Tree-Shake (conditional, exec only)

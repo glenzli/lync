@@ -407,7 +407,8 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
         // 3. Diff (only if history backup exists)
         if (historyPaths.length > 0) {
             const backupList = historyPaths.map(h => `\`${path.relative(cwd, h.backupPath)}\` (${h.lang})`).join(', ');
-            actionItems.push(`${itemIndex++}. **Diff** against ${backupList}`);
+            const diffPrereq = actionItems.some(a => a.includes('Verify')) ? ' *(prerequisite: Verify & Fix must be completed first)*' : '';
+            actionItems.push(`${itemIndex++}. **Diff** against ${backupList}${diffPrereq}`);
         }
 
         // 4. Tree-Shake (conditional, exec only)
