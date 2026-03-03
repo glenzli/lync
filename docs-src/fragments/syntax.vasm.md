@@ -2,24 +2,24 @@
 ## 🔮 核心语法与引入协议 (Core Syntax)
 ### 引入语法
 
-`[链接文本](lync:alias "@lync-directive")`
+`[链接文本](vasm:alias "@vasm-directive")`
 
 *   **链接重写模式 (`@import:link`)**: 
-    编译器将 `lync:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
+    编译器将 `vasm:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
     ```markdown
-    请参阅下方的 [代码审查辅助技能](lync:coder-skill "@import:link")。
+    请参阅下方的 [代码审查辅助技能](vasm:coder-skill "@import:link")。
     ```
     *构建输出*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
 
 *   **内联展开模式 (`@import:inline`)**:
     编译器读取目标文件的纯文本内容，并直接替换该引用链接。主要用于组装大型 Prompt 上下文。
     ```markdown
-    根据本组织的 [公司开发规范](lync:company-rules "@import:inline")：
+    根据本组织的 [公司开发规范](vasm:company-rules "@import:inline")：
     ```
     *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
 
 ### 原生多语种交叉编译 (Cross-Compilation)
-Lync 支持使用 AST 指令对 Prompt 进行原生多语言支持：
+VASMC 支持使用 AST 指令对 Prompt 进行原生多语言支持：
 
 ```markdown
 # 通用系统规则
@@ -33,7 +33,7 @@ Please explain the code step by step.
 请逐步解释代码。
 <!-- /lang -->
 ```
-生成时，使用 `--target-langs` 参数指定你需要生成的语言。Lync 会自动过滤 AST 树，分别输出纯净的各语言产物。
+生成时，使用 `--target-langs` 参数指定你需要生成的语言。VASMC 会自动过滤 AST 树，分别输出纯净的各语言产物。
 
 ---
 
@@ -44,7 +44,7 @@ Please explain the code step by step.
 手动注入内容的示例：
 ```yaml
 ---
-lync:
+vasm:
   alias: "my-coder-prompt"
   version: "1.0.0"
   dependencies:
@@ -60,8 +60,8 @@ lync:
 
 # 你的 Prompt 正文内容...
 ```
-*当其他人通过 `lync add <your-url>` 安装时，Lync 会自动解析这些内容并完美还原环境。*
+*当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会自动解析这些内容并完美还原环境。*
 
-> **`vision`**：声明编译产物应达到的语义目标。`lync agent` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
+> **`vision`**：声明编译产物应达到的语义目标。`vasmc agent` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
 >
 > **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `exec` 格式文件有效。

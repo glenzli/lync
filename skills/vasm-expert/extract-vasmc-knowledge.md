@@ -1,3 +1,222 @@
+# 角色
+
+你是一个专业的技术文档总结专家和 AI Prompt 架构师。
+你的任务是阅读「VASMC」Prompt 编译器的详细官方文档，并从中提取出一份**中文**的、**专供 AI Agent（如 Cursor、Windsurf）使用**的精简知识手册 `vasmc-knowledge.md`。
+
+这份手册不是给人类开发者看的 API 文档，而是让 AI 编辑器「理解 VASMC 是什么、为什么要这样组织文件、以及如何在用户的项目中正确操作」的最小知识集合。
+
+# 输入文档
+
+## HELP.md (用法与 CLI 指令)
+
+# VASMC - Help & Usage
+
+<a name="syntax"></a>
+
+## 🔮 核心语法与引入协议 (Core Syntax)
+
+### 引入语法
+
+`[链接文本](vasm:alias "@vasm-directive")`
+
+* **链接重写模式 (`@import:link`)**:
+  编译器将 `vasm:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
+  ```markdown
+  请参阅下方的 [代码审查辅助技能](vasm:coder-skill "@import:link")。
+  ```
+  *构建输出*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
+
+* **内联展开模式 (`@import:inline`)**:
+  编译器读取目标文件的纯文本内容，并直接替换该引用链接。主要用于组装大型 Prompt 上下文。
+  ```markdown
+  根据本组织的 [公司开发规范](vasm:company-rules "@import:inline")：
+  ```
+  *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
+
+### 原生多语种交叉编译 (Cross-Compilation)
+
+VASMC 支持使用 AST 指令对 Prompt 进行原生多语言支持：
+
+```markdown
+# 通用系统规则
+你是一个代码专家。
+
+<!-- lang:en -->
+Please explain the code step by step.
+<!-- /lang -->
+
+<!-- lang:zh-CN -->
+请逐步解释代码。
+<!-- /lang -->
+```
+
+生成时，使用 `--target-langs` 参数指定你需要生成的语言。VASMC 会自动过滤 AST 树，分别输出纯净的各语言产物。
+
+***
+
+<a name="publish"></a>
+
+## 📦 发布模块 (Frontmatter 注入)
+
+如果您通过公共 URL 分发提示词模块，强烈建议在 `.md` 文件顶部添加 YAML Frontmatter 块，声明正式别名和嵌套依赖项。
+
+手动注入内容的示例：
+
+```yaml
+---
+vasm:
+  alias: "my-coder-prompt"
+  version: "1.0.0"
+  dependencies:
+    anti-delusion: "https://example.com/system.md"
+  compile:
+    format: prompt        # exec（AI 消费）| doc（人类文档）
+    targetLangs: ["zh-CN"]
+  vision: |
+    产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
+    输出结构化（级别/位置/描述/建议），风格简洁，不扮演开发者。
+  fix: suggest          # suggest（默认，输出建议）| auto（直接编辑产物并报告）
+---
+
+# 你的 Prompt 正文内容...
+```
+
+*当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会自动解析这些内容并完美还原环境。*
+
+> **`vision`**：声明编译产物应达到的语义目标。`vasmc agent` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
+>
+> **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `exec` 格式文件有效。
+
+<a name="cli-human"></a>
+
+## 🛠️ CLI 使用方法与编译构建
+
+**1. 初始化项目**
+你可以使用以下命令在当前目录快速生成一份默认的 `vasmc-build.yaml` 配置文件模板：
+
+```bash
+vasmc init
+```
+
+在工程根目录建立一个 `vasmc.yaml` 来声明依赖：
+
+```yaml
+dependencies:
+  company-rules: "https://example.com/guidelines.md"
+  coder-skill:
+    url: "https://example.com/coder-skill.md"
+    dest: "./skills/coder.md"
+```
+
+*或者直接使用命令行：*
+
+```bash
+vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
+```
+
+**2. 版本控制配置**
+将 `.vasmc/` 加入 `.gitignore`（这是 VASMC 的内部缓存目录）。`vasmc-lock.yaml` 应提交到版本控制——它确保构建的确定性。
+
+```gitignore
+.vasmc/
+```
+
+**3. 状态收敛 (同步)**
+一键安装所有缺少的依赖，并生成 `vasmc-lock.yaml`：
+
+```bash
+vasmc sync
+```
+
+**4. 执行编译（简单一对一）**
+目前 VASMC 支持直接的一对一编译，将你的 `.vasm.md` 源文件及其挂载的依赖，精准输出为干净的单体 `.md` 产物供 LLM 消费（`-o` 指定输出目录）：
+
+```bash
+vasmc build main.vasm.md -o ./dist
+```
+
+**5. 语义校验 (LLM 驱动)**
+编译完成后，可使用独立的 `vasmc lint` 命令对产物进行语义冲突检测：
+
+```bash
+vasmc build main.vasm.md
+vasmc lint main.md --model gpt-4o
+```
+
+*需要在环境变量中配置 `OPENAI_API_KEY`，或通过 `.vasmrc` 配置自定义大模型节点。*
+
+**6. 快捷封装 (Auto-Frontmatter)**
+
+> 💡 **技巧：** 你可以运行以下命令，将普通的 Markdown 文件自动转换为 VASM 模块：
+>
+> ```bash
+> vasmc seal my-prompt.md --alias my-custom-name
+> ```
+>
+> *支持 Glob 模式批量操作：`vasmc seal "prompts/**/*.md"`*
+> *这个命令会自动从文件名或路径中推断一个别名，在顶部注入 Frontmatter，并自动将文件重命名为 `.vasm.md`。*
+
+***
+
+<a name="workspace"></a>
+
+### 🗂️ 进阶用法：工作区批量编译
+
+对于大型项目，VASMC 支持通过 `vasmc-build.yaml` 配置文件进行自动化的批量编译。
+
+在你的项目根目录下创建 `vasmc-build.yaml`：
+
+```yaml
+# 编译器需要扫描哪些源文件？
+includes:
+  - "src/**/*.vasm.md"
+
+# 编译产物输出到哪里？
+output:
+  dir: "./dist"
+
+# 剔除映射前缀目录
+baseDir: "./src"
+
+# 交叉编译目标语种（按输出格式分别配置）
+compile:
+  doc:                          # 文档格式：多语言合并
+    targetLangs: ["en", "zh-CN"]
+  exec:                         # 可执行指令格式：单语言输出
+    targetLangs: ["en"]
+
+# [高级] 路由拦截器
+routing:
+  - match: "src/agents/*.vasm.md"
+    dest: "./dist/agents/"
+```
+
+### \[高级] 全局配置 (.vasmrc)
+
+VASMC 现在支持在用户的全局目录 (`~/.vasmrc`) 或项目根目录 (`./.vasmrc`，**请记得将其加入 `.gitignore`**) 中创建独立的 `.vasmrc` 配置文件配置自定义大模型节点。
+
+```yaml
+lang: "zh-CN" # VASMC 的全局交互日志和大模型输出语言
+llm:
+  baseURL: "https://api.deepseek.com/v1"
+  apiKey: "your-custom-api-key"
+  model: "deepseek-chat"
+```
+
+随后，只需执行无参数补全的构建命令即可：
+
+```bash
+vasmc build
+```
+
+*同时支持 CLI 临时覆盖：*
+
+```bash
+vasmc build --out-dir ./doc --base-dir ./src
+```
+
+## DESIGN.md (设计哲学与语法)
+
 # VASM 协议与 VASMC 跨平台编译器规范
 
 ## 核心设计哲学：Prompt 汇编化 (Prompt as LLM Assembly)
@@ -268,3 +487,81 @@ entries:
 * **可提交（Committable）**：`vasmc-build-state.yaml` 基于内容 Hash，与机器无关，应提交到版本控制，团队成员可直接共享增量缓存。
 * **自动失效**：任何源文件（包括任意层级的传递依赖）变更，签名随之变化，增量 skip 自动失效，确保构建结果始终正确。
 * **对 Agent 模式透明**：`vasmc agent` 同样支持增量构建。若构建被跳过，`.vasmc/agent-instructions.md` 中不会生成对应条目，AI 编辑器自然跳过后续语义任务。
+
+# 操作指南
+
+生成且仅生成一份**中文** Markdown 格式的知识手册，**不要**输出这些原始指令或任何对话语气，**只能**输出手册的纯 Markdown 内容。
+
+手册结构如下（**务必按顺序包含全部四个章节**）：
+
+***
+
+## 第一章：VASMC 是什么（心智模型）
+
+用 3-5 句话简明阐述：
+
+* VASMC 是专为 LLM Prompt 工程设计的**静态编译器/链接器**。
+* 核心类比：`.vasm.md` 是人类编写的**源代码**（意图/高级语言），`.md` 是编译产物（**机器码**），二者职责严格分离——禁止手工修改产物。
+* 编译过程是**纯确定性的 AST 组装**（解析 `@import` 依赖、交叉编译语种）。
+* 说明 AI 编辑器的角色：`vasmc agent` 生成指令清单 → AI 编辑器接管语义任务（校验、翻译、剪裁）。
+
+***
+
+## 第二章：项目结构与文件职责
+
+用简短说明 + 目录树示例，覆盖：
+
+* **`vasmc.yaml`**：远程依赖声明（URL → 本地 Alias 映射）
+* **`vasmc-lock.yaml`**：SHA-256 Hash 锁文件，应提交到版本控制
+* **`vasmc-build.yaml`**：工作区编译配置（includes 扫描路径、output 目录、routing 路由规则、交叉编译语种）
+* **`.vasmc/`**：内部缓存和临时产物，加入 `.gitignore`
+* **`*.vasm.md`**：源文件（含 Frontmatter + @import 指令）
+* **`*.md`（产物）**：纯净的编译产物，供 LLM 消费，禁止手工修改
+
+重点说明两种编译格式的区别（在 Frontmatter 的 `compile.format` 中声明）：
+
+* **`prompt`**：可执行指令格式，单语种输出，供 LLM 直接消费（System Prompt、技能文件）
+* **`doc`**：文档格式，多语种合并输出，供人类阅读（README、HELP、DESIGN）
+
+***
+
+## 第三章：语法速查（含示例）
+
+### @import 引入指令
+
+提供两种模式的语法示例：
+
+* `@import:inline`：内联展开目标文件的完整内容到当前位置
+* `@import:link`：将 `vasm:alias` 重写为本地相对物理路径，保留超链接结构
+* 本地相对路径引用（无需在 `vasmc.yaml` 注册，直接用 `./` 相对路径）
+
+### 多语种编译区块
+
+提供 `<!-- lang:xx --> ... <!-- /lang -->` 的语法示例，说明未被包裹的内容出现在所有语种产物中。
+
+### 模块 Frontmatter 协议
+
+提供完整的 YAML Frontmatter 示例，包含 `alias`、`version`、`dependencies`、`compile.format`、`compile.targetLangs` 字段及其含义。
+
+***
+
+## 第四章：AI 专用 CLI 命令
+
+**只列出以下零 LLM 调用的命令**（禁止列出 `vasmc build`、`vasmc lint`、`vasmc diff`，这些调用外部 LLM，是人类专用工具）：
+
+| 命令 | 说明 |
+|------|------|
+| `vasmc agent <file>` | AI 编辑器的唯一编译入口，零 LLM，输出 `.vasmc/agent-instructions.md` |
+| `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
+| `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
+| `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
+| `vasmc sync` | 根据 `vasmc.yaml` 安装所有缺失依赖，生成/更新 `vasmc-lock.yaml` |
+| `vasmc seal <patterns>` | 将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、重命名为 `.vasm.md`） |
+
+***
+
+**注意事项（务必包含）**：
+
+* `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化。
+* 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc sync --update <alias>` 才生效。
+* `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。

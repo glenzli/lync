@@ -106,36 +106,36 @@ describe('Compiler', () => {
     before(() => {
         const { computeHash } = load('network');
         fs.mkdirSync(compilerDir, { recursive: true });
-        fs.mkdirSync(path.join(compilerDir, '.lync'), { recursive: true });
+        fs.mkdirSync(path.join(compilerDir, '.vasmc'), { recursive: true });
 
         fs.writeFileSync(
-            path.join(compilerDir, '.lync', 'greet.md'),
+            path.join(compilerDir, '.vasmc', 'greet.md'),
             '# Hello\n\nWorld!\n',
             'utf8'
         );
 
         fs.writeFileSync(
-            path.join(compilerDir, 'lync.yaml'),
+            path.join(compilerDir, 'vasmc.yaml'),
             'dependencies:\n  greet: "https://example.com/greet.md"\n',
             'utf8'
         );
 
         const lockContent = `version: 1\ndependencies:\n  greet:\n    url: "https://example.com/greet.md"\n    hash: "${computeHash('# Hello\n\nWorld!\n')}"\n    fetchedAt: "2026-01-01T00:00:00.000Z"\n`;
         fs.writeFileSync(
-            path.join(compilerDir, 'lync-lock.yaml'),
+            path.join(compilerDir, 'vasmc-lock.yaml'),
             lockContent,
             'utf8'
         );
 
         fs.writeFileSync(
-            path.join(compilerDir, 'link.lync.md'),
-            '# Test\n\n[Greet](lync:greet "@import:link")\n',
+            path.join(compilerDir, 'link.vasm.md'),
+            '# Test\n\n[Greet](vasm:greet "@import:link")\n',
             'utf8'
         );
 
         fs.writeFileSync(
-            path.join(compilerDir, 'inline.lync.md'),
-            '# Test\n\n[Greet](lync:greet "@import:inline")\n',
+            path.join(compilerDir, 'inline.vasm.md'),
+            '# Test\n\n[Greet](vasm:greet "@import:inline")\n',
             'utf8'
         );
     });
@@ -149,11 +149,11 @@ describe('Compiler', () => {
         const cwd = process.cwd();
         process.chdir(compilerDir);
         try {
-            const srcPath = path.join(compilerDir, 'link.lync.md');
+            const srcPath = path.join(compilerDir, 'link.vasm.md');
             const outPath = path.join(compilerDir, 'dist', 'link.md');
             const result = await compileFile(srcPath, outPath);
-            assert.ok(!result.includes('lync:greet'), 'lync:greet should be rewritten');
-            assert.ok(result.includes('.lync/greet.md'), 'Should contain relative path to .lync/greet.md');
+            assert.ok(!result.includes('vasm:greet'), 'vasm:greet should be rewritten');
+            assert.ok(result.includes('.vasmc/greet.md'), 'Should contain relative path to .vasmc/greet.md');
         } finally {
             process.chdir(cwd);
         }
@@ -164,10 +164,10 @@ describe('Compiler', () => {
         const cwd = process.cwd();
         process.chdir(compilerDir);
         try {
-            const srcPath = path.join(compilerDir, 'inline.lync.md');
+            const srcPath = path.join(compilerDir, 'inline.vasm.md');
             const outPath = path.join(compilerDir, 'dist', 'inline.md');
             const result = await compileFile(srcPath, outPath);
-            assert.ok(!result.includes('lync:greet'), 'lync:greet should be expanded');
+            assert.ok(!result.includes('vasm:greet'), 'vasm:greet should be expanded');
             assert.ok(result.includes('Hello'), 'Should contain the inlined "Hello"');
             assert.ok(result.includes('World!'), 'Should contain the inlined "World!"');
         } finally {

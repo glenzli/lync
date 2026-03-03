@@ -60,7 +60,7 @@ export function detectLanguage(text: string, threshold = 0.4): string | undefine
 
     if (!detected) return undefined;
 
-    // Map ISO 639-3 (franc output) → BCP 47 (Lync standard)
+    // Map ISO 639-3 (franc output) → BCP 47 (VASMC standard)
     const iso639ToBcp47: Record<string, string> = {
         'eng': 'en',
         'cmn': 'zh-CN',

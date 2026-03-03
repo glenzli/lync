@@ -1,13 +1,13 @@
-export interface LyncLLMConfig {
+export interface VasmLLMConfig {
     provider?: string;
     model?: string;
     apiKey?: string;
     baseURL?: string;
 }
 
-export interface LyncRc {
+export interface VasmRc {
     lang?: string;
-    llm?: LyncLLMConfig;
+    llm?: VasmLLMConfig;
 }
 
 export interface DependencyConfig {
@@ -17,12 +17,12 @@ export interface DependencyConfig {
 
 export type DependencyDeclaration = string | DependencyConfig;
 
-export interface LyncConfig {
+export interface VasmConfig {
     dependencies?: Record<string, DependencyDeclaration>;
 }
 
-export interface LyncFrontmatter {
-    lync?: {
+export interface VasmFrontmatter {
+    vasm?: {
         alias?: string;
         version?: string;
         compile?: {
@@ -45,7 +45,7 @@ export interface LockDependency {
     fetchedAt: string;
 }
 
-export interface LyncLock {
+export interface VasmLock {
     version: number;
     dependencies: Record<string, LockDependency>;
 }
@@ -55,7 +55,7 @@ export interface BuildRoutingRule {
     dest: string;
 }
 
-export interface LyncBuild {
+export interface VasmBuild {
     includes?: string[];
     excludes?: string[];
     output?: {

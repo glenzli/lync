@@ -63,8 +63,8 @@ export async function generateGraph(entryFile: string, cwd: string = process.cwd
             let nextFilePath: string;
             let nextName: string;
 
-            if (item.url.startsWith('lync:')) {
-                const alias = item.url.replace('lync:', '');
+            if (item.url.startsWith('vasm:')) {
+                const alias = item.url.replace('vasm:', '');
                 nextName = alias;
                 const lockedDep = lock.dependencies[alias];
 
@@ -80,7 +80,7 @@ export async function generateGraph(entryFile: string, cwd: string = process.cwd
 
                 nextFilePath = lockedDep.dest
                     ? path.resolve(cwd, lockedDep.dest)
-                    : path.resolve(cwd, '.lync', alias + '.md');
+                    : path.resolve(cwd, '.vasmc', alias + '.md');
             } else {
                 nextName = item.url;
                 nextFilePath = path.resolve(path.dirname(filePath), item.url);
@@ -107,7 +107,7 @@ export async function generateGraph(entryFile: string, cwd: string = process.cwd
 
     const rootNode = await buildTree(entryPath, path.basename(entryPath), 'root');
 
-    console.log(`\\n📦 Lync Dependency Graph:\\n`);
+    console.log(`\\n📦 VASMC Dependency Graph:\\n`);
     printTree(rootNode, '', true);
     console.log();
 }

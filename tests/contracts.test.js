@@ -19,33 +19,33 @@ before(() => {
 
     // Create fixture workspace
     fs.mkdirSync(FIXTURES, { recursive: true });
-    fs.mkdirSync(path.join(FIXTURES, '.lync'), { recursive: true });
+    fs.mkdirSync(path.join(FIXTURES, '.vasmc'), { recursive: true });
 
     // Dependency file for import tests
-    fs.writeFileSync(path.join(FIXTURES, '.lync', 'greeter.md'), '# Greeter Module\n\nHello from greeter!\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, '.vasmc', 'greeter.md'), '# Greeter Module\n\nHello from greeter!\n', 'utf8');
 
-    // lync.yaml declaring the dependency
-    fs.writeFileSync(path.join(FIXTURES, 'lync.yaml'), 'dependencies:\n  greeter: "https://example.com/greeter.md"\n', 'utf8');
+    // vasmc.yaml declaring the dependency
+    fs.writeFileSync(path.join(FIXTURES, 'vasmc.yaml'), 'dependencies:\n  greeter: "https://example.com/greeter.md"\n', 'utf8');
 
     // Lockfile
     const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update('# Greeter Module\n\nHello from greeter!\n').digest('hex');
-    fs.writeFileSync(path.join(FIXTURES, 'lync-lock.yaml'),
+    fs.writeFileSync(path.join(FIXTURES, 'vasmc-lock.yaml'),
         `version: 1\ndependencies:\n  greeter:\n    url: "https://example.com/greeter.md"\n    hash: "${hash}"\n    fetchedAt: "2026-01-01T00:00:00.000Z"\n`, 'utf8');
 
     // --- Fixture: @import:link ---
-    fs.writeFileSync(path.join(FIXTURES, 'link-test.lync.md'),
-        '# Link Test\n\n[Greeter](lync:greeter "@import:link")\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'link-test.vasmc.md'),
+        '# Link Test\n\n[Greeter](vasm:greeter "@import:link")\n', 'utf8');
 
     // --- Fixture: @import:inline ---
-    fs.writeFileSync(path.join(FIXTURES, 'inline-test.lync.md'),
-        '# Inline Test\n\n[Greeter](lync:greeter "@import:inline")\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'inline-test.vasmc.md'),
+        '# Inline Test\n\n[Greeter](vasm:greeter "@import:inline")\n', 'utf8');
 
     // --- Fixture: Language blocks ---
-    fs.writeFileSync(path.join(FIXTURES, 'lang-test.lync.md'),
+    fs.writeFileSync(path.join(FIXTURES, 'lang-test.vasmc.md'),
         [
             '---',
-            'lync:',
+            'vasm:',
             '  alias: lang-test',
             '  compile:',
             '    format: exec',
@@ -64,10 +64,10 @@ before(() => {
 
     // --- Fixture: Workspace batch build ---
     fs.mkdirSync(path.join(FIXTURES, 'ws-src'), { recursive: true });
-    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'a.lync.md'), '# File A\n\nContent A\n', 'utf8');
-    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'b.lync.md'), '# File B\n\nContent B\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'a.vasmc.md'), '# File A\n\nContent A\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'b.vasmc.md'), '# File B\n\nContent B\n', 'utf8');
     fs.writeFileSync(path.join(FIXTURES, 'ws-build.yaml'),
-        'includes:\n  - "ws-src/*.lync.md"\noutput:\n  dir: "./ws-out"\nbaseDir: "./ws-src"\n', 'utf8');
+        'includes:\n  - "ws-src/*.vasmc.md"\noutput:\n  dir: "./ws-out"\nbaseDir: "./ws-src"\n', 'utf8');
 
     // --- Fixture: Seal ---
     fs.writeFileSync(path.join(FIXTURES, 'raw-prompt.md'), '# My Raw Prompt\n\nDo something useful.\n', 'utf8');
@@ -80,12 +80,12 @@ after(() => {
 // ─── Contract 1: @import:link ─────────────────────────────────────
 
 describe('Contract: @import:link rewrites alias to relative path', () => {
-    it('output contains relative path and no lync:alias', async () => {
+    it('output contains relative path and no vasm:alias', async () => {
         const outDir = path.join(FIXTURES, 'out-link');
-        run(`build link-test.lync.md -o ${outDir}`);
+        run(`build link-test.vasmc.md -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'link-test.md'), 'utf8');
-        assert.ok(!output.includes('lync:greeter'), 'Must not contain lync:greeter alias');
-        assert.ok(output.includes('.lync/greeter.md'), 'Must contain relative path to .lync/greeter.md');
+        assert.ok(!output.includes('vasm:greeter'), 'Must not contain vasm:greeter alias');
+        assert.ok(output.includes('.vasmc/greeter.md'), 'Must contain relative path to .vasmc/greeter.md');
         fs.rmSync(outDir, { recursive: true, force: true });
     });
 });
@@ -93,11 +93,11 @@ describe('Contract: @import:link rewrites alias to relative path', () => {
 // ─── Contract 2: @import:inline ───────────────────────────────────
 
 describe('Contract: @import:inline expands content in-place', () => {
-    it('output contains inlined content and no lync:alias', async () => {
+    it('output contains inlined content and no vasm:alias', async () => {
         const outDir = path.join(FIXTURES, 'out-inline');
-        run(`build inline-test.lync.md -o ${outDir}`);
+        run(`build inline-test.vasmc.md -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'inline-test.md'), 'utf8');
-        assert.ok(!output.includes('lync:greeter'), 'Must not contain lync:greeter alias');
+        assert.ok(!output.includes('vasm:greeter'), 'Must not contain vasm:greeter alias');
         assert.ok(output.includes('Hello from greeter!'), 'Must contain inlined content');
         fs.rmSync(outDir, { recursive: true, force: true });
     });
@@ -108,7 +108,7 @@ describe('Contract: @import:inline expands content in-place', () => {
 describe('Contract: Cross-compilation filters language blocks', () => {
     it('--target-langs en keeps only English', async () => {
         const outDir = path.join(FIXTURES, 'out-lang-en');
-        run(`build lang-test.lync.md --target-langs en -o ${outDir}`);
+        run(`build lang-test.vasmc.md --target-langs en -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'lang-test.md'), 'utf8');
         assert.ok(output.includes('English content'), 'Must contain English content');
         assert.ok(!output.includes('中文内容'), 'Must not contain Chinese content');
@@ -117,7 +117,7 @@ describe('Contract: Cross-compilation filters language blocks', () => {
 
     it('--target-langs zh-CN keeps only Chinese', async () => {
         const outDir = path.join(FIXTURES, 'out-lang-zh');
-        run(`build lang-test.lync.md --target-langs zh-CN -o ${outDir}`);
+        run(`build lang-test.vasmc.md --target-langs zh-CN -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'lang-test.md'), 'utf8');
         assert.ok(output.includes('中文内容'), 'Must contain Chinese content');
         assert.ok(!output.includes('English content'), 'Must not contain English content');
@@ -130,7 +130,7 @@ describe('Contract: Cross-compilation filters language blocks', () => {
 describe('Contract: Workspace build compiles all matched files', () => {
     it('produces output files for each source', async () => {
         // Use a custom build config via symlink trick: rename during test
-        const buildYaml = path.join(FIXTURES, 'lync-build.yaml');
+        const buildYaml = path.join(FIXTURES, 'vasmc-build.yaml');
         const origBuildYaml = path.join(FIXTURES, 'ws-build.yaml');
         fs.copyFileSync(origBuildYaml, buildYaml);
 
@@ -155,18 +155,18 @@ describe('Contract: Workspace build compiles all matched files', () => {
 // ─── Contract 5: Seal ─────────────────────────────────────────────
 
 describe('Contract: seal injects Frontmatter and renames file', () => {
-    it('creates .lync.md with Frontmatter', async () => {
+    it('creates .vasmc.md with Frontmatter', async () => {
         const sealSource = path.join(FIXTURES, 'seal-test.md');
         fs.writeFileSync(sealSource, '# Seal Target\n\nSome content.\n', 'utf8');
 
         run(`seal seal-test.md`);
 
-        const sealedPath = path.join(FIXTURES, 'seal-test.lync.md');
-        assert.ok(fs.existsSync(sealedPath), 'seal-test.lync.md must exist');
+        const sealedPath = path.join(FIXTURES, 'seal-test.vasmc.md');
+        assert.ok(fs.existsSync(sealedPath), 'seal-test.vasmc.md must exist');
 
         const content = fs.readFileSync(sealedPath, 'utf8');
         assert.ok(content.includes('---'), 'Must contain Frontmatter markers');
-        assert.ok(content.includes('lync:'), 'Must contain lync metadata');
+        assert.ok(content.includes('vasm:'), 'Must contain vasm metadata');
         assert.ok(content.includes('alias:'), 'Must contain alias field');
 
         // Cleanup
@@ -177,12 +177,12 @@ describe('Contract: seal injects Frontmatter and renames file', () => {
 
 // ─── Contract 6: Agent instructions ───────────────────────────────
 
-describe('Contract: lync agent generates agent-instructions.md', () => {
-    it('produces .lync/agent-instructions.md with compiled file list', async () => {
+describe('Contract: vasmc agent generates agent-instructions.md', () => {
+    it('produces .vasmc/agent-instructions.md with compiled file list', async () => {
         const outDir = path.join(FIXTURES, 'out-agent');
-        run(`agent inline-test.lync.md -o ${outDir}`);
+        run(`agent inline-test.vasmc.md -o ${outDir}`);
 
-        const instructionsPath = path.join(FIXTURES, '.lync', 'agent-instructions.md');
+        const instructionsPath = path.join(FIXTURES, '.vasmc', 'agent-instructions.md');
         assert.ok(fs.existsSync(instructionsPath), 'agent-instructions.md must exist');
 
         const content = fs.readFileSync(instructionsPath, 'utf8');
@@ -190,6 +190,6 @@ describe('Contract: lync agent generates agent-instructions.md', () => {
         assert.ok(content.includes('Action Items'), 'Must contain Action Items section');
 
         fs.rmSync(outDir, { recursive: true, force: true });
-        // Don't remove .lync — other tests may need it
+        // Don't remove .vasmc — other tests may need it
     });
 });

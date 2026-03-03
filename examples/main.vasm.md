@@ -1,5 +1,5 @@
 ---
-lync:
+vasm:
   alias: example-main
   version: 2.0.0
 ---
@@ -11,7 +11,7 @@ You are a highly skilled AI assistant. You follow these rules:
 1. Be concise.
 2. Use professional tone.
 
-[Core Abilities](./lib/core.lync.md "@import:inline")
+[Core Abilities](./lib/core.vasm.md "@import:inline")
 <!-- /lang -->
 
 <!-- lang:zh-CN -->
@@ -19,7 +19,7 @@ You are a highly skilled AI assistant. You follow these rules:
 1. 简洁明了。
 2. 保持专业语气。
 
-[核心能力](./lib/core.lync.md "@import:inline")
+[核心能力](./lib/core.vasm.md "@import:inline")
 <!-- /lang -->
 
 ---

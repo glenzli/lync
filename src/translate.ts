@@ -13,7 +13,7 @@ Your task is to translate the provided Markdown text into the target language: $
 
 ### STRICT RULES:
 1. Translate ONLY the natural language instructions and prose.
-2. DO NOT translate any Lync import directives (e.g., \`[Link](lync:some-alias "@import:inline")\`). They must remain exactly as they are.
+2. DO NOT translate any VASMC import directives (e.g., \`[Link](vasm:some-alias "@import:inline")\`). They must remain exactly as they are.
 3. DO NOT translate any code blocks, variable placeholders (e.g., \`{{variable}}\`, \`$\{variable\}\`), or JSON structures unless explicitly asked in the prose.
 4. Maintain the exact same Markdown formatting, heading levels, lists, and spacing.
 5. Do not add any conversational preamble or postscript (like "Here is the translation:"). Output ONLY the translated Markdown.`;

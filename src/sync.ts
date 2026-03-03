@@ -11,7 +11,7 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
     let lockModified = false;
 
     if (!config.dependencies || Object.keys(config.dependencies).length === 0) {
-        console.log('No dependencies found in lync.yaml');
+        console.log('No dependencies found in vasmc.yaml');
         return;
     }
 
@@ -25,7 +25,7 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
         }
 
         const lockedDep = lock.dependencies[alias];
-        const targetPath = dest ? path.resolve(cwd, dest) : path.join(cwd, '.lync', alias + '.md');
+        const targetPath = dest ? path.resolve(cwd, dest) : path.join(cwd, '.vasmc', alias + '.md');
         let needsFetch = false;
 
         if (!lockedDep) {
@@ -65,11 +65,11 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
                     console.log(t('SYNC_FOUND_VERSION', version));
                 }
 
-                if (parsed.data.lync && parsed.data.lync.dependencies) {
+                if (parsed.data.vasm && parsed.data.vasm.dependencies) {
                     console.log(t('SYNC_FOUND_NESTED'));
                     // We dynamically add these to the current config so they sync in the same pass.
                     // If alias already exists, Root Override principle applies (we don't overwrite).
-                    for (const [subAlias, subUrl] of Object.entries(parsed.data.lync.dependencies)) {
+                    for (const [subAlias, subUrl] of Object.entries(parsed.data.vasm.dependencies)) {
                         if (!config.dependencies[subAlias]) {
                             console.log(t('SYNC_INHERITING', subAlias, subUrl as string));
                             config.dependencies[subAlias] = subUrl as string;

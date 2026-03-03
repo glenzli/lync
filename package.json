@@ -1,10 +1,10 @@
 {
-  "name": "lync-md",
-  "version": "4.0.0",
-  "description": "A decentralized Markdown package manager and compiler tailored for LLM contexts.",
+  "name": "@vasm/cli",
+  "version": "0.5.0",
+  "description": "Vibe Assembly Compiler — a deterministic Markdown prompt compiler and package manager for LLM contexts.",
   "main": "dist/index.js",
   "bin": {
-    "lync": "./dist/index.js"
+    "vasmc": "./dist/index.js"
   },
   "files": [
     "dist/"

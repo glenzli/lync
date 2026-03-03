@@ -198,17 +198,17 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     const ast = processor.parse(rawContent) as Root;
 
-    // ----- Frontmatter: strip lync: namespace, passthrough any other fields -----
+    // ----- Frontmatter: strip vasm: namespace, passthrough any other fields -----
     if (ast.children) {
         const yamlNode = ast.children.find(node => node.type === 'yaml') as any;
         if (yamlNode) {
             try {
                 const fm = yaml.parse(yamlNode.value) as Record<string, unknown> | null;
                 if (fm && typeof fm === 'object') {
-                    const { lync: _, ...rest } = fm as any;
+                    const { vasm: _, ...rest } = fm as any;
                     const remainingKeys = Object.keys(rest);
                     if (remainingKeys.length > 0) {
-                        // Rewrite yaml node with only non-lync fields
+                        // Rewrite yaml node with only non-vasm fields
                         yamlNode.value = yaml.stringify(rest).trimEnd();
                     } else {
                         // No passthrough fields — strip entirely
@@ -231,10 +231,10 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
     const linkNodes: { link: Link }[] = [];
 
     visitParents(ast, 'link', (node: Link, ancestors: Parent[]) => {
-        const isLyncAlias = node.url && node.url.startsWith('lync:');
+        const isVasmAlias = node.url && node.url.startsWith('vasm:');
         const isRelative = node.url && (node.url.startsWith('./') || node.url.startsWith('../'));
 
-        if (isLyncAlias || isRelative) {
+        if (isVasmAlias || isRelative) {
             const directive = node.title || '';
 
             if (directive.includes('@import:inline')) {
@@ -242,7 +242,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 inlineNodes.push({ ancestors: [...ancestors], link: node });
             } else if (directive.includes('@import:link')) {
                 linkNodes.push({ link: node });
-            } else if (isLyncAlias) {
+            } else if (isVasmAlias) {
                 console.warn(`[WARN] Unrecognized directive for alias '${node.url}': ${directive}`);
             }
         }
@@ -252,15 +252,15 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
     for (const item of linkNodes) {
         let lockedDestPath: string;
 
-        if (item.link.url.startsWith('lync:')) {
-            const alias = item.link.url.replace('lync:', '');
+        if (item.link.url.startsWith('vasm:')) {
+            const alias = item.link.url.replace('vasm:', '');
             const lockedDep = lock.dependencies[alias];
             if (!lockedDep) {
-                throw new Error(`[FATAL] Unresolved alias '${alias}'. Please run 'lync add' or 'lync sync'.`);
+                throw new Error(`[FATAL] Unresolved alias '${alias}'. Please run 'vasmc add' or 'vasmc sync'.`);
             }
             lockedDestPath = lockedDep.dest
                 ? path.resolve(process.cwd(), lockedDep.dest)
-                : path.resolve(process.cwd(), '.lync', alias + '.md');
+                : path.resolve(process.cwd(), '.vasmc', alias + '.md');
         } else {
             // It's a relative local file
             lockedDestPath = path.resolve(path.dirname(filePath), item.link.url);
@@ -286,18 +286,18 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         let lockedDestPath: string;
         let resolveName: string;
 
-        if (item.link.url.startsWith('lync:')) {
-            const alias = item.link.url.replace('lync:', '');
+        if (item.link.url.startsWith('vasm:')) {
+            const alias = item.link.url.replace('vasm:', '');
             resolveName = alias;
             const lockedDep = lock.dependencies[alias];
 
             if (!lockedDep) {
-                throw new Error(`[FATAL] Unresolved alias '${alias}'. Please run 'lync add' or 'lync sync'.`);
+                throw new Error(`[FATAL] Unresolved alias '${alias}'. Please run 'vasmc add' or 'vasmc sync'.`);
             }
 
             lockedDestPath = lockedDep.dest
                 ? path.resolve(process.cwd(), lockedDep.dest)
-                : path.resolve(process.cwd(), '.lync', alias + '.md');
+                : path.resolve(process.cwd(), '.vasmc', alias + '.md');
         } else {
             resolveName = item.link.url;
             lockedDestPath = path.resolve(path.dirname(filePath), resolveName);
@@ -343,10 +343,10 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
     callStack.delete(filePath);
 
-    // Rewrite .lync.md references in regular links to .md
+    // Rewrite .vasm.md references in regular links to .md
     visitParents(ast, 'link', (node: Link) => {
-        if (node.url && node.url.endsWith('.lync.md')) {
-            node.url = node.url.replace(/\.lync\.md$/, '.md');
+        if (node.url && node.url.endsWith('.vasm.md')) {
+            node.url = node.url.replace(/\.vasm\.md$/, '.md');
         }
     });
 
@@ -381,13 +381,13 @@ export function collectDependencies(filePath: string, cwd: string, visited: Set<
     while ((match = importRegex.exec(rawContent)) !== null) {
         const url = match[2].trim();
         let depPath: string;
-        if (url.startsWith('lync:')) {
-            const alias = url.replace('lync:', '');
+        if (url.startsWith('vasm:')) {
+            const alias = url.replace('vasm:', '');
             const lockedDep = lock.dependencies[alias];
             if (!lockedDep) continue;
             depPath = lockedDep.dest
                 ? path.resolve(cwd, lockedDep.dest)
-                : path.resolve(cwd, '.lync', alias + '.md');
+                : path.resolve(cwd, '.vasmc', alias + '.md');
         } else if (url.startsWith('./') || url.startsWith('../')) {
             depPath = path.resolve(path.dirname(filePath), url);
         } else {

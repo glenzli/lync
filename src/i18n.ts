@@ -1,15 +1,15 @@
-import { loadLyncRc } from './config';
+import { loadVasmRc } from './config';
 
 type Dictionary = Record<string, string>;
 
 const dictionaries: Record<string, Dictionary> = {
     'en': {
         // General
-        'WARN_RC_PARSE': '[WARN] Failed to parse ~/.lyncrc: {0}',
+        'WARN_RC_PARSE': '[WARN] Failed to parse ~/.vasmrc: {0}',
 
         // Init
-        'INIT_WARN_EXISTS': '[INIT] ⚠️ lync-build.yaml already exists in the current directory.',
-        'INIT_SUCCESS': '[INIT] ✅ Successfully created lync-build.yaml!',
+        'INIT_WARN_EXISTS': '[INIT] ⚠️ vasmc-build.yaml already exists in the current directory.',
+        'INIT_SUCCESS': '[INIT] ✅ Successfully created vasmc-build.yaml!',
 
         // Add
         'ADD_FETCHING': '[CLI] Fetching {0} to inspect metadata...',
@@ -20,7 +20,7 @@ const dictionaries: Record<string, Dictionary> = {
         // Seal
         'SEAL_ERR_NO_FILES': '[ERROR] Please specify at least one file or pattern to seal.',
         'SEAL_ERR_NO_MATCH': '[ERROR] No files matched the given patterns.',
-        'SEAL_WARN_EXISTS': '[WARN] File \'{0}\' already contains Lync Frontmatter.',
+        'SEAL_WARN_EXISTS': '[WARN] File \'{0}\' already contains VASMC Frontmatter.',
         'SEAL_AUTO_WRAP': '[CLI] 🌐 Auto-wrapped content in \'{0}\' block.',
         'SEAL_SUCCESS_RENAME': '[CLI] 📦 Sealed module! Renamed to \'{0}\' and injected Frontmatter (alias: \'{1}\').',
         'SEAL_SUCCESS_INJECT': '[CLI] 📦 Sealed module! Injected Frontmatter into \'{0}\' (alias: \'{1}\').',
@@ -92,11 +92,11 @@ const dictionaries: Record<string, Dictionary> = {
     },
     'zh-CN': {
         // General
-        'WARN_RC_PARSE': '[WARN] 解析 ~/.lyncrc 失败: {0}',
+        'WARN_RC_PARSE': '[WARN] 解析 ~/.vasmrc 失败: {0}',
 
         // Init
-        'INIT_WARN_EXISTS': '[INIT] ⚠️ lync-build.yaml 已存在于当前目录中。',
-        'INIT_SUCCESS': '[INIT] ✅ 成功创建 lync-build.yaml 配置文件！',
+        'INIT_WARN_EXISTS': '[INIT] ⚠️ vasmc-build.yaml 已存在于当前目录中。',
+        'INIT_SUCCESS': '[INIT] ✅ 成功创建 vasmc-build.yaml 配置文件！',
 
         // Add
         'ADD_FETCHING': '[CLI] 正在拉取 {0} 以检查元数据...',
@@ -107,7 +107,7 @@ const dictionaries: Record<string, Dictionary> = {
         // Seal
         'SEAL_ERR_NO_FILES': '[ERROR] 请至少指定一个文件或模式进行密封 (seal)。',
         'SEAL_ERR_NO_MATCH': '[ERROR] 没有找到匹配该模式的文件。',
-        'SEAL_WARN_EXISTS': '[WARN] 文件 \'{0}\' 已经包含 Lync Frontmatter。',
+        'SEAL_WARN_EXISTS': '[WARN] 文件 \'{0}\' 已经包含 VASMC Frontmatter。',
         'SEAL_AUTO_WRAP': '[CLI] 🌐 已将内容自动用 \'{0}\' 语言块包裹。',
         'SEAL_SUCCESS_RENAME': '[CLI] 📦 模块密封完毕！已重命名为 \'{0}\' 并注入了 Frontmatter (别名: \'{1}\')。',
         'SEAL_SUCCESS_INJECT': '[CLI] 📦 模块密封完毕！已在 \'{0}\' 中注入 Frontmatter (别名: \'{1}\')。',
@@ -192,7 +192,7 @@ export function initI18n(langOverride?: string) {
     }
 
     // Try reading global/local config
-    const rc = loadLyncRc();
+    const rc = loadVasmRc();
     if (rc.lang && dictionaries[rc.lang]) {
         currentLang = rc.lang;
         return;

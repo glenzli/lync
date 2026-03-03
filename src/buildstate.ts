@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 
-const BUILD_STATE_FILE = 'lync-build-state.yaml';
+const BUILD_STATE_FILE = 'vasmc-build-state.yaml';
 
 // ========== Types ==========
 

@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { initI18n, t } from './i18n';
 import { generateGraph } from './graph';
-import type { LyncFrontmatter } from './types';
+import type { VasmFrontmatter } from './types';
 import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 
@@ -23,7 +23,7 @@ export function setupCLI(): Command {
     const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 
     program
-        .name('lync')
+        .name('vasmc')
         .description('A decentralized markdown package manager and compiler.')
         .version(pkg.version || '0.1.0')
         .option('--lang <lang>', 'Global language for CLI interactive outputs (e.g. en, zh-CN)')
@@ -33,32 +33,32 @@ export function setupCLI(): Command {
 
     program
         .command('init')
-        .description('Initialize a default lync-build.yaml configuration file')
+        .description('Initialize a default vasmc-build.yaml configuration file')
         .action(() => {
-            const configPath = path.resolve(process.cwd(), 'lync-build.yaml');
+            const configPath = path.resolve(process.cwd(), 'vasmc-build.yaml');
             if (fs.existsSync(configPath)) {
                 console.log(t('INIT_WARN_EXISTS'));
                 return;
             }
 
-            const defaultConfig = `# Lync Build Configuration
-# Determines how the Lync compiler will assemble and output your Markdown modules.
+            const defaultConfig = `# VASMC Build Configuration
+# Determines how the VASMC compiler will assemble and output your Markdown modules.
 
 # The entry files to compile
 includes:
-  - "**/*.lync.md"
+  - "**/*.vasm.md"
 
 # The output destination directory
 output:
   dir: "./dist"
   # flat: true # Uncomment to ignore baseDir hierarchy and compile everything directly into dir
-  # inPlace: true # Uncomment to compile files directly alongside their source (e.g., a/prompt.lync.md -> a/prompt.md)
+  # inPlace: true # Uncomment to compile files directly alongside their source (e.g., a/prompt.vasm.md -> a/prompt.md)
 
 # Strip this prefix directory from the original paths
 baseDir: "."
 
 # Cross-compilation targets per output format (optional)
-# By default, Lync infers languages automatically from <!-- lang:xxx --> blocks in your source.
+# By default, VASMC infers languages automatically from <!-- lang:xxx --> blocks in your source.
 # Uncomment below to force explicit language generation:
 # compile:
 #   doc:                          # Document format: multi-language merge into one file
@@ -68,7 +68,7 @@ baseDir: "."
 
 # Advanced Routing Interceptors (optional)
 # routing:
-#   - match: "src/agents/*.lync.md"
+#   - match: "src/agents/*.vasm.md"
 #     dest: "./dist/agents/"
 `;
             fs.writeFileSync(configPath, defaultConfig, 'utf8');
@@ -93,8 +93,8 @@ baseDir: "."
                     const content = await fetchMarkdown(url);
                     const parsed = matter(content);
 
-                    if (parsed.data.lync && parsed.data.lync.alias) {
-                        alias = parsed.data.lync.alias;
+                    if (parsed.data.vasm && parsed.data.vasm.alias) {
+                        alias = parsed.data.vasm.alias;
                         console.log(t('ADD_DISCOVERED_ALIAS', alias as string));
                     }
                 } catch (e: any) {
@@ -185,7 +185,7 @@ baseDir: "."
 
     program
         .command('seal [patterns...]')
-        .description('Convert standard markdown files into Lync modules by injecting Frontmatter. Supports wildcards.')
+        .description('Convert standard markdown files into VASMC modules by injecting Frontmatter. Supports wildcards.')
         .option('--alias <alias>', 'Explicitly set the alias name (only recommended for single files)')
         .option('--lang <lang>', 'Wrap content in a specific language block (e.g. ja, zh-CN)')
         .action(async (patterns: string[], options: { alias?: string; lang?: string }) => {
@@ -212,9 +212,9 @@ baseDir: "."
                 const rawContent = fs.readFileSync(absolutePath, 'utf8');
                 const parsed = matter(rawContent);
 
-                if (parsed.data.lync) {
+                if (parsed.data.vasm) {
                     console.warn(t('SEAL_WARN_EXISTS', file));
-                    continue; // Skip file if it already has lync frontmatter
+                    continue; // Skip file if it already has vasm frontmatter
                 }
 
                 let alias = options.alias;
@@ -249,11 +249,11 @@ baseDir: "."
                     }
                 }
 
-                const lyncMetadata = {
+                const vasmMetadata = {
                     alias: alias,
                     version: "1.0.0"
                 };
-                parsed.data.lync = lyncMetadata;
+                parsed.data.vasm = vasmMetadata;
 
                 // ----- Cross-compilation Language Auto-wrapping -----
                 let content = parsed.content;
@@ -269,7 +269,7 @@ baseDir: "."
 
                 const dir = path.dirname(absolutePath);
                 const originalBasename = path.basename(file).split('.')[0];
-                const newFilename = `${originalBasename}.lync.md`;
+                const newFilename = `${originalBasename}.vasm.md`;
                 const newAbsolutePath = path.resolve(dir, newFilename);
 
                 fs.writeFileSync(newAbsolutePath, newContent, 'utf8');
@@ -286,7 +286,7 @@ baseDir: "."
     program
         .command('sync')
         .alias('install')
-        .description('Sync all dependencies from lync.yaml')
+        .description('Sync all dependencies from vasmc.yaml')
         .action(async () => {
             await syncDependencies();
         });
@@ -316,7 +316,7 @@ baseDir: "."
 
     program
         .command('build [entry]')
-        .description('Compile a specific file or run workspace build via lync-build.yaml')
+        .description('Compile a specific file or run workspace build via vasmc-build.yaml')
         .option('-o, --out-dir <dir>', 'Specify output directory (works for both single file and workspace)')
         .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
         .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
@@ -334,10 +334,10 @@ baseDir: "."
                 const configuredOutDir = options?.outDir || buildConfig.output?.dir;
                 let finalDest;
                 if (configuredOutDir) {
-                    const outName = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                    const outName = path.basename(entry).replace(/\.vasm\.md$/, '.md');
                     finalDest = path.resolve(process.cwd(), configuredOutDir, outName);
                 } else {
-                    finalDest = absoluteEntry.replace(/\.lync\.md$/, '.md');
+                    finalDest = absoluteEntry.replace(/\.vasm\.md$/, '.md');
                     if (finalDest === absoluteEntry) {
                         finalDest = finalDest + '.compiled.md';
                     }
@@ -349,7 +349,7 @@ baseDir: "."
                         if (minimatch(entry, rule.match, { matchBase: true })) {
                             const destBase = path.resolve(process.cwd(), rule.dest);
                             if (!path.extname(destBase)) {
-                                const basename = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                                const basename = path.basename(entry).replace(/\.vasm\.md$/, '.md');
                                 finalDest = path.join(destBase, basename);
                             } else {
                                 finalDest = destBase;
@@ -369,12 +369,12 @@ baseDir: "."
                     const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
                     if (fmMatch) {
                         try {
-                            const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
-                            if (fm?.lync?.compile?.format) {
-                                compileFormat = fm.lync.compile.format;
+                            const fm = yaml.parse(fmMatch[1]) as VasmFrontmatter;
+                            if (fm?.vasm?.compile?.format) {
+                                compileFormat = fm.vasm.compile.format;
                             }
-                            if (fm?.lync?.compile?.targetLangs) {
-                                frontmatterTargetLangs = fm.lync.compile.targetLangs;
+                            if (fm?.vasm?.compile?.targetLangs) {
+                                frontmatterTargetLangs = fm.vasm.compile.targetLangs;
                             }
                         } catch (e) { }
                     }
@@ -509,10 +509,10 @@ baseDir: "."
                 const configuredOutDir = options?.outDir || buildConfig.output?.dir;
                 let finalDest;
                 if (configuredOutDir) {
-                    const outName = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                    const outName = path.basename(entry).replace(/\.vasm\.md$/, '.md');
                     finalDest = path.resolve(process.cwd(), configuredOutDir, outName);
                 } else {
-                    finalDest = absoluteEntry.replace(/\.lync\.md$/, '.md');
+                    finalDest = absoluteEntry.replace(/\.vasm\.md$/, '.md');
                     if (finalDest === absoluteEntry) {
                         finalDest = finalDest + '.compiled.md';
                     }
@@ -524,7 +524,7 @@ baseDir: "."
                         if (minimatch(entry, rule.match, { matchBase: true })) {
                             const destBase = path.resolve(process.cwd(), rule.dest);
                             if (!path.extname(destBase)) {
-                                const basename = path.basename(entry).replace(/\.lync\.md$/, '.md');
+                                const basename = path.basename(entry).replace(/\.vasm\.md$/, '.md');
                                 finalDest = path.join(destBase, basename);
                             } else {
                                 finalDest = destBase;
@@ -544,11 +544,11 @@ baseDir: "."
                     const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
                     if (fmMatch) {
                         try {
-                            const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
-                            if (fm?.lync?.compile?.format) compileFormat = fm.lync.compile.format;
-                            if (fm?.lync?.compile?.targetLangs) frontmatterTargetLangs = fm.lync.compile.targetLangs;
-                            if (fm?.lync?.vision) vision = fm.lync.vision.trim();
-                            if (fm?.lync?.fix) fixMode = fm.lync.fix;
+                            const fm = yaml.parse(fmMatch[1]) as VasmFrontmatter;
+                            if (fm?.vasm?.compile?.format) compileFormat = fm.vasm.compile.format;
+                            if (fm?.vasm?.compile?.targetLangs) frontmatterTargetLangs = fm.vasm.compile.targetLangs;
+                            if (fm?.vasm?.vision) vision = fm.vasm.vision.trim();
+                            if (fm?.vasm?.fix) fixMode = fm.vasm.fix;
                         } catch (e) { }
                     }
 
@@ -580,7 +580,7 @@ baseDir: "."
                         // Cache old content for agent diff
                         if (fs.existsSync(currentDest) && !isDocFormat) {
                             const oldContent = fs.readFileSync(currentDest, 'utf8');
-                            const cacheDir = path.resolve(process.cwd(), '.lync', 'cache');
+                            const cacheDir = path.resolve(process.cwd(), '.vasmc', 'cache');
                             if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
                             const timestamp = new Date().getTime();
                             const oldContentPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(currentDest)}`);
@@ -620,7 +620,7 @@ baseDir: "."
                     }
 
                     // Output agent instructions
-                    const instructionsPath = path.resolve(process.cwd(), '.lync', 'agent-instructions.md');
+                    const instructionsPath = path.resolve(process.cwd(), '.vasmc', 'agent-instructions.md');
                     const instructionsDir = path.dirname(instructionsPath);
                     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
 
@@ -670,7 +670,7 @@ baseDir: "."
                         : [];
 
                     const instructions = [
-                        `# Lync Agent Instructions — \`${entry}\``,
+                        `# VASMC Agent Instructions — \`${entry}\``,
                         ``,
                         `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
                         `**Target Languages:** ${fileLangsToProcess!.join(', ')}`,

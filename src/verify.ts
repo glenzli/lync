@@ -6,7 +6,7 @@ import { estimateTokens } from './utils';
 import verifyCriteria from './verify-criteria.md';
 
 const LINT_PROMPT = `
-你是 Lync，一个专为 LLM 时代设计的高级 AI 编译器与静态分析器。
+你是 VASMC，一个专为 LLM 时代设计的高级 AI 编译器与静态分析器。
 你的任务是分析以下已组装完毕的 Markdown 上下文（该上下文将被用作 Prompt），并检测其中存在的问题。
 
 ${verifyCriteria.trim()}
@@ -91,7 +91,7 @@ export async function verifyCompiledContent(content: string, modelOverride?: str
 }
 
 const DIFF_PROMPT = `
-You are Lync, an expert AI Semantic Diff Analyzer for Prompt Engineering.
+You are VASMC, an expert AI Semantic Diff Analyzer for Prompt Engineering.
 You are given two versions of a compiled Prompt (Old and New).
 Your task is to analyze the semantic and structural differences between them.
 

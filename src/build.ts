@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import { loadBuildConfig } from './config';
 import { compileFile, extractTargetLangs, collectDependencies } from './compiler';
 import { t } from './i18n';
-import { LyncFrontmatter } from './types';
+import { VasmFrontmatter } from './types';
 import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 import { estimateTokens } from './utils';
@@ -33,7 +33,7 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
 
     const includes = buildConfig.includes && buildConfig.includes.length > 0
         ? buildConfig.includes
-        : ['**/*.lync.md'];
+        : ['**/*.vasm.md'];
 
     const configuredOutDir = cliOptions?.outDir || buildConfig.output?.dir || './dist';
     const finalOutDir = path.resolve(cwd, configuredOutDir);
@@ -41,7 +41,7 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
 
     let globalTargetLangs = cliOptions?.targetLangs;
 
-    const defaultIgnore = ['node_modules/**', '.lync/**', 'dist/**'];
+    const defaultIgnore = ['node_modules/**', '.vasmc/**', 'dist/**'];
     const userExcludes = buildConfig.excludes || [];
     const files = await glob(includes, {
         cwd: cwd,
@@ -61,13 +61,13 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
         // Resolve destination
         let finalDest;
         if (buildConfig.output?.inPlace && !cliOptions?.outDir) {
-            finalDest = path.join(path.dirname(absoluteFile), path.basename(absoluteFile).replace(/\.lync\.md$/, '.md'));
+            finalDest = path.join(path.dirname(absoluteFile), path.basename(absoluteFile).replace(/\.vasm\.md$/, '.md'));
         } else {
             let relativeToBase = path.relative(finalBaseDir, absoluteFile);
             if (buildConfig.output?.flat || relativeToBase.startsWith('..' + path.sep) || relativeToBase === '..') {
                 relativeToBase = path.basename(absoluteFile);
             }
-            finalDest = path.resolve(finalOutDir, relativeToBase.replace(/\.lync\.md$/, '.md'));
+            finalDest = path.resolve(finalOutDir, relativeToBase.replace(/\.vasm\.md$/, '.md'));
         }
 
         // Apply routing interceptors
@@ -76,7 +76,7 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
                 if (minimatch(relativeFile, rule.match, { matchBase: true })) {
                     const destBase = path.resolve(cwd, rule.dest);
                     if (!path.extname(destBase)) {
-                        const basename = path.basename(relativeFile).replace(/\.lync\.md$/, '.md');
+                        const basename = path.basename(relativeFile).replace(/\.vasm\.md$/, '.md');
                         finalDest = path.join(destBase, basename);
                     } else {
                         finalDest = destBase;
@@ -93,12 +93,12 @@ export async function resolveWorkspaceEntries(cwd: string, cliOptions?: { baseDi
         const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
         if (fmMatch) {
             try {
-                const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
-                if (fm?.lync?.compile?.format) {
-                    compileFormat = fm.lync.compile.format;
+                const fm = yaml.parse(fmMatch[1]) as VasmFrontmatter;
+                if (fm?.vasm?.compile?.format) {
+                    compileFormat = fm.vasm.compile.format;
                 }
-                if (fm?.lync?.compile?.targetLangs) {
-                    frontmatterTargetLangs = fm.lync.compile.targetLangs;
+                if (fm?.vasm?.compile?.targetLangs) {
+                    frontmatterTargetLangs = fm.vasm.compile.targetLangs;
                 }
             } catch (e) { }
         }
@@ -185,7 +185,7 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
 
 // ========== Layer 3: Command Composers ==========
 
-/** Pure deterministic build — used by `lync build` */
+/** Pure deterministic build — used by `vasmc build` */
 export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
     const buildState = loadBuildState(cwd);
@@ -251,14 +251,14 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
     }
 }
 
-/** Agent build — used by `lync agent` workspace mode */
+/** Agent build — used by `vasmc agent` workspace mode */
 export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
     const buildState = loadBuildState(cwd);
     let stateChanged = false;
 
     // Clear previous agent instructions
-    const instructionsPath = path.resolve(cwd, '.lync', 'agent-instructions.md');
+    const instructionsPath = path.resolve(cwd, '.vasmc', 'agent-instructions.md');
     const instructionsDir = path.dirname(instructionsPath);
     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
     fs.writeFileSync(instructionsPath, '', 'utf8');
@@ -275,9 +275,9 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSrc);
             if (fmMatch) {
                 try {
-                    const fm = yaml.parse(fmMatch[1]) as LyncFrontmatter;
-                    if (fm?.lync?.vision) vision = fm.lync.vision.trim();
-                    if (fm?.lync?.fix) fixMode = fm.lync.fix;
+                    const fm = yaml.parse(fmMatch[1]) as VasmFrontmatter;
+                    if (fm?.vasm?.vision) vision = fm.vasm.vision.trim();
+                    if (fm?.vasm?.fix) fixMode = fm.vasm.fix;
                 } catch { }
             }
         }
@@ -314,7 +314,7 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
                 }
                 if (fs.existsSync(actualDest)) {
                     const oldContent = fs.readFileSync(actualDest, 'utf8');
-                    const cacheDir = path.resolve(cwd, '.lync', 'cache');
+                    const cacheDir = path.resolve(cwd, '.vasmc', 'cache');
                     if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
                     const timestamp = new Date().getTime();
                     const backupPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(actualDest)}`);
@@ -384,7 +384,7 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             : [];
 
         const instructions = [
-            `# Lync Agent Instructions — \`${entry.relativeFile}\``,
+            `# VASMC Agent Instructions — \`${entry.relativeFile}\``,
             ``,
             `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
             `**Target Languages:** ${targetLangs.join(', ')}`,

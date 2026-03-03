@@ -1,0 +1,34 @@
+includes:
+  - "docs-src/*.vasm.md"
+  - "skill-src/vasm-expert/vasmc-expert.vasm.md"
+
+excludes:
+  # extract-vasmc-knowledge 是临时 Prompt 文件，只在 update-vasmc-expert workflow 中手动触发
+  - "skill-src/vasm-expert/extract-*.vasm.md"
+
+output:
+  dir: "./dist"
+
+baseDir: "./"
+
+# 交叉编译目标语种（按输出格式分别配置）
+compile:
+  doc:
+    targetLangs:
+      - "zh-CN"
+  prompt:
+    targetLangs:
+      - "zh-CN"
+
+routing:
+  # 文档源文件直接路由到项目根目录
+  - match: "docs-src/*.vasm.md"
+    dest: "./"
+
+  # vasmc-expert 主技能文件，编译产物命名为 SKILL.md（Antigravity skill 标准入口）
+  - match: "skill-src/vasm-expert/vasmc-expert.vasm.md"
+    dest: "./skills/vasm-expert/SKILL.md"
+
+  # 其他 skill-src 文件（兜底路由，实际由 excludes 过滤）
+  - match: "skill-src/vasm-expert/*.vasm.md"
+    dest: "./skills/vasm-expert/"

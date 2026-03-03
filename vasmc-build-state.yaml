@@ -1,0 +1,18 @@
+version: 1
+entries:
+  skill-src/vasm-expert/vasmc-expert.vasm.md|zh-CN:
+    inputSignature: 5e6ed51180327fb3ebe362f42d893251d39b074c39513fc1e300bc27d84bd480
+    outputFile: skills/vasm-expert/SKILL.md
+    targetLang: zh-CN
+  docs-src/README.vasm.md|merged:
+    inputSignature: 32201407682f0de9376062e33bd12a1feeb2573405c70bcea52d1cf7122bf912
+    outputFile: README.md
+    targetLang: zh-CN
+  docs-src/HELP.vasm.md|merged:
+    inputSignature: f8a59848e1a9d9871ada619073eb8fec7ff5f61dc989128644608a54f2cd9c2b
+    outputFile: HELP.md
+    targetLang: zh-CN
+  docs-src/DESIGN.vasm.md|merged:
+    inputSignature: da228149662020ed419fe35a9103cc068c5dada82627292f76aa6ebaeede06ea
+    outputFile: DESIGN.md
+    targetLang: zh-CN

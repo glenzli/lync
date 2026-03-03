@@ -1,3 +1,9 @@
+---
+vasm:
+  compile:
+    format: "doc"
+---
+
 # VASM 协议与 VASMC 跨平台编译器规范
 
 ## 核心设计哲学：Prompt 汇编化 (Prompt as LLM Assembly)
@@ -12,9 +18,10 @@
 4. **多语种交叉编译 (Cross-Compilation Targets)**：当 Prompt 被视为机器码，它的具体语种就不再是传统意义上的"国际化（i18n）"，而是指定"CPU 架构"（各模型对不同语系的解析性能不同）。VASMC 支持使用母语编写意图源文件（高级语言），然后利用 LLM 交叉编译出纯正目标语种的高效 Prompt 机器指令，从而消灭了在同一份大文件中杂糅双语对照而导致的 Token 浪费与幻觉问题。
 5. **语义编译与意图规约 (Semantic Compilation via Vision)**：真正的编译器不只做结构变换，还要保证语义正确性。VASMC 允许开发者在源文件 Frontmatter 中声明 `vision`（产物应达成的语义目标），并通过 `fix: suggest | auto` 控制修复策略。在 `vasmc agent` 的 Verify Pass 中，AI 协调器将对照 vision 检查编译产物的意图对齐程度——`suggest` 模式输出修改建议等待确认，`auto` 模式直接编辑产物文件并报告变更摘要。这将 VASMC 从"结构链接器"升格为"语义编译器"。
 
+
 VASMC 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与 **跨平台编译器**。它将 Markdown 视为高级工程抽象代码，提供依赖管理、内联组合和确定性构建机制，且不依赖任何中心化注册表。
 
-***
+---
 
 ## Part 1: 包管理清单 (Install)
 
@@ -40,13 +47,11 @@ dependencies:
 ### 2. 别名生成与冲突处理机制
 
 VASMC 要求开发者保证别名在项目 `vasmc.yaml` 中的唯一性。
-
-* **本地唯一标识**：在项目中，别名（如 `company-rules`）是主键。若声明重复的别名，解析器将直接覆盖或抛出错误。
-* 通过将目标 URL 与本地 Alias 解耦，VASMC 规避了全局命名冲突问题。
+*   **本地唯一标识**：在项目中，别名（如 `company-rules`）是主键。若声明重复的别名，解析器将直接覆盖或抛出错误。
+*   通过将目标 URL 与本地 Alias 解耦，VASMC 规避了全局命名冲突问题。
 
 若开发者手动编辑 `vasmc.yaml`，则使用声明的键作为别名。
 若通过 CLI 工具 `vasmc add <url>` 安装依赖，系统按以下优先级生成别名：
-
 1. **显式指定**: 命令行参数 `--alias`（如 `vasmc add https://.../foo.md --alias bar`）具有最高优先级。
 2. **文件名推导**: 缺省情况下，提取 URL 的末尾路径并移除扩展名作为别名（如 `.../my-skill.md` 推导为 `my-skill`）。
 3. **后缀递增冲突避免**: 若推导得到的别名在 `vasmc.yaml` 中已存在，则自动追加数字后缀（如 `my-skill-1`）以防止配置覆盖。开发者后续可手动修改该名称。
@@ -62,7 +67,7 @@ VASMC 要求开发者保证别名在项目 `vasmc.yaml` 中的唯一性。
 
 > **注意**：`vasmc-lock.yaml` 应 **提交到版本控制**。它类似于 `package-lock.json`，是确定性构建的保证——团队成员执行 `vasmc sync` 时将依据此文件还原完全一致的依赖状态。
 
-***
+---
 
 ## Part 2: 代码引入 (Import)
 
@@ -74,21 +79,21 @@ VASM 采用向下兼容的设计原则：将编译指令编码为标准 Markdown
 
 `[链接文本](vasm:alias "@vasm-directive")`
 
-* **链接重写模式 (`@import:link`)**:
-  编译器将 `vasm:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
-  ```markdown
-  请参阅下方的 [代码审查辅助技能](vasm:coder-skill "@import:link")。
-  ```
-  *构建输出*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
+*   **链接重写模式 (`@import:link`)**: 
+    编译器将 `vasm:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
+    ```markdown
+    请参阅下方的 [代码审查辅助技能](vasm:coder-skill "@import:link")。
+    ```
+    *构建输出*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
 
-* **内联展开模式 (`@import:inline`)**:
-  编译器读取目标文件的纯文本内容，并直接替换该引用链接。主要用于组装大型 Prompt 上下文。
-  ```markdown
-  根据本组织的 [公司开发规范](vasm:company-rules "@import:inline")：
-  ```
-  *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
+*   **内联展开模式 (`@import:inline`)**:
+    编译器读取目标文件的纯文本内容，并直接替换该引用链接。主要用于组装大型 Prompt 上下文。
+    ```markdown
+    根据本组织的 [公司开发规范](vasm:company-rules "@import:inline")：
+    ```
+    *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
 
-***
+---
 
 ## Part 3: VASMC 编译器核心与 CLI 概览
 
@@ -103,24 +108,21 @@ VASMC 编译器（CLI 工具）是负责兑现协议的执行引擎。
 VASMC CLI 采用严格的关注点分离原则，将命令分为三类：
 
 **确定性工具（零 LLM 调用）**：
-
-* `vasmc build [file]`：纯确定性编译器。执行 AST 遍历、`@import` 解析、交叉编译翻译。翻译是编译器核心能力（相当于 gcc 的交叉编译后端），不属于"增强功能"。注意：LLM 翻译后端仅在人类直接调用时生效；AI 编辑器应使用 `vasmc agent` 以绕过所有 LLM 调用。
-* `vasmc graph <file>`：静态分析 AST 并打印依赖关系的可视化 ASCII 树。
-* `vasmc seal <patterns>`：将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、语言标签）。
-* `vasmc sync`、`vasmc add`、`vasmc init`：依赖管理与项目初始化。
+*   `vasmc build [file]`：纯确定性编译器。执行 AST 遍历、`@import` 解析、交叉编译翻译。翻译是编译器核心能力（相当于 gcc 的交叉编译后端），不属于"增强功能"。注意：LLM 翻译后端仅在人类直接调用时生效；AI 编辑器应使用 `vasmc agent` 以绕过所有 LLM 调用。
+*   `vasmc graph <file>`：静态分析 AST 并打印依赖关系的可视化 ASCII 树。
+*   `vasmc seal <patterns>`：将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、语言标签）。
+*   `vasmc sync`、`vasmc add`、`vasmc init`：依赖管理与项目初始化。
 
 **LLM 增强工具（独立子命令，按需调用）**：
-
-* `vasmc lint <file>`：对已编译产物执行 LLM 驱动的语义冲突检测。完全独立于编译流程，就像 `clippy` 独立于 `rustc`。
-* `vasmc diff <file>`：对新旧编译产物执行 LLM 驱动的语义对比分析。
+*   `vasmc lint <file>`：对已编译产物执行 LLM 驱动的语义冲突检测。完全独立于编译流程，就像 `clippy` 独立于 `rustc`。
+*   `vasmc diff <file>`：对新旧编译产物执行 LLM 驱动的语义对比分析。
 
 **Agent 专用工具**：
-
-* `vasmc agent <file>`：为 AI 编辑器设计的编译前端。执行纯确定性的 AST 组装（零 LLM 调用），输出 `.vasmc/agent-instructions.md` 编排操作令，由外部 AI 编辑器接管后续的语义剪裁、冲突裁决与翻译。
+*   `vasmc agent <file>`：为 AI 编辑器设计的编译前端。执行纯确定性的 AST 组装（零 LLM 调用），输出 `.vasmc/agent-instructions.md` 编排操作令，由外部 AI 编辑器接管后续的语义剪裁、冲突裁决与翻译。
 
 > 👉 **完整指南**：关于 VASMC 命令行的详细使用方法、全局 `.vasmrc` 配置、大模型接入指南等文档，请参阅 [**VASMC 帮助文档 (HELP.md)**](HELP.md)。
 
-***
+---
 
 ## Part 4: 版本管理与依赖解析机制
 
@@ -152,9 +154,9 @@ vasm:
 # 你的 Prompt 正文...
 ```
 
-* **alias**：强烈建议填写。当其他用户执行 `vasmc add <你的链接>` 时，VASMC 会优先使用此字段作为其命名空间中的映射别名。
-* **version**：供人类评估兼容性使用的元数据（VASMC 引擎锁定版本时仅以内容 Hash 为唯一真理）。
-* **dependencies**：声明当前模块运行**不可或缺的远程依赖**。当用户拉取你的模块时，VASMC 的 `sync` 引擎会自动读取这些嵌套依赖，并将其扁平化地一并安装到他们的工作区中（遵循“主权覆写”防冲突原则）。
+*   **alias**：强烈建议填写。当其他用户执行 `vasmc add <你的链接>` 时，VASMC 会优先使用此字段作为其命名空间中的映射别名。
+*   **version**：供人类评估兼容性使用的元数据（VASMC 引擎锁定版本时仅以内容 Hash 为唯一真理）。
+*   **dependencies**：声明当前模块运行**不可或缺的远程依赖**。当用户拉取你的模块时，VASMC 的 `sync` 引擎会自动读取这些嵌套依赖，并将其扁平化地一并安装到他们的工作区中（遵循“主权覆写”防冲突原则）。
 
 ### 3. 扁平化命名与语义冲突解决 (Flat Resolution & Semantic Linting)
 
@@ -182,7 +184,7 @@ vasm:
 
 编译器会自动识别以 `./` 或 `../` 开头的链接。它不仅能让您在主流编辑器中点按跳转到源文件，而且**本地相对引用的文件不会被强制执行 Hash Lock 计算**，天然支持本地实时联调与热修改。
 
-***
+---
 
 ## Part 5: 技能飞轮与自举 (Skill Flywheel & Self-Bootstrapping)
 
@@ -225,20 +227,20 @@ skills/vasm-expert/                         # 编译产物目录（纯净）
 
 ### 3. 设计原则
 
-* **自包含（Static Linking）**：最终产出的技能文件必须是一个自包含的闭包。AI 编辑器只需加载 `vasm-expert.md` 这一个文件，即可同时获得语法速查、CLI 参考和 `vasmc agent` 模式操作规程。不允许出现运行时的外部依赖——"加载即可用，零断链"。
-* **知识蒸馏分离**：`vasmc-knowledge.md` 是由 AI 编辑器根据 `extract-vasmc-knowledge.vasm.md` 的指令从源文档中蒸馏出来的 AI 专用知识手册。它不是手写的，而是随时可以通过重新执行提取流水线来再生的中间产物。
-* **流水线即 Prompt**：`extract-vasmc-knowledge.vasm.md` 本身就是一个 VASM 源文件，它通过 `@import:inline` 拉入最新的编译文档作为上下文，指导 AI 编辑器生成新的知识手册。这意味着**提取流水线本身也是由 VASMC 管理的模块化代码**。
-* **语种一致性**：技能文件（`exec` 格式）内部的所有内联素材必须与目标编译语种保持一致，避免在单一可执行体中混杂多种语言而导致 LLM 注意力分散。
+*   **自包含（Static Linking）**：最终产出的技能文件必须是一个自包含的闭包。AI 编辑器只需加载 `vasm-expert.md` 这一个文件，即可同时获得语法速查、CLI 参考和 `vasmc agent` 模式操作规程。不允许出现运行时的外部依赖——"加载即可用，零断链"。
+*   **知识蒸馏分离**：`vasmc-knowledge.md` 是由 AI 编辑器根据 `extract-vasmc-knowledge.vasm.md` 的指令从源文档中蒸馏出来的 AI 专用知识手册。它不是手写的，而是随时可以通过重新执行提取流水线来再生的中间产物。
+*   **流水线即 Prompt**：`extract-vasmc-knowledge.vasm.md` 本身就是一个 VASM 源文件，它通过 `@import:inline` 拉入最新的编译文档作为上下文，指导 AI 编辑器生成新的知识手册。这意味着**提取流水线本身也是由 VASMC 管理的模块化代码**。
+*   **语种一致性**：技能文件（`exec` 格式）内部的所有内联素材必须与目标编译语种保持一致，避免在单一可执行体中混杂多种语言而导致 LLM 注意力分散。
 
-***
+---
 
 ## Part 6: 安全性保证
 
-* **严格防范循环依赖 (Strict DAG Enforcement)**: 在执行 `vasmc build` 时，如果被引入的文件又递归引入了其他文件，编译器必须维护调用栈。一旦检测到闭环（`A -> B -> C -> A`），必须立即报致命错误。
-* **本地写入冲突防范**: 执行 `sync` 之前，VASMC 必须做静态预检。如果在 `vasmc.yaml` 中发现两个不同的 Alias 被赋予了完全一样的 `dest` 写入路径，必须立即抛出致命冲突错误。
-* **未知别名拦截**: 如果 `build` 过程中遇到了未在清单中注册的 `vasm:unknown-alias`，编译器应立即终止，并提示开发者先去 `vasmc.yaml` 中安装该依赖。
+*   **严格防范循环依赖 (Strict DAG Enforcement)**: 在执行 `vasmc build` 时，如果被引入的文件又递归引入了其他文件，编译器必须维护调用栈。一旦检测到闭环（`A -> B -> C -> A`），必须立即报致命错误。
+*   **本地写入冲突防范**: 执行 `sync` 之前，VASMC 必须做静态预检。如果在 `vasmc.yaml` 中发现两个不同的 Alias 被赋予了完全一样的 `dest` 写入路径，必须立即抛出致命冲突错误。
+*   **未知别名拦截**: 如果 `build` 过程中遇到了未在清单中注册的 `vasm:unknown-alias`，编译器应立即终止，并提示开发者先去 `vasmc.yaml` 中安装该依赖。
 
-***
+---
 
 ## Part 7: 增量构建 (Incremental Build)
 
@@ -265,6 +267,6 @@ entries:
 
 ### 设计要点
 
-* **可提交（Committable）**：`vasmc-build-state.yaml` 基于内容 Hash，与机器无关，应提交到版本控制，团队成员可直接共享增量缓存。
-* **自动失效**：任何源文件（包括任意层级的传递依赖）变更，签名随之变化，增量 skip 自动失效，确保构建结果始终正确。
-* **对 Agent 模式透明**：`vasmc agent` 同样支持增量构建。若构建被跳过，`.vasmc/agent-instructions.md` 中不会生成对应条目，AI 编辑器自然跳过后续语义任务。
+*   **可提交（Committable）**：`vasmc-build-state.yaml` 基于内容 Hash，与机器无关，应提交到版本控制，团队成员可直接共享增量缓存。
+*   **自动失效**：任何源文件（包括任意层级的传递依赖）变更，签名随之变化，增量 skip 自动失效，确保构建结果始终正确。
+*   **对 Agent 模式透明**：`vasmc agent` 同样支持增量构建。若构建被跳过，`.vasmc/agent-instructions.md` 中不会生成对应条目，AI 编辑器自然跳过后续语义任务。
