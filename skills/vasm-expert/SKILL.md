@@ -28,8 +28,6 @@ VASMC 是一个颠覆性的新型编译器，专为处理 AI 提示词工程而�
 
 # VASMC 知识手册（AI Agent 专用）
 
-<!-- 第一章至第四章由飞轮自动生成，第五章为手工维护，禁止覆盖 -->
-
 ***
 
 ## 第一章：VASMC 是什么（心智模型）
@@ -152,13 +150,13 @@ vasm:
 * 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc sync --update <alias>` 才生效。
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 
-***
+### 决策规则 & 常见误区
 
-<!-- [手工维护] 第五章由人工精化，禁止飞轮覆盖 -->
+以下是 AI 编辑器操作 VASMC 项目时的高频误区与正确决策规则。
 
-## 第五章：决策规则 & 常见误区
+# 决策规则 & 常见误区（AI Agent 专用，手工维护）
 
-### 规则一：targetLangs 写在哪里？
+## 规则一：targetLangs 写在哪里？
 
 **不要在 `.vasm.md` frontmatter 的 `compile.targetLangs` 里配置项目级语种。**
 
@@ -174,7 +172,7 @@ vasm:
 
 ***
 
-### 规则二：输出路径公式（routing vs output.dir + baseDir）
+## 规则二：输出路径公式（routing vs output.dir + baseDir）
 
 最终输出路径 = `output.dir` + (文件路径 relative to `baseDir`)，**routing 是在此基础上的拦截覆盖**。
 
@@ -196,7 +194,7 @@ baseDir: ./src
 
 ***
 
-### 规则三：vasmc seal 之后必须检查 compile.format
+## 规则三：vasmc seal 之后必须检查 compile.format
 
 `vasmc seal` 会根据文件名启发式推断格式，但你**必须**在生成的 frontmatter 里确认：
 

@@ -24,6 +24,11 @@ VASMC 是一个颠覆性的新型编译器，专为处理 AI 提示词工程而�
 
 [VASMC 知识手册](./vasmc-knowledge.md "@import:inline")
 
+### 决策规则 & 常见误区
+以下是 AI 编辑器操作 VASMC 项目时的高频误区与正确决策规则。
+
+[决策规则手册](./vasmc-knowledge-pitfalls.md "@import:inline")
+
 ### Agentic 编译协调规程（`vasmc agent` 模式）
 以下是当用户执行 `vasmc agent` 命令时，你作为 AI 协调器应当遵循的完整操作规程。
 
