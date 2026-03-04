@@ -136,7 +136,20 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
     const isDocFormat = compileFormat === 'doc';
     const compiledMap = new Map<string, string>();
 
-    for (const targetLang of targetLangs) {
+    // In agent mode for prompt format with multiple langs, only compile the source language.
+    // Non-source languages will be produced by AI translation (agent-instructions.md Translate step).
+    // Compiling them here would: (a) write wrong placeholder files to disk, (b) count tokens on
+    // identical source content, making the token comparison meaningless.
+    let langsToCompile = targetLangs;
+    if (agentMode && !isDocFormat && targetLangs.length > 1) {
+        const rawContent = fs.readFileSync(absoluteFile, 'utf8');
+        const { detectLanguage } = await import('./utils');
+        const detected = detectLanguage(rawContent);
+        const sourceLang = (detected && targetLangs.includes(detected)) ? detected : targetLangs[0];
+        langsToCompile = [sourceLang];
+    }
+
+    for (const targetLang of langsToCompile) {
         let actualDest = finalDest;
         if (!isDocFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
             actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
@@ -182,6 +195,7 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
 
     return { entry, compiledMap };
 }
+
 
 // ========== Layer 3: Command Composers ==========
 

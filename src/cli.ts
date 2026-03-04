@@ -588,7 +588,19 @@ baseDir: "."
                     let bestLang = 'auto';
                     const agentHistoryPaths: { lang: string; backupPath: string }[] = [];
 
-                    for (const targetLang of fileLangsToProcess!) {
+                    // In agent mode for prompt format with multiple langs, only compile the source language.
+                    // Non-source languages are handled by the AI Translate step; pre-compiling them
+                    // with placeholder content is wasteful and creates misleading files on disk.
+                    let agentLangsToCompile = fileLangsToProcess!;
+                    if (!isDocFormat && fileLangsToProcess!.length > 1) {
+                        const rawContent = fs.readFileSync(absoluteEntry, 'utf8');
+                        const detected = detectLanguage(rawContent);
+                        const sourceLang = (detected && fileLangsToProcess!.includes(detected))
+                            ? detected : fileLangsToProcess![0];
+                        agentLangsToCompile = [sourceLang];
+                    }
+
+                    for (const targetLang of agentLangsToCompile) {
                         let currentDest = finalDest;
                         if (!isDocFormat && targetLang && targetLang !== 'auto' && fileLangsToProcess!.length > 1) {
                             currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
@@ -622,6 +634,7 @@ baseDir: "."
                             bestLang = targetLang || 'auto';
                         }
                     }
+
 
                     if (isDocFormat) {
                         try {
