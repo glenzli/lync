@@ -19,8 +19,9 @@
 3. **闭环编译体系 (Agentic Compilation Workflow)**：对系统 Prompt 的功能性修改必须借由 LLM 自主生成、执行、验证、修正的闭环完成。VASMC 的 `vasmc agent` 命令正是这一流程的物理载体，将 VASMC 提升为了客观的“编译器前端”，由外部 Agent 读取 AST 指令后接管编译的后半段过程（优化、剪裁与翻译）。
 4. **多语种交叉编译 (Cross-Compilation Targets)**：当 Prompt 被视为机器码，它的具体语种就不再是传统意义上的"国际化（i18n）"，而是指定"CPU 架构"（各模型对不同语系的解析性能不同）。VASMC 支持使用母语编写意图源文件（高级语言），然后利用 LLM 交叉编译出纯正目标语种的高效 Prompt 机器指令，从而消灭了在同一份大文件中杂糅双语对照而导致的 Token 浪费与幻觉问题。
 5. **语义编译与意图规约 (Semantic Compilation via Vision)**：真正的编译器不只做结构变换，还要保证语义正确性。VASMC 允许开发者在源文件 Frontmatter 中声明 `vision`（产物应达成的语义目标），并通过 `fix: suggest | auto` 控制修复策略。在 `vasmc agent` 的 Verify Pass 中，AI 协调器将对照 vision 检查编译产物的意图对齐程度——`suggest` 模式输出修改建议等待确认，`auto` 模式直接编辑产物文件并报告变更摘要。这将 VASMC 从"结构链接器"升格为"语义编译器"。
+6. **输入面主权 (Input Sovereignty)**：在 AI-Native 系统中，上下文窗口既是执行空间也是数据空间——LLM 在架构层面无法区分"应当执行的指令"与"应当处理的数据"，整个输入面即执行面。VASMC 是这一架构约束下**在输入层建立的唯一确定性控制点**：所有进入执行面的内容都必须经过编译链的显式声明与组装，来源可追溯，格式有分类（`prompt` 与 `doc` 的区分是编译期的安全分类原语），内容不可被隐式污染。VASMC 不试图修复 LLM 的执行层，而是在执行面形成之前，将人类的主权意志确定性地写入其中。
 
-VASMC 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与 **跨平台编译器**。它将 Markdown 视为高级工程抽象代码，提供依赖管理、内联组合和确定性构建机制，且不依赖任何中心化注册表。
+VASMC 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与 **跨平台编译器**。它将 Markdown 视为高级工程抽象代码，提供依赖管理、内联组合、确定性构建和输入面主权保障机制，且不依赖任何中心化注册表。
 
 ***
 
@@ -240,11 +241,50 @@ skills/vasm-expert/                         # 编译产物目录（纯净）
 
 ***
 
-## Part 6: 安全性保证
+## Part 6: AI-Native 输入面安全模型 (Input Sovereignty)
 
-* **严格防范循环依赖 (Strict DAG Enforcement)**: 在执行 `vasmc build` 时，如果被引入的文件又递归引入了其他文件，编译器必须维护调用栈。一旦检测到闭环（`A -> B -> C -> A`），必须立即报致命错误。
-* **本地写入冲突防范**: 执行 `sync` 之前，VASMC 必须做静态预检。如果在 `vasmc.yaml` 中发现两个不同的 Alias 被赋予了完全一样的 `dest` 写入路径，必须立即抛出致命冲突错误。
-* **未知别名拦截**: 如果 `build` 过程中遇到了未在清单中注册的 `vasm:unknown-alias`，编译器应立即终止，并提示开发者先去 `vasmc.yaml` 中安装该依赖。
+### 1. 问题根源：数据即指令
+
+在冯诺伊曼架构中，安全工程的核心命题是保障**代码与数据的严格隔离**——指令在代码段，数据在数据段，越界即越权。这一前提在 AI-Native 系统中**根本不成立**。
+
+由于 RLHF 的训练目标是让模型成为顺从的响应者，大模型在架构层面**无法区分「应当执行的指令」与「应当处理的数据」**。进入上下文窗口的所有 token 在注意力机制眼中是平权的。更准确的描述是：
+
+> **AI-Native 系统天然以 `root` 权限运行——整个上下文窗口既是执行空间也是数据空间，LLM 是作用于全域输入的全局 `eval()`，且被训练为尽可能顺从执行。**
+
+传统安全工程等待攻击者"穿透边界"；AI-Native 中根本没有边界可被穿透，因为模型从不拒绝执行输入中的任何指令。安全性从设计上就不能依赖模型自身的辨别能力。
+
+### 2. VASMC 的应对：编译期输入主权
+
+VASMC 不试图修复 LLM 执行层（这是不可能的），而是在**执行面形成之前**建立确定性的控制点。
+
+**三个安全原语**：
+
+* **来源可审计（Provenance）**：所有进入执行面的内容，必须经过 `.vasm.md` 源文件 → 编译链 → `.md` 产物的显式路径。外部内容只能通过 `vasmc add` + `vasmc sync` 的显式声明进入构建链，不存在隐式引入。进入上下文的每一个 token 都有可追溯的人类授权来源。
+
+* **格式分类即安全分类（Format Classification）**：`compile.format: prompt | doc` 的区分远不只是"编译行为不同"——它是人类在构建期对内容用途的**主权声明**：
+
+  * `prompt`：声明为进入 LLM 执行面的指令内容
+  * `doc`：声明为供人类阅读的信息内容，**不应出现在 system prompt 中**
+
+  在冯诺伊曼架构中，代码段与数据段由 CPU 硬件强制隔离。LLM 做不到这件事——VASMC 把这个隔离提前到**编译期**，由人类显式声明，而非期待模型运行时辨别。
+
+* **内容确定性（Determinism）**：编译是纯确定性的 AST 组装，产物内容完全可预期、可审计、可复现。攻击者无法在构建过程中静默注入未授权内容。
+
+### 3. VASMC 的边界
+
+VASMC 的信任边界是**控制路径（controlled input path）**——即通过编译链进入 system prompt 的内容。它不能防御：
+
+* 用户动态输入中的 prompt injection
+* 工具调用返回值中的恶意内容
+* RAG 检索内容中的注入
+
+这些属于**运行时防御**的范畴，需要其他机制处理。VASMC 解决的是：**你能控制的那部分输入——system prompt 与 skill 文件——是否真的只包含你授权的内容**。
+
+### 4. 编译时静态安全保证
+
+* **严格防范循环依赖 (Strict DAG Enforcement)**：`vasmc build` 维护调用栈，一旦检测到闭环（`A → B → C → A`），立即报致命错误，防止依赖图被恶意构造为无限展开。
+* **写入冲突防范**：`sync` 前做静态预检，同一 `dest` 路径被多个 Alias 声明时，立即抛出致命冲突错误。
+* **未知别名拦截**：编译过程中遇到未在清单中注册的 `vasm:unknown-alias`，立即终止，不允许未经授权的依赖静默解析。
 
 ***
 
@@ -287,34 +327,35 @@ entries:
 
 > *This concept is deeply inspired by the [Vibe Coding Framework](https://github.com/glenzli/vibe-coding-framework/blob/main/PRINCIPLES.md).*
 
-In traditional thinking, a Prompt is viewed as natural language text that "must be readable by both humans and machines." VASMC completely breaks this compromise, establishing the following core engineering consensus for LLM infrastructure:
+In traditional thinking, a Prompt is treated as natural-language text that must "be readable by both humans and machines." VASMC breaks this compromise entirely, establishing the following core engineering principles for LLM infrastructure:
 
-1. **Intent as Source, Prompt as Compiled Artifact**: In an AI-Native architecture, system-level instructions (such as System-Prompts and solidified SKILL process descriptions) should be strictly regarded as "Assembly / Machine Code" used to drive the underlying model. The human developer's "natural language intent" and abstract topological structures (combined via `vasm:alias`) are the true Source Code.
-2. **No Manual Prompt Tweaking**: Humans should not, and do not need to, manually craft high-dimensional Prompts at the text level once they have been verified. The sole criterion for evaluating a Prompt is "whether it can stably trigger the correct actions from the underlying model." This modular assembly should be left to a static linker like VASMC; the system strictly forbids manual tweaking based on "voodoo" or trial-and-error.
-3. **Agentic Compilation Workflow**: Functional modifications to system Prompts must be completed through a closed loop of LLM autonomous generation, execution, verification, and correction. The `vasmc agent` command is the physical carrier of this process, elevating VASMC to an objective "compiler frontend," where an external Agent takes over the latter half of the compilation process (optimization, pruning, and translation) after reading AST instructions.
-4. **Cross-Compilation Targets**: When a Prompt is treated as machine code, its specific language is no longer "internationalization (i18n)" in the traditional sense, but rather a specified "CPU architecture" (different models have varying parsing performance for different languages). VASMC supports writing intent source files in a native language (high-level language) and then using LLMs to cross-compile efficient Prompt machine instructions in the pure target language, thereby eliminating Token waste and hallucination issues caused by mixing bilingual comparisons in the same large file.
-5. **Semantic Compilation via Vision**: A true compiler does more than structural transformation; it ensures semantic correctness. VASMC allows developers to declare a `vision` (the semantic goal the artifact should achieve) in the source file Frontmatter and control repair strategies via `fix: suggest | auto`. During the `vasmc agent` Verify Pass, the AI coordinator checks the alignment of the compiled artifact's intent against the vision—`suggest` mode outputs modification suggestions for confirmation, while `auto` mode directly edits the artifact file and reports a change summary. This upgrades VASMC from a "structural linker" to a "semantic compiler."
+1. **Intent as Source Code, Prompt as Compiled Output**: In AI-Native architecture, system-level instructions (e.g., System Prompts, fixed SKILL workflow descriptions) should be treated strictly as "assembly language (Assembly / Machine Code)" that drives the underlying model. The developer's "natural-language intent" and abstract topology (composed via `vasm:alias`) is the true Source Code.
+2. **No Manual Prompt Tweaking**: Humans should not, and do not need to, manually craft validated high-dimensional Prompts at the text level. The sole evaluation criterion for a Prompt is "does it reliably trigger the correct behavior in the underlying model?" This modular assembly should be delegated to a static linker like VASMC. Ad-hoc "voodoo" tweaking is strictly prohibited.
+3. **Closed-Loop Agentic Compilation Workflow**: Functional modifications to system Prompts must be completed through a closed loop of LLM-autonomous generation, execution, verification, and correction. The `vasmc agent` command is the physical carrier of this workflow — it elevates VASMC to an objective "compiler frontend," with an external Agent taking over the semantic second half of compilation (optimization, pruning, and translation) after reading AST directives.
+4. **Cross-Compilation Targets**: When a Prompt is treated as machine code, its specific language is no longer traditional "internationalization (i18n)" — it's specifying a "CPU architecture" (different models parse different language families with different efficiency). VASMC supports writing intent source files in your native language (high-level language), then using LLM to cross-compile pure target-language Prompt machine instructions, eliminating token waste and hallucinations caused by mixing bilingual content in a single large file.
+5. **Semantic Compilation via Vision**: A true compiler not only performs structural transformation — it also guarantees semantic correctness. VASMC allows developers to declare `vision` (the semantic target the compiled output should achieve) in source file Frontmatter, and control the repair strategy via `fix: suggest | auto`. In the `vasmc agent` Verify Pass, the AI coordinator checks compiled output against the vision for intent alignment — `suggest` mode outputs suggested edits awaiting confirmation, `auto` mode directly edits the product file and reports a change summary. This elevates VASMC from a "structural linker" to a "semantic compiler."
+6. **Input Sovereignty**: In AI-Native systems, the context window is simultaneously the execution space and the data space — LLM architecturally cannot distinguish "instructions to be executed" from "data to be processed." The entire input surface is the execution surface. VASMC is **the only deterministic control point established at the input layer** under this architectural constraint: all content entering the execution surface must pass through explicit declaration and assembly via the compilation chain, with traceable provenance, typed format classification (`prompt` vs `doc` distinction is a compile-time security classification primitive), and no possibility of implicit contamination. VASMC does not attempt to fix the LLM execution layer — instead, it deterministically encodes human sovereign intent before the execution surface is formed.
 
-VASMC is a lightweight, decentralized Markdown package manager and **cross-platform compiler** designed specifically for LLM-related development workflows. It treats Markdown as high-level engineering abstraction code, providing dependency management, inline composition, and deterministic build mechanisms without relying on any centralized registry.
+VASMC is a lightweight, decentralized Markdown package manager and **cross-platform compiler** designed for LLM development workflows. It treats Markdown as high-level engineering abstraction code, providing dependency management, inline composition, deterministic builds, and input sovereignty guarantees — without relying on any centralized registry.
 
 ***
 
-## Part 1: Package Management Manifest (Install)
+## Part 1: Package Manifest (Install)
 
-VASMC uses a manifest file to declare remote dependencies before referencing them in source files. This avoids hard-coding URLs, facilitates version control, and establishes unified module aliases (Alias) locally.
+VASMC uses manifest files to declare remote dependencies, which are then referenced in source files. This avoids hard-coded URLs, facilitates version control, and establishes unified module aliases (Aliases) locally.
 
 ### 1. Manifest File (`vasmc.yaml`)
 
-`vasmc.yaml` is located in the project root. Its core role is to map remote URLs to unique local aliases.
+`vasmc.yaml` is located in the project root. Its core function is to map remote URLs to unique local aliases.
 
 ```yaml
 dependencies:
-  # Scenario A: Pure cache dependency. Downloaded only to internal cache, invisible to workspace.
-  # Suitable for plain text snippets to be used as inline expansions.
+  # Scenario A: Cache-only dependency. Downloaded to internal cache only, invisible in workspace.
+  # Used for pure text fragments to be consumed via inline expansion.
   company-rules: "https://example.com/guidelines.md"
   
-  # Scenario B: Explicit physical disk write. Downloaded to a specified local physical path.
-  # Suitable for building local knowledge bases or skill library directories.
+  # Scenario B: Explicit physical persistence. Downloaded to a specified local path.
+  # Used for building local knowledge bases or skill library directories.
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
@@ -322,106 +363,101 @@ dependencies:
 
 ### 2. Alias Generation and Conflict Resolution
 
-VASMC requires developers to ensure the uniqueness of aliases within the project's `vasmc.yaml`.
+VASMC requires developers to guarantee alias uniqueness within the project's `vasmc.yaml`.
+* **Local Unique Identifier**: Within a project, the alias (e.g., `company-rules`) is the primary key. If a duplicate alias is declared, the resolver will overwrite or throw an error.
+* By decoupling the target URL from the local Alias, VASMC avoids global naming conflicts.
 
-* **Local Unique Identifier**: Within a project, the alias (e.g., `company-rules`) is the primary key. If duplicate aliases are declared, the parser will overwrite them or throw an error.
-* By decoupling the target URL from the local Alias, VASMC avoids global naming conflict issues.
-
-If a developer manually edits `vasmc.yaml`, the declared key is used as the alias.
-If dependencies are installed via the CLI tool `vasmc add <url>`, the system generates aliases based on the following priority:
-
-1. **Explicit Specification**: The command-line argument `--alias` (e.g., `vasmc add https://.../foo.md --alias bar`) has the highest priority.
-2. **Filename Derivation**: By default, the end of the URL path is extracted and the extension removed to serve as the alias (e.g., `.../my-skill.md` derives as `my-skill`).
-3. **Suffix Increment for Conflict Avoidance**: If the derived alias already exists in `vasmc.yaml`, a numeric suffix is automatically appended (e.g., `my-skill-1`) to prevent configuration overwriting. The developer can manually modify this name later.
+When developers manually edit `vasmc.yaml`, the declared key is used as the alias.
+When installing via CLI tool `vasmc add <url>`, the system generates aliases with the following priority:
+1. **Explicit specification**: The command-line parameter `--alias` (e.g., `vasmc add https://.../foo.md --alias bar`) has the highest priority.
+2. **Filename inference**: By default, the last path segment of the URL with the extension removed is used as the alias (e.g., `.../my-skill.md` infers `my-skill`).
+3. **Suffix increment collision avoidance**: If the inferred alias already exists in `vasmc.yaml`, a numeric suffix is automatically appended (e.g., `my-skill-1`) to prevent configuration overwrite. Developers can manually rename it afterward.
 
 ### 3. Local Cache Directory and Version Control
 
-When a dependency declaration **does not specify `dest`**, `vasmc sync` downloads the file to the **`.vasmc/`** hidden directory under the project root (e.g., `.vasmc/company-rules.md`). This directory is for internal cache only and should be excluded via `.gitignore`:
+When no `dest` is specified in the dependency declaration, `vasmc sync` downloads the file to the **`.vasmc/`** hidden directory in the project root (e.g., `.vasmc/company-rules.md`). This directory is a pure internal cache and should be excluded via `.gitignore`:
 
 ```gitignore
-# VASMC internal cache (managed automatically by vasmc sync)
+# VASMC internal cache (auto-managed by vasmc sync)
 .vasmc/
 ```
 
-> **Note**: `vasmc-lock.yaml` should be **committed to version control**. Similar to `package-lock.json`, it guarantees deterministic builds—team members executing `vasmc sync` will restore a perfectly consistent dependency state based on this file.
+> **Note**: `vasmc-lock.yaml` should be **committed to version control**. Like `package-lock.json`, it guarantees deterministic builds — team members running `vasmc sync` will restore a fully consistent dependency state based on this file.
 
 ***
 
 ## Part 2: Code Import (Import)
 
-Once dependencies are installed, they can be referenced in source files (e.g., `.vasm.md`) using the `vasm:{alias}` protocol.
+After installing dependencies, they can be referenced in source files (e.g., `.vasm.md`) via the `vasm:{alias}` protocol.
 
-VASM adopts a backward-compatible design principle: encoding compilation instructions into the Title attribute of standard Markdown links to ensure uncompiled source files remain readable in general-purpose readers.
+VASM adopts a backward-compatible design principle: encoding compilation directives as the Title attribute of standard Markdown links, ensuring that uncompiled source files remain readable in standard Markdown readers.
 
 ### Import Syntax
 
 `[Link Text](vasm:alias "@vasm-directive")`
 
 * **Link Rewrite Mode (`@import:link`)**:
-  The compiler replaces `vasm:alias` with the local relative physical path of the target file, preserving the hyperlink structure.
+  The compiler replaces `vasm:alias` with the target file's local relative physical path, preserving the hyperlink structure.
   ```markdown
-  Please refer to the [Code Review Assistant Skill](vasm:coder-skill "@import:link") below.
+  See the [Code Review Assistant Skill](vasm:coder-skill "@import:link") below.
   ```
-  *Build Output*: `Please refer to the [Code Review Assistant Skill](./skills/coder.md) below.`
+  *Build output*: `See the [Code Review Assistant Skill](./skills/coder.md) below.`
 
 * **Inline Expansion Mode (`@import:inline`)**:
-  The compiler reads the plain text content of the target file and directly replaces the reference link. This is primarily used for assembling large Prompt contexts.
+  The compiler reads the target file's plain text content and directly replaces the reference link. Primarily used for assembling large Prompt contexts.
   ```markdown
-  According to the organization's [Company Development Guidelines](vasm:company-rules "@import:inline"):
+  According to our [Company Development Guidelines](vasm:company-rules "@import:inline"):
   ```
-  *Build Output*: The original link is removed, and the full text content of `guidelines.md` is inserted in its place.
+  *Build output*: The original link is removed, and the complete text content of `guidelines.md` is inserted in its place.
 
 ***
 
-## Part 3: VASMC Compiler Core and CLI Overview
+## Part 3: VASMC Compiler Core & CLI Overview
 
 The VASMC compiler (CLI tool) is the execution engine responsible for fulfilling the protocol.
 
 ### 1. Lock File (`vasmc-lock.yaml`)
 
-If `vasmc.yaml` is written for humans, `vasmc-lock.yaml` is purely generated and read by machines. It records the mapping between local Aliases and exact URLs, dest paths, and the final resolved SHA-256 Hash (or Frontmatter version number). This ensures that synchronization performed on any machine is 100% idempotent and deterministic.
+If `vasmc.yaml` is written for humans, then `vasmc-lock.yaml` is purely generated and read by machines. It records the mapping between local Aliases and exact URLs, dest paths, and the ultimately resolved SHA-256 Hash (or Frontmatter version numbers). This guarantees 100% idempotent and deterministic synchronization on any machine.
 
 ### 2. CLI Command Architecture
 
-The VASMC CLI follows a strict separation of concerns, categorizing commands into three types:
+The VASMC CLI strictly separates concerns, dividing commands into three categories:
 
 **Deterministic Tools (Zero LLM Calls)**:
-
-* `vasmc build [file]`: A purely deterministic compiler. Performs AST traversal, `@import` resolution, and cross-compilation translation. Translation is a core compiler capability (equivalent to a gcc cross-compilation backend) and is not considered an "enhanced feature." Note: The LLM translation backend only takes effect when called directly by a human; AI editors should use `vasmc agent` to bypass all LLM calls.
-* `vasmc graph <file>`: Statically analyzes the AST and prints a visual ASCII tree of dependencies.
-* `vasmc seal <patterns>`: Encapsulates standard Markdown as a VASM module (injects Frontmatter, language tags).
+* `vasmc build [file]`: Pure deterministic compiler. Performs AST traversal, `@import` resolution, and cross-compilation translation. Translation is a core compiler capability (equivalent to gcc's cross-compilation backend), not an "enhanced feature." Note: the LLM translation backend only activates when called directly by humans; AI editors should use `vasmc agent` to bypass all LLM calls.
+* `vasmc graph <file>`: Statically analyzes the AST and prints a visual ASCII dependency tree.
+* `vasmc seal <patterns>`: Wraps standard Markdown files into VASM modules (injects Frontmatter, language tags).
 * `vasmc sync`, `vasmc add`, `vasmc init`: Dependency management and project initialization.
 
-**LLM-Enhanced Tools (Independent subcommands, called on demand)**:
+**LLM-Enhanced Tools (Independent Subcommands, On-Demand)**:
+* `vasmc lint <file>`: Performs LLM-driven semantic conflict detection on compiled outputs. Completely independent from the compilation process, like `clippy` is independent from `rustc`.
+* `vasmc diff <file>`: Performs LLM-driven semantic diff analysis between old and new compiled outputs.
 
-* `vasmc lint <file>`: Performs LLM-driven semantic conflict detection on compiled artifacts. Completely independent of the compilation process, much like `clippy` is independent of `rustc`.
-* `vasmc diff <file>`: Performs LLM-driven semantic comparison analysis between old and new compiled artifacts.
+**Agent-Exclusive Tools**:
+* `vasmc agent <file>`: The compilation frontend designed for AI editors. Performs pure deterministic AST assembly (zero LLM calls), outputs the `.vasmc/agent-instructions.md` orchestration directive, and delegates subsequent semantic pruning, conflict arbitration, and translation to the external AI editor.
 
-**Agent-Specific Tools**:
-
-* `vasmc agent <file>`: A compilation frontend designed for AI editors. Performs purely deterministic AST assembly (zero LLM calls) and outputs `.vasmc/agent-instructions.md` orchestration commands, allowing an external AI editor to take over subsequent semantic pruning, conflict resolution, and translation.
-
-> 👉 **Full Guide**: For detailed usage of the VASMC command line, global `.vasmrc` configuration, and LLM integration guides, please refer to the [**VASMC Help Document (HELP.md)**](HELP.md).
+> 👉 **Full Guide**: For detailed VASMC CLI usage, global `.vasmrc` configuration, and LLM integration guides, see the [**VASMC Help & Usage (HELP.md)**](HELP.md).
 
 ***
 
-## Part 4: Version Management and Dependency Resolution Mechanism
+## Part 4: Version Management & Dependency Resolution
 
-If a dependency URL comes from a Gist or plain text hosting, there is usually no explicit version number, and content may change at any time. For this decentralized distribution method, VASMC employs the following mechanisms:
+If a dependency URL comes from Gist or plain-text hosting, it typically has no explicit version number and content may change at any time. For this decentralized distribution model, VASMC uses the following mechanisms:
 
-### 1. Recommended Distribution of Compiled Artifacts (Compiled Release)
+### 1. Recommend Distributing Compiled Outputs (Compiled Release)
 
-To prevent LLMs from encountering contradictory instructions during execution, VASMC **does not recommend** deep nesting and distribution of dynamic dependencies.
-If Module B depends on Module C, it is recommended that the author of B first use `vasmc build` to compile it into a purely static Markdown file (where all inline dependencies are expanded) before public release.
-Source files with `vasm:xxx` tags (`*.vasm.md`) are better suited for internal project use, with versions managed centrally by `vasmc.yaml`.
+To avoid LLMs encountering conflicting instructions at execution time, VASMC **does not recommend** deep nesting and distribution of dynamic dependencies.
+If module B depends on module C, it's recommended that B's author first use `vasmc build` to compile it into a pure static Markdown file (all inline dependencies already expanded) before distributing.
+Source files with `vasm:xxx` tags (`*.vasm.md`) are better suited for internal project use, with versions managed uniformly by `vasmc.yaml`.
 
 ### 2. Component Declaration Metadata (VASM Frontmatter Protocol)
 
-VASMC encourages module authors to use YAML Frontmatter at the top of source files to declare official aliases, version information, and their own remote dependencies. This not only helps human developers understand the module but is also the highest priority information source for `vasmc add` intelligent parsing.
+VASMC encourages module authors to declare official aliases, version information, and their own remote dependencies in YAML Frontmatter at the top of source files. This not only aids human developers but is also the highest-priority information source for `vasmc add`'s intelligent parsing.
 
-> **Best Practice (Extensions and Dehydration)**:
-> It is strongly recommended that source files distributed as VASM modules use **`.vasm.md`** as their extension.
-> This is an important boundary: files containing YAML Frontmatter and `@import` are engineering source files intended for "humans and the VASMC compiler." When an end-user executes `vasmc build`, the compiler automatically performs **dehydration**, silently stripping all YAML Frontmatter. The final `.md` file produced will be absolutely pure natural language, ensuring no noise interference with the LLM's attention.
+> **Best Practice (Extension and Dehydration Mechanism)**:
+> It is strongly recommended that source files distributed as VASM modules use **`.vasm.md`** as the extension.
+> This is an important boundary: files containing YAML Frontmatter and `@import` directives are engineering source files for "humans and the VASMC compiler." When end users run `vasmc build`, the compiler automatically performs **demetadata-ization (dehydration)**, silently stripping all YAML Frontmatter. The final `.md` output will be absolutely pure natural language, ensuring no noise interference to the LLM's attention.
 
 ```yaml
 ---
@@ -432,104 +468,141 @@ vasm:
     anti-delusion: "https://example.com/system.md"
 ---
 
-# Your Prompt body...
+# Your Prompt Content...
 ```
 
-* **alias**: Highly recommended. When other users execute `vasmc add <your-link>`, VASMC will prioritize this field as the mapping alias in their namespace.
-* **version**: Metadata for humans to evaluate compatibility (the VASMC engine uses content Hash as the sole source of truth when locking versions).
-* **dependencies**: Declares **remote dependencies indispensable** for the current module to run. When a user pulls your module, the VASMC `sync` engine automatically reads these nested dependencies and installs them flatly into their workspace (following the "sovereign override" anti-conflict principle).
+* **alias**: Strongly recommended. When other users run `vasmc add <your-link>`, VASMC will preferentially use this field as the mapping alias in their namespace.
+* **version**: Metadata for human compatibility assessment (the VASMC engine uses only content Hash as the ground truth for locking versions).
+* **dependencies**: Declares **essential remote dependencies** for the module to run. When users pull your module, VASMC's `sync` engine will automatically read these nested dependencies and install them flat alongside them in their workspace (following the "sovereignty override" anti-conflict principle).
 
 ### 3. Flat Resolution & Semantic Linting
 
-For nested dependencies that must be included, VASMC uses a globally flat Alias namespace and does not allow multi-version nesting (unlike npm).
-When a main project and a sub-dependency require the same module, VASMC does not perform violent "namespace hard-override replacement" of components as traditional package managers might. This is because forced replacement in natural language Prompts often leads to context fragmentation and loss of logic control.
-When logical or definitional discrepancies occur, VASMC hands the issue to the **LLM Linter**. After compilation, running `vasmc lint <file>` allows the LLM to judge whether irreconcilable conflicts exist between different assembled modules, enabling the developer to perform targeted refactoring based on the report.
+For nested dependencies that must be included, VASMC uses a globally flat Alias namespace and does not allow multi-version nesting (like npm does).
+When the main project and sub-dependencies need the same module, VASMC does not violently perform "namespace hard-replacement" like traditional package managers. Because forceful replacement of natural-language Prompts often leads to context rupture and logic failure.
+When logical or definitional conflicts are encountered, VASMC delegates the problem to the **LLM Linter**. After compilation, run `vasmc lint <file>` to let the LLM determine whether different modules assembled together have irreconcilable conflicts, then let developers perform targeted refactoring based on the report.
 
-### 4. Hash-Based Locking
+### 4. Hash-Based Local Locking
 
-When `vasmc sync` is first executed, VASMC calculates the SHA-256 Hash of the downloaded content and records it in `vasmc-lock.yaml`.
-Subsequent compilations will rely on the local cache. Even if the upstream URL content changes, as long as the local cache is not cleared and `vasmc update <alias>` is not executed, the compiler will always use the deterministic local data blocks, preventing silent changes in remote files from breaking build consistency.
+The first time `vasmc sync` is run, VASMC calculates the SHA-256 Hash of downloaded content and records it in `vasmc-lock.yaml`.
+Subsequent compilations are based on local cache. Even if upstream URL content changes, as long as the local cache has not been cleared and `vasmc update <alias>` has not been executed, the compiler will always use a deterministic local data block, preventing remote file silent changes from breaking build consistency.
 
-> **Regarding Version Numbers**: In traditional package managers, the version number determines code distribution resolution. However, in VASMC's underlying execution logic, **the Hash is the sole truth**. While we still recommend module authors add a `version` field in the Markdown Frontmatter for semantic understanding and manual compatibility assessment, the VASMC core execution engine's perception of dependency changes relies solely on the pure content Hash.
+> **On the Role of Version Numbers**: In traditional package managers, version numbers (Version) determine code distribution resolution. But in VASMC's underlying execution logic, **Hash is the only ground truth**. Although we still recommend module authors add the `version` field to Markdown Frontmatter for human semantic understanding and compatibility assessment, the VASMC core execution engine always relies solely on pure content Hash for sensing dependency changes.
 
-### 5. Local Relative Imports
+### 5. Local Relative Path Imports
 
-When your Prompt modules are split within the same local project, mandatory declaration in `vasmc.yaml` is unnecessary.
-Within a project, you can directly utilize native Markdown relative paths for imports:
+When your Prompt modules are split within the same local project, forcing `vasmc.yaml` declaration configuration is unnecessary.
+Within a project, you can directly use native Markdown relative paths for imports:
 
 ```markdown
 # My System Prompt
-[Import local persona setup](./prompts/persona.vasm.md "@import:inline")
-[Import remote anti-delusion module](vasm:anti-delusion "@import:inline")
+[Import Local Persona](./prompts/persona.vasm.md "@import:inline")
+[Import Remote Anti-Hallucination Module](vasm:anti-delusion "@import:inline")
 ```
 
-The compiler automatically recognizes links starting with `./` or `../`. Not only does this allow you to click and jump to source files in mainstream editors, but **files referenced via local relative paths are not forced into Hash Lock calculations**, naturally supporting real-time local debugging and hot-reloading.
+The compiler automatically recognizes links starting with `./` or `../`. Not only does it allow click-to-jump in mainstream editors, but **locally-referenced files are not subject to forced Hash Lock computation**, natively supporting local real-time debugging and hot modifications.
 
 ***
 
 ## Part 5: Skill Flywheel & Self-Bootstrapping
 
-VASMC is not just a compiler; it also uses its own compilation capabilities to maintain and update its own skill knowledge base. This forms a closed-loop self-bootstrapping flywheel.
+VASMC is not only a compiler — it also maintains and updates its own skill knowledge base through its own compilation capabilities. This forms a closed-loop self-bootstrapping flywheel.
 
 ### 1. Flywheel Architecture
 
-Taking the `vasm-expert` skill included with VASMC as an example, its engineering topology is as follows:
+Using VASMC's own bundled `vasm-expert` skill as an example, the engineering topology is:
 
 ```
 skill-src/vasm-expert/                       # Engineering source directory
-├── vasm-expert.vasm.md                     # Main entry (high-level source)
-│   ├── @import:inline vasmc-knowledge.md    #   ← AI Knowledge Manual
-│   └── @import:inline agent-coordinator    #   ← Agent Coordination Procedures
-├── vasmc-knowledge.md                       # Knowledge Manual (distilled by LLM)
+├── vasm-expert.vasm.md                     # Main entry (high-level language source)
+│   ├── @import:inline vasmc-knowledge.md    #   ← AI knowledge manual
+│   └── @import:inline agent-coordinator    #   ← Agent coordination protocol
+├── vasmc-knowledge.md                       # Knowledge manual (distilled by LLM)
 ├── agent-coordinator.vasm.md              # vasmc agent mode operation manual
-└── extract-vasmc-knowledge.vasm.md         # Extraction pipeline Prompt (instructions to generate manual)
+└── extract-vasmc-knowledge.vasm.md         # Extraction pipeline Prompt (instructions for generating the knowledge manual)
 
-skills/vasm-expert/                         # Compilation artifact directory (pure)
-└── vasm-expert.md                          # Unique executable file (statically linked body)
+skills/vasm-expert/                         # Compiled output directory (clean)
+└── vasm-expert.md                          # The sole executable file (statically linked body)
 ```
 
 ### 2. Flywheel Cycle
 
-When VASMC's design documents or CLI change, the flywheel operates automatically:
+When VASMC's design documents or CLI change, the flywheel runs automatically:
 
 ```
   ┌──────────────────────────────────────────────────────┐
-  │  DESIGN.vasm.md / HELP.vasm.md changed               │
-  │          ↓ vasmc build (compile docs)                │
-  │  DESIGN.md / HELP.md (latest artifacts)               │
+  │  DESIGN.vasm.md / HELP.vasm.md changes               │
+  │          ↓ vasmc build (compile docs)                  │
+  │  DESIGN.md / HELP.md (latest compiled outputs)        │
   │          ↓ extract-vasmc-knowledge.vasm.md            │
-  │          ↓ (expanded and fed as Prompt to AI editor)  │
-  │  AI Editor outputs new vasmc-knowledge.md (distilled) │
-  │          ↓ Overwrite skill-src/.../vasmc-knowledge.md│
-  │          ↓ vasmc build (recompile skill)             │
-  │  skills/vasm-expert/vasm-expert.md (updated code)    │
+  │          ↓ (expanded as Prompt fed to AI editor)      │
+  │  AI editor outputs new vasmc-knowledge.md (distilled) │
+  │          ↓ overwrites skill-src/.../vasmc-knowledge.md│
+  │          ↓ vasmc build (recompile skill)              │
+  │  skills/vasm-expert/vasm-expert.md (updated machine code) │
   └──────────────────────────────────────────────────────┘
 ```
 
 ### 3. Design Principles
 
-* **Static Linking**: The final skill file produced must be a self-contained closure. An AI editor only needs to load the single `vasm-expert.md` file to simultaneously obtain syntax quick-references, CLI references, and `vasmc agent` mode operating procedures. No runtime external dependencies are allowed—"load and use, zero broken links."
-* **Knowledge Distillation Separation**: `vasmc-knowledge.md` is an AI-specific knowledge manual distilled from source documents by an AI editor according to instructions in `extract-vasmc-knowledge.vasm.md`. It is not hand-written but is an intermediate artifact that can be regenerated at any time by re-executing the extraction pipeline.
-* **Pipeline as Prompt**: `extract-vasmc-knowledge.vasm.md` is itself a VASM source file. It pulls in the latest compiled documents as context via `@import:inline` to guide the AI editor in generating a new knowledge manual. This means the **extraction pipeline itself is modular code managed by VASMC**.
-* **Language Consistency**: All inline materials within a skill file (`exec` format) must remain consistent with the target compilation language to avoid distracting the LLM's attention with multiple languages in a single executable.
+* **Self-Contained (Static Linking)**: The final skill file must be a self-contained closure. An AI editor only needs to load `vasm-expert.md` to get the syntax reference, CLI docs, and `vasmc agent` mode operation protocol simultaneously. No runtime external dependencies allowed — "load and use, zero broken links."
+* **Knowledge Distillation Separation**: `vasmc-knowledge.md` is an AI-specific knowledge manual distilled by the AI editor from source documents based on `extract-vasmc-knowledge.vasm.md` instructions. It is not handwritten — it can be regenerated at any time by re-running the extraction pipeline.
+* **Pipeline as Prompt**: `extract-vasmc-knowledge.vasm.md` is itself a VASM source file that pulls the latest compiled documents as context via `@import:inline`, instructing the AI editor to generate a new knowledge manual. This means **the extraction pipeline itself is also modular code managed by VASMC**.
+* **Language Consistency**: All inline materials within skill files (`exec` format) must be consistent with the target compilation language, avoiding mixing multiple languages in a single executable that would cause LLM attention dilution.
 
 ***
 
-## Part 6: Security Guarantees
+## Part 6: AI-Native Input Security Model (Input Sovereignty)
 
-* **Strict DAG Enforcement**: When executing `vasmc build`, if an imported file recursively imports other files, the compiler must maintain a call stack. If a cycle is detected (`A -> B -> C -> A`), a fatal error must be reported immediately.
-* **Local Write Conflict Prevention**: Before executing `sync`, VASMC must perform a static pre-check. If two different Aliases in `vasmc.yaml` are assigned the exact same `dest` write path, a fatal conflict error must be thrown immediately.
-* **Unknown Alias Interception**: If an unregistered `vasm:unknown-alias` is encountered during the `build` process, the compiler should terminate immediately and prompt the developer to install the dependency in `vasmc.yaml` first.
+### 1. Root Cause: Data as Instruction
+
+In Von Neumann architecture, the core premise of security engineering is guaranteeing **strict isolation between code and data** — instructions in the code segment, data in the data segment, crossing the boundary means crossing authority. This premise **fundamentally does not hold** in AI-Native systems.
+
+Because RLHF's training objective is to make models compliant responders, LLMs architecturally **cannot distinguish "instructions to be executed" from "data to be processed"**. All tokens entering the context window are equal in the attention mechanism's eyes. A more accurate description:
+
+> **AI-Native systems run natively with `root` privileges — the entire context window is both execution space and data space; LLM is a global `eval()` acting on the full input domain, trained to execute as compliantly as possible.**
+
+Traditional security engineering waits for attackers to "breach the boundary"; in AI-Native, there is no boundary to breach, because models never refuse to execute any instruction in their input. Security cannot by design rely on the model's own discrimination ability.
+
+### 2. VASMC's Response: Compile-Time Input Sovereignty
+
+VASMC does not attempt to fix the LLM execution layer (that is impossible) — instead, it establishes a deterministic control point **before the execution surface is formed**.
+
+**Three Security Primitives**:
+
+* **Provenance Auditability**: All content entering the execution surface must go through the explicit path of `.vasm.md` source files → compilation chain → `.md` products. External content can only enter the build chain via explicit declaration through `vasmc add` + `vasmc sync`. No implicit imports exist. Every token entering the context has a traceable human-authorized source.
+
+* **Format Classification as Security Classification**: The `compile.format: prompt | doc` distinction is far more than "different compilation behavior" — it is humanity's **sovereign declaration** of content intent at build time:
+  * `prompt`: Declared as instructional content entering the LLM execution surface
+  * `doc`: Declared as informational content for human reading, **should not appear in system prompts**
+
+  In Von Neumann architecture, code segments and data segments are isolated by CPU hardware. LLM cannot do this — VASMC moves this isolation earlier to **compile time**, explicitly declared by humans, rather than expecting models to discriminate at runtime.
+
+* **Content Determinism**: Compilation is pure deterministic AST assembly; output content is fully predictable, auditable, and reproducible. Attackers cannot silently inject unauthorized content during the build process.
+
+### 3. VASMC's Boundaries
+
+VASMC's trust boundary is the **controlled input path** — content entering system prompts via the compilation chain. It cannot defend against:
+* Prompt injection in user dynamic inputs
+* Malicious content in tool call return values
+* Injection in RAG-retrieved content
+
+These fall under **runtime defense** and require other mechanisms. VASMC addresses: **does the portion of input you can control — system prompts and skill files — truly contain only what you authorized?**
+
+### 4. Compile-Time Static Security Guarantees
+
+* **Strict DAG Enforcement**: `vasmc build` maintains a call stack; upon detecting a cycle (`A → B → C → A`), immediately reports a fatal error, preventing dependency graphs from being maliciously constructed as infinite expansions.
+* **Write Conflict Prevention**: Pre-checks before `sync`; if the same `dest` path is declared by multiple Aliases, immediately throws a fatal conflict error.
+* **Unknown Alias Interception**: Upon encountering an unregistered `vasm:unknown-alias` during compilation, immediately terminates — unauthorized dependencies cannot be silently resolved.
 
 ***
 
-## Part 7: Incremental Build
+## Part 7: Incremental Builds
 
-VASMC supports incremental builds based on content Hash, which is completely transparent to the user—the commands remain the same, but builds are automatically accelerated.
+VASMC supports content Hash-based incremental builds, completely transparent to users — the command is unchanged, builds automatically accelerate.
 
 ### How It Works
 
-After each successful compilation, VASMC writes the SHA-256 signatures of all source files (entry file + all transitive dependencies) into `vasmc-build-state.yaml`:
+After each successful compilation, VASMC writes the SHA-256 signatures of all source files (entry file + all transitive dependencies) to `vasmc-build-state.yaml`:
 
 ```yaml
 version: 1
@@ -537,17 +610,17 @@ entries:
   "docs-src/DESIGN.vasm.md|merged":
     inputSignature: "abc123..."
     outputFile: DESIGN.md
-    targetLang: en
+    targetLang: zh-CN
 ```
 
-The next time `vasmc build` is executed, for each entry:
+The next time `vasmc build` runs, for each entry:
 
-1. Statically traverse the dependency graph and recalculate the signature.
-2. If the signature matches **and** the artifact file exists → ⚡️ **Skip directly**.
-3. If the signature does not match (any source file changed) → Compile normally and update the cache.
+1. Statically traverse the dependency graph and recalculate signatures
+2. If signatures match **and** the output file exists → ⚡️ **Skip directly**
+3. If signatures don't match (any source file changed) → compile normally, update cache
 
-### Design Points
+### Design Highlights
 
-* **Committable**: `vasmc-build-state.yaml` is based on content Hash and is machine-independent; it should be committed to version control so team members can share the incremental cache.
-* **Automatic Invalidation**: If any source file (including transitive dependencies at any level) changes, the signature changes accordingly, the incremental skip automatically invalidates, ensuring the build result is always correct.
+* **Committable**: `vasmc-build-state.yaml` is content Hash-based, machine-independent, and should be committed to version control — team members can directly share incremental cache.
+* **Auto-Invalidation**: Any source file change (including any level of transitive dependencies) changes the signature, automatically invalidating the incremental skip, ensuring build results are always correct.
 * **Transparent to Agent Mode**: `vasmc agent` also supports incremental builds. If a build is skipped, no corresponding entry is generated in `.vasmc/agent-instructions.md`, and the AI editor naturally skips subsequent semantic tasks.
