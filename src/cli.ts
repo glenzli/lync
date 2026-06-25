@@ -7,7 +7,6 @@ import { runWorkspaceBuild, runAgentBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
 import { detectLanguage, estimateTokens } from './utils';
 import { fetchMarkdown } from './network';
-import matter from 'gray-matter';
 import { verifyCompiledContent } from './verify';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -16,6 +15,7 @@ import { generateGraph } from './graph';
 import type { VasmFrontmatter } from './types';
 import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
+import { parseFrontmatter, stringifyFrontmatter } from './frontmatter';
 
 export function setupCLI(): Command {
     const program = new Command();
@@ -91,7 +91,7 @@ baseDir: "."
                 console.log(t('ADD_FETCHING', url));
                 try {
                     const content = await fetchMarkdown(url);
-                    const parsed = matter(content);
+                    const parsed = parseFrontmatter(content);
 
                     if (parsed.data.vasm && parsed.data.vasm.alias) {
                         alias = parsed.data.vasm.alias;
@@ -211,7 +211,7 @@ baseDir: "."
 
                 const file = path.relative(process.cwd(), absolutePath);
                 const rawContent = fs.readFileSync(absolutePath, 'utf8');
-                const parsed = matter(rawContent);
+                const parsed = parseFrontmatter(rawContent);
 
                 if (parsed.data.vasm) {
                     console.warn(t('SEAL_WARN_EXISTS', file));
@@ -255,17 +255,22 @@ baseDir: "."
                 const isLikelyDoc = docFilenamePattern.test(path.basename(file).split('.')[0]);
                 const compileFormat = options.format || (isLikelyDoc ? 'doc' : 'prompt');
 
-                // Detect source language for targetLangs default
-                const detectedLang = options.lang || detectLanguage(parsed.content) || 'zh-CN';
+                // Detect source language for targetLangs default. If inference is weak,
+                // leave targetLangs unset so users can make the declaration explicitly.
+                const detectedLang = options.lang || detectLanguage(parsed.content);
 
                 const vasmMetadata: Record<string, any> = {
                     alias: alias,
                     version: "1.0.0",
                     compile: {
                         format: compileFormat,
-                        targetLangs: [detectedLang],
                     },
                 };
+                if (detectedLang) {
+                    vasmMetadata.compile.targetLangs = [detectedLang];
+                } else {
+                    console.warn(t('LANG_DETECT_UNCERTAIN', file));
+                }
                 parsed.data.vasm = vasmMetadata;
 
                 if (compileFormat !== (options.format || compileFormat)) {
@@ -275,14 +280,14 @@ baseDir: "."
                 // ----- Cross-compilation Language Auto-wrapping -----
                 let content = parsed.content;
                 if (!content.includes('<!-- lang:')) {
-                    const targetLang = options.lang || detectLanguage(content);
+                    const targetLang = detectedLang;
                     if (targetLang) {
                         content = `\n<!-- lang:${targetLang} -->\n${content.trim()}\n<!-- /lang -->\n`;
                         console.log(t('SEAL_AUTO_WRAP', targetLang));
                     }
                 }
 
-                const newContent = matter.stringify(content, parsed.data);
+                const newContent = stringifyFrontmatter(content, parsed.data);
 
                 const dir = path.dirname(absolutePath);
                 const originalBasename = path.basename(file).split('.')[0];
@@ -595,8 +600,12 @@ baseDir: "."
                     if (!isDocFormat && fileLangsToProcess!.length > 1) {
                         const rawContent = fs.readFileSync(absoluteEntry, 'utf8');
                         const detected = detectLanguage(rawContent);
-                        const sourceLang = (detected && fileLangsToProcess!.includes(detected))
-                            ? detected : fileLangsToProcess![0];
+                        let sourceLang = fileLangsToProcess![0];
+                        if (detected && fileLangsToProcess!.includes(detected)) {
+                            sourceLang = detected;
+                        } else if (!detected) {
+                            console.warn(t('LANG_DETECT_AGENT_FALLBACK', entry, sourceLang));
+                        }
                         agentLangsToCompile = [sourceLang];
                     }
 

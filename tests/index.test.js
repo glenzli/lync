@@ -99,6 +99,22 @@ describe('Network Layer', () => {
     });
 });
 
+// ─── Utility Tests ─────────────────────────────────────────────────
+describe('Language Detection', () => {
+    it('detectLanguage returns high-confidence prose languages only', () => {
+        const { detectLanguage } = load('utils');
+
+        assert.strictEqual(
+            detectLanguage('This is English content for testing language detection in a prompt file.'),
+            'en'
+        );
+        assert.strictEqual(detectLanguage('这是中文内容，用来测试语言检测。'), 'zh-CN');
+        assert.strictEqual(detectLanguage('Hi'), undefined);
+        assert.strictEqual(detectLanguage('# Title\n```js\nconst value = runTask(input)\n```'), undefined);
+        assert.strictEqual(detectLanguage('Hello 世界'), undefined);
+    });
+});
+
 // ─── Compiler Tests ─────────────────────────────────────────────────
 describe('Compiler', () => {
     const compilerDir = path.join(FIXTURES, 'compiler-test');

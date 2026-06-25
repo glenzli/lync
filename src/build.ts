@@ -145,7 +145,12 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
         const rawContent = fs.readFileSync(absoluteFile, 'utf8');
         const { detectLanguage } = await import('./utils');
         const detected = detectLanguage(rawContent);
-        const sourceLang = (detected && targetLangs.includes(detected)) ? detected : targetLangs[0];
+        let sourceLang = targetLangs[0];
+        if (detected && targetLangs.includes(detected)) {
+            sourceLang = detected;
+        } else if (!detected) {
+            console.warn(t('LANG_DETECT_AGENT_FALLBACK', relativeFile, sourceLang));
+        }
         langsToCompile = [sourceLang];
     }
 
@@ -492,4 +497,3 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
 
     console.log(`\n[AGENT] 📋 Full instructions: ${path.relative(cwd, instructionsPath)}`);
 }
-

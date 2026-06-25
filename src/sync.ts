@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, loadLockfile, saveLockfile } from './config';
 import { fetchMarkdown, computeHash } from './network';
-import matter from 'gray-matter';
 import { t } from './i18n';
+import { parseFrontmatter } from './frontmatter';
 
 export async function syncDependencies(cwd: string = process.cwd()): Promise<void> {
     const config = loadConfig(cwd);
@@ -59,7 +59,7 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
                 fs.writeFileSync(targetPath, content, 'utf8');
 
                 // Parse frontmatter
-                const parsed = matter(content);
+                const parsed = parseFrontmatter(content);
                 const version = parsed.data.version;
                 if (version) {
                     console.log(t('SYNC_FOUND_VERSION', version));

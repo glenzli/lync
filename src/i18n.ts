@@ -24,6 +24,8 @@ const dictionaries: Record<string, Dictionary> = {
         'SEAL_AUTO_WRAP': '[CLI] 🌐 Auto-wrapped content in \'{0}\' block.',
         'SEAL_SUCCESS_RENAME': '[CLI] 📦 Sealed module! Renamed to \'{0}\' and injected Frontmatter (alias: \'{1}\').',
         'SEAL_SUCCESS_INJECT': '[CLI] 📦 Sealed module! Injected Frontmatter into \'{0}\' (alias: \'{1}\').',
+        'LANG_DETECT_UNCERTAIN': '[LANG] Could not confidently infer source language for \'{0}\'. Leaving targetLangs unset; pass --lang or edit frontmatter to declare it explicitly.',
+        'LANG_DETECT_AGENT_FALLBACK': '[LANG] Could not confidently infer source language for \'{0}\'. Agent mode will use first target language as source: \'{1}\'.',
 
         // Sync & Update
         'UPDATE_CLEARED_ALIAS': '[CLI] Cleared lock cache for \'{0}\'.',
@@ -111,6 +113,8 @@ const dictionaries: Record<string, Dictionary> = {
         'SEAL_AUTO_WRAP': '[CLI] 🌐 已将内容自动用 \'{0}\' 语言块包裹。',
         'SEAL_SUCCESS_RENAME': '[CLI] 📦 模块密封完毕！已重命名为 \'{0}\' 并注入了 Frontmatter (别名: \'{1}\')。',
         'SEAL_SUCCESS_INJECT': '[CLI] 📦 模块密封完毕！已在 \'{0}\' 中注入 Frontmatter (别名: \'{1}\')。',
+        'LANG_DETECT_UNCERTAIN': '[LANG] 无法高置信度推断 \'{0}\' 的源语言。已保留 targetLangs 未声明；请通过 --lang 或 frontmatter 显式声明。',
+        'LANG_DETECT_AGENT_FALLBACK': '[LANG] 无法高置信度推断 \'{0}\' 的源语言。Agent 模式将使用第一个目标语言作为源语言: \'{1}\'。',
 
         // Sync & Update
         'UPDATE_CLEARED_ALIAS': '[CLI] 已清除 \'{0}\' 的 lock 缓存。',
