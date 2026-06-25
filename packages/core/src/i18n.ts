@@ -25,7 +25,7 @@ const dictionaries: Record<string, Dictionary> = {
         'SEAL_SUCCESS_RENAME': '[CLI] 📦 Sealed module! Renamed to \'{0}\' and injected Frontmatter (alias: \'{1}\').',
         'SEAL_SUCCESS_INJECT': '[CLI] 📦 Sealed module! Injected Frontmatter into \'{0}\' (alias: \'{1}\').',
         'LANG_DETECT_UNCERTAIN': '[LANG] Could not confidently infer source language for \'{0}\'. Leaving targetLangs unset; pass --lang or edit frontmatter to declare it explicitly.',
-        'LANG_DETECT_AGENT_FALLBACK': '[LANG] Could not confidently infer source language for \'{0}\'. Agent mode will use first target language as source: \'{1}\'.',
+        'LANG_DETECT_AGENT_FALLBACK': '[LANG] Could not confidently infer source language for \'{0}\'. AI build will use first target language as source: \'{1}\'.',
 
         // Sync & Update
         'UPDATE_CLEARED_ALIAS': '[CLI] Cleared lock cache for \'{0}\'.',
@@ -63,7 +63,7 @@ const dictionaries: Record<string, Dictionary> = {
         'COMPILER_USE_EXISTING_BLOCK': '[COMPILER] ⚡️ Using existing \'{0}\' block for {1}',
         'COMPILER_NLP_SKIP': '[COMPILER] ⚡️ Detected source already matches \'{0}\'. Keeping deterministic source text.',
         'COMPILER_ROUTER_SKIP': '[COMPILER] ⚡️ Routing-only module detected. Keeping deterministic source text for \'{0}\'.',
-        'COMPILER_TRANS_UNAVAILABLE': '[COMPILER] Missing target language \'{0}\' in {1}. Deterministic compile will keep source text; use vasmc agent work orders or the console package for assisted translation.',
+        'COMPILER_TRANS_UNAVAILABLE': '[COMPILER] Missing target language \'{0}\' in {1}. Deterministic compile will keep source text; use vasmc build work orders or the console package for assisted translation.',
         'COMPILER_ERR_INFER_LANG': '[ERROR] Could not infer AST language from {0}. Please ensure it contains <!-- lang:xx --> blocks or specify --target-langs.',
         'COMPILER_SKIP_MATCHING': '[COMPILER] Skipped matching translation code for \'{0}\''
     },
@@ -89,7 +89,7 @@ const dictionaries: Record<string, Dictionary> = {
         'SEAL_SUCCESS_RENAME': '[CLI] 📦 模块密封完毕！已重命名为 \'{0}\' 并注入了 Frontmatter (别名: \'{1}\')。',
         'SEAL_SUCCESS_INJECT': '[CLI] 📦 模块密封完毕！已在 \'{0}\' 中注入 Frontmatter (别名: \'{1}\')。',
         'LANG_DETECT_UNCERTAIN': '[LANG] 无法高置信度推断 \'{0}\' 的源语言。已保留 targetLangs 未声明；请通过 --lang 或 frontmatter 显式声明。',
-        'LANG_DETECT_AGENT_FALLBACK': '[LANG] 无法高置信度推断 \'{0}\' 的源语言。Agent 模式将使用第一个目标语言作为源语言: \'{1}\'。',
+        'LANG_DETECT_AGENT_FALLBACK': '[LANG] 无法高置信度推断 \'{0}\' 的源语言。AI build 将使用第一个目标语言作为源语言: \'{1}\'。',
 
         // Sync & Update
         'UPDATE_CLEARED_ALIAS': '[CLI] 已清除 \'{0}\' 的 lock 缓存。',
@@ -127,7 +127,7 @@ const dictionaries: Record<string, Dictionary> = {
         'COMPILER_USE_EXISTING_BLOCK': '[COMPILER] ⚡️ 对于文件 {1}，已复用现有的 \'{0}\' 语言块',
         'COMPILER_NLP_SKIP': '[COMPILER] ⚡️ 检测到源文本已经匹配 \'{0}\'。确定性保留源文本。',
         'COMPILER_ROUTER_SKIP': '[COMPILER] ⚡️ 检测到纯路由聚合模块。针对 \'{0}\' 确定性保留源文本。',
-        'COMPILER_TRANS_UNAVAILABLE': '[COMPILER] 文件 {1} 中缺少目标语言 \'{0}\'。确定性编译将保留源文本；请使用 vasmc agent 工作单或 console 包执行辅助翻译。',
+        'COMPILER_TRANS_UNAVAILABLE': '[COMPILER] 文件 {1} 中缺少目标语言 \'{0}\'。确定性编译将保留源文本；请使用 vasmc build 工作单或 console 包执行辅助翻译。',
         'COMPILER_ERR_INFER_LANG': '[ERROR] 无法从 {0} 推断 AST 语言。请确保文件中包含 <!-- lang:xx --> 代码块，或者通过 --target-langs 显式指定。',
         'COMPILER_SKIP_MATCHING': '[COMPILER] 跳过匹配翻译代码 \'{0}\''
     }

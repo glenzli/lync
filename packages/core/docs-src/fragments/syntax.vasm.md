@@ -50,7 +50,7 @@ vasm:
   dependencies:
     anti-delusion: "https://example.com/system.md"
   compile:
-    format: prompt        # exec（AI 消费）| doc（人类文档）
+    format: prompt        # prompt（AI 消费）| doc（人类文档）
     targetLangs: ["zh-CN"]
   vision: |
     产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
@@ -62,6 +62,6 @@ vasm:
 ```
 *当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会自动解析这些内容并完美还原环境。*
 
-> **`vision`**：声明编译产物应达到的语义目标。`vasmc agent` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
+> **`vision`**：声明编译产物应达到的语义目标。`vasmc build` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
 >
-> **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `exec` 格式文件有效。
+> **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `prompt` 格式文件有效。

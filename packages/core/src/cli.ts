@@ -3,7 +3,7 @@ import { glob } from 'glob';
 import { minimatch } from 'minimatch';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
-import { runWorkspaceBuild, runAgentBuild } from './build';
+import { runWorkspaceBuild, runAIBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
 import { detectLanguage, estimateTokens } from './utils';
 import { fetchMarkdown } from './network';
@@ -20,13 +20,15 @@ export interface CLIProfileOptions {
     name?: string;
     description?: string;
     includeAgent?: boolean;
+    buildMode?: 'deterministic' | 'ai';
 }
 
 export function setupCLI(options: CLIProfileOptions = {}): Command {
     const program = new Command();
 
     const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
-    const includeAgent = options.includeAgent ?? true;
+    const includeAgent = options.includeAgent ?? false;
+    const buildMode = options.buildMode ?? 'deterministic';
 
     program
         .name(options.name || 'vasmc')
@@ -342,13 +344,14 @@ baseDir: "."
             await syncDependencies();
         });
 
-    program
-        .command('build [entry]')
-        .description('Compile a specific file or run workspace build via vasmc-build.yaml')
-        .option('-o, --out-dir <dir>', 'Specify output directory (works for both single file and workspace)')
-        .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
-        .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
+    if (buildMode === 'deterministic') {
+        program
+            .command('build [entry]')
+            .description('Compile a specific file or run workspace build via vasmc-build.yaml')
+            .option('-o, --out-dir <dir>', 'Specify output directory (works for both single file and workspace)')
+            .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
+            .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
+            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 // Compile single file
@@ -461,14 +464,19 @@ baseDir: "."
                 // Run workspace build
                 await runWorkspaceBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
             }
-        });
+            });
+    }
 
-    // ===== Agent Tool =====
+    // ===== AI Build Tool =====
 
-    if (includeAgent) {
+    if (buildMode === 'ai' || includeAgent) {
+        const aiBuildCommand = buildMode === 'ai' ? 'build [entry]' : 'agent [entry]';
+        const aiBuildDescription = buildMode === 'ai'
+            ? 'Build for AI editors: deterministic AST assembly + output build-instructions.md'
+            : 'Compile for AI editors: deterministic AST assembly + output build-instructions.md';
         program
-            .command('agent [entry]')
-            .description('Compile for AI editors: deterministic AST assembly + output agent-instructions.md')
+            .command(aiBuildCommand)
+            .description(aiBuildDescription)
             .option('-o, --out-dir <dir>', 'Specify output directory')
             .option('--base-dir <dir>', 'Specify base directory for workspace compilation')
             .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
@@ -545,12 +553,12 @@ baseDir: "."
                     const compiledMap = new Map<string, string>();
                     let minTokens = Infinity;
                     let bestLang = 'auto';
-                    const agentHistoryPaths: { lang: string; backupPath: string }[] = [];
+                    const aiHistoryPaths: { lang: string; backupPath: string }[] = [];
 
-                    // In agent mode for prompt format with multiple langs, only compile the source language.
+                    // In AI build mode for prompt format with multiple langs, only compile the source language.
                     // Non-source languages are handled by the AI Translate step; pre-compiling them
                     // with placeholder content is wasteful and creates misleading files on disk.
-                    let agentLangsToCompile = fileLangsToProcess!;
+                    let aiLangsToCompile = fileLangsToProcess!;
                     if (!isDocFormat && fileLangsToProcess!.length > 1) {
                         const rawContent = fs.readFileSync(absoluteEntry, 'utf8');
                         const detected = detectLanguage(rawContent);
@@ -560,16 +568,16 @@ baseDir: "."
                         } else if (!detected) {
                             console.warn(t('LANG_DETECT_AGENT_FALLBACK', entry, sourceLang));
                         }
-                        agentLangsToCompile = [sourceLang];
+                        aiLangsToCompile = [sourceLang];
                     }
 
-                    for (const targetLang of agentLangsToCompile) {
+                    for (const targetLang of aiLangsToCompile) {
                         let currentDest = finalDest;
                         if (!isDocFormat && targetLang && targetLang !== 'auto' && fileLangsToProcess!.length > 1) {
                             currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
                         }
 
-                        // Cache old content for agent diff
+                        // Cache old content for AI diff work orders
                         if (fs.existsSync(currentDest) && !isDocFormat) {
                             const oldContent = fs.readFileSync(currentDest, 'utf8');
                             const cacheDir = path.resolve(process.cwd(), '.vasmc', 'cache');
@@ -577,10 +585,10 @@ baseDir: "."
                             const timestamp = new Date().getTime();
                             const oldContentPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(currentDest)}`);
                             fs.writeFileSync(oldContentPath, oldContent, 'utf8');
-                            agentHistoryPaths.push({ lang: targetLang || 'auto', backupPath: oldContentPath });
+                            aiHistoryPaths.push({ lang: targetLang || 'auto', backupPath: oldContentPath });
                         }
 
-                        // Agent mode: zero LLM, pure AST assembly
+                        // AI build mode: zero LLM, pure AST assembly
                         const content = await compileFile(absoluteEntry, currentDest, new Set(), targetLang, true);
                         compiledMap.set(targetLang || 'auto', content);
 
@@ -612,8 +620,8 @@ baseDir: "."
                         }
                     }
 
-                    // Output agent instructions
-                    const instructionsPath = path.resolve(process.cwd(), '.vasmc', 'agent-instructions.md');
+                    // Output AI build instructions
+                    const instructionsPath = path.resolve(process.cwd(), '.vasmc', 'build-instructions.md');
                     const instructionsDir = path.dirname(instructionsPath);
                     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
 
@@ -644,8 +652,8 @@ baseDir: "."
                     }
 
                     // 3. Diff (only if backup exists)
-                    if (agentHistoryPaths.length > 0) {
-                        const backupList = agentHistoryPaths.map(h => `\`${path.relative(process.cwd(), h.backupPath)}\` (${h.lang})`).join(', ');
+                    if (aiHistoryPaths.length > 0) {
+                        const backupList = aiHistoryPaths.map(h => `\`${path.relative(process.cwd(), h.backupPath)}\` (${h.lang})`).join(', ');
                         const diffPrereq = actionItems.some(a => a.includes('Verify')) ? ' *(prerequisite: Verify & Fix must be completed first)*' : '';
                         actionItems.push(`${itemIndex++}. **Diff** against ${backupList}${diffPrereq}`);
                     }
@@ -664,7 +672,7 @@ baseDir: "."
                         : [];
 
                     const instructions = [
-                        `# VASMC Agent Instructions — \`${entry}\``,
+                        `# VASMC Build Instructions — \`${entry}\``,
                         ``,
                         `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
                         `**Target Languages:** ${fileLangsToProcess!.join(', ')}`,
@@ -680,15 +688,15 @@ baseDir: "."
                     ].join('\n');
 
                     fs.writeFileSync(instructionsPath, instructions, 'utf8');
-                    console.log(`\n[AGENT] 🤖 Orchestration instructions generated: ${path.relative(process.cwd(), instructionsPath)}`);
+                    console.log(`\n[BUILD] 🤖 Orchestration instructions generated: ${path.relative(process.cwd(), instructionsPath)}`);
 
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
                     process.exit(1);
                 }
             } else {
-                // Run workspace build in agent mode
-                await runAgentBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                // Run workspace build in AI build mode
+                await runAIBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
             }
             });
     }

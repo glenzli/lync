@@ -2,11 +2,12 @@
 vasm:
   compile:
     format: "doc"
+    targetLangs: ["zh-CN"]
 ---
 
 # VASMC
 
-去中心化的 LLM Prompt 编译器 — 模块化导入、交叉编译、AI 原生的 Agent 编排，以及输入面主权保障。
+去中心化的 LLM Prompt 编译器 — 模块化导入、交叉编译、AI 原生的编译编排，以及输入面主权保障。
 
 在大语言模型时代，Markdown 已经演变为**源代码** — System Prompt、技能包、指令集全部用 Markdown 编写。VASMC 将它们视为一等编译目标：解析 `@import` 依赖、跨语种交叉编译，并编排 AI 编辑器处理那些属于智能而非工具的语义任务。
 
@@ -19,22 +20,18 @@ AI-Native 系统中，整个上下文窗口既是执行空间也是数据空间�
 *   **输入面主权**: 编译期内容来源管控——所有进入执行面的 token 都有可追溯的人类授权来源，`prompt` / `doc` 格式分类是编译时的安全分类原语。
 *   **去中心化包管理**: 直接通过 URL 拉取 Markdown 模块 — 无注册表，无中间人。
 *   **确定性构建**: SHA-256 锁文件 (`vasmc-lock.yaml`) 确保构建可复现。
-*   **交叉编译**: AST 级语言块过滤 (`<!-- lang:xx -->`) 生成各语种产物；未覆盖语种可自动唤起 LLM 交叉编译回译。
+*   **交叉编译**: AST 级语言块过滤 (`<!-- lang:xx -->`) 生成各语种产物；未覆盖语种由 `vasmc build` 工作单交给当前 AI 处理。
 *   **双模式引入**:
     *   `@import:link` — 别名重写为本地相对路径（保留超链接结构）。
     *   `@import:inline` — 内联展开远程内容（组装大型 Prompt 上下文）。
 
-### 🛠️ CLI 命令架构 (v3.0)
+### 🛠️ 包与命令边界
 
-| 命令 | 分类 | 说明 |
+| 包 | 命令 | 说明 |
 |------|------|------|
-| `vasmc build` | 确定性工具 | 纯编译器 — AST 组装 + 交叉编译 |
-| `vasmc agent` | Agent 工具 | 零 LLM 编译 + 生成 AI 编辑器编排指令 |
-| `vasmc lint` | LLM 增强工具 | 对编译产物进行语义冲突检测 |
-| `vasmc diff` | LLM 增强工具 | 版本间语义差异分析 |
-| `vasmc graph` | 确定性工具 | ASCII 依赖图谱可视化 |
-| `vasmc seal` | 确定性工具 | 为普通 Markdown 注入 Frontmatter |
-| `vasmc sync` | 确定性工具 | 安装并锁定所有依赖 |
+| `@vasm/core` | 无 bin | 共享确定性编译核心与 VASM 协议实现 |
+| `@vasm/cli` | `vasmc` | AI build、依赖管理、后续工作单 |
+| `@vasm/console` | `vasm-console` | 人用控制台，包含可选外部模型 `lint/diff` |
 
 ### 🚀 快速上手
 
@@ -42,7 +39,7 @@ AI-Native 系统中，整个上下文窗口既是执行空间也是数据空间�
 npm install -g @vasm/cli
 vasmc init                    # 生成 vasmc-build.yaml
 vasmc add https://example.com/skill.md --alias my-skill
-vasmc build                   # 编译工作区
+vasmc build                   # 编译工作区，并为当前 AI 生成语义工作单
 ```
 
 完整 CLI 用法请参阅 **[帮助与用法文档](HELP.vasm.md)**。

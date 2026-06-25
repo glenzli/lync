@@ -1,4 +1,4 @@
-# VASMC 知识手册（AI Agent 专用）
+# VASMC 知识手册（AI 编辑器专用）
 
 
 ***
@@ -11,7 +11,7 @@
 
 编译过程是**纯确定性的 AST 组装**：解析 `@import` 依赖、交叉编译语种，无任何非确定性操作。
 
-**AI 编辑器的角色**：你是智能的大脑，VASMC 是确定性的肌肉。运行 `vasmc agent` 后，VASMC 完成 AST 组装并生成 `.vasmc/agent-instructions.md`，你负责接管后续语义任务（校验、意图对齐验证、产物修复、翻译、Diff）。
+**AI 编辑器的角色**：你是智能的大脑，VASMC 是确定性的肌肉。运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-instructions.md`，你负责接管后续语义任务（校验、意图对齐验证、产物修复、翻译、Diff）。
 
 ***
 
@@ -24,7 +24,7 @@ project-root/
 ├── vasmc-build.yaml       # 工作区编译配置（includes、output、routing、targetLangs）
 ├── .vasmc/                # ⚠️ 内部缓存 + 临时产物（加入 .gitignore）
 │   ├── <alias>.md         # vasmc sync 下载的纯缓存依赖
-│   └── agent-instructions.md  # vasmc agent 的 AI 编排指令清单
+│   └── build-instructions.md  # vasmc build 的 AI 编排指令清单
 └── src/
     ├── persona.vasm.md    # 源文件（含 Frontmatter + @import 指令）
     └── main.vasm.md       # 主入口源文件
@@ -101,11 +101,11 @@ vasm:
 
 ## 第四章：AI 专用 CLI 命令
 
-**只使用以下零 LLM 调用命令**（禁止使用 `vasmc build`、`vasmc lint`、`vasmc diff` —— 这些会触发外部 LLM 调用，是人类专用工具）：
+**AI 编辑器优先使用以下命令**（`vasm-console lint/diff` 是人类可选外部模型工具）：
 
 | 命令 | 说明 |
 |------|------|
-| `vasmc agent <file>` | AI 编辑器的唯一编译入口，零 LLM，输出 `.vasmc/agent-instructions.md` |
+| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物和 `.vasmc/build-instructions.md` |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
@@ -117,5 +117,5 @@ vasm:
 **注意事项**：
 
 * `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化架构。
-* 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc sync --update <alias>` 才生效。
+* 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。

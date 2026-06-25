@@ -1,5 +1,7 @@
 includes:
   - "docs-src/*.vasm.md"
+  - "docs-src/docs/*.vasm.md"
+  - "packages/*/docs-src/README.vasm.md"
   - "skill-src/vasm-expert/vasmc-expert.vasm.md"
 
 excludes:
@@ -16,12 +18,24 @@ compile:
   doc:
     targetLangs:
       - "zh-CN"
-      - "en"
   prompt:
     targetLangs:
       - "zh-CN"
 
 routing:
+  # 顶层阅读文档：docs-src 是维护对象，docs/ 是 AI 和人读取的生成态入口
+  - match: "docs-src/docs/*.vasm.md"
+    dest: "./docs/"
+
+  # package 自己的 README 源路由到对应 npm package 根目录。
+  # package docs-src/fragments 只作为 import 片段，不直接生成 docs/。
+  - match: "packages/core/docs-src/README.vasm.md"
+    dest: "./packages/core/README.md"
+  - match: "packages/cli/docs-src/README.vasm.md"
+    dest: "./packages/cli/README.md"
+  - match: "packages/console/docs-src/README.vasm.md"
+    dest: "./packages/console/README.md"
+
   # 文档源文件直接路由到项目根目录
   - match: "docs-src/*.vasm.md"
     dest: "./"

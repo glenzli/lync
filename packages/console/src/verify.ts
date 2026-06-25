@@ -2,7 +2,7 @@ import { generateText } from 'ai';
 import { getLLMModel } from './llmProvider';
 import * as crypto from 'crypto';
 import { estimateTokens } from '../../core/src/utils';
-import verifyCriteria from './verify-criteria.md';
+import verifyCriteria from '../../core/docs-src/fragments/verify-criteria.md';
 import { consoleT, getVerifyLang } from './i18n';
 
 const LINT_PROMPT = `

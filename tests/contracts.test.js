@@ -175,15 +175,15 @@ describe('Contract: seal injects Frontmatter and renames file', () => {
     });
 });
 
-// ─── Contract 6: Agent instructions ───────────────────────────────
+// ─── Contract 6: AI build instructions ────────────────────────────
 
-describe('Contract: vasmc agent generates agent-instructions.md', () => {
-    it('produces .vasmc/agent-instructions.md with compiled file list', async () => {
-        const outDir = path.join(FIXTURES, 'out-agent');
-        run(`agent inline-test.vasm.md -o ${outDir}`);
+describe('Contract: vasmc build generates build-instructions.md', () => {
+    it('produces .vasmc/build-instructions.md with compiled file list', async () => {
+        const outDir = path.join(FIXTURES, 'out-ai-build');
+        run(`build inline-test.vasm.md -o ${outDir}`);
 
-        const instructionsPath = path.join(FIXTURES, '.vasmc', 'agent-instructions.md');
-        assert.ok(fs.existsSync(instructionsPath), 'agent-instructions.md must exist');
+        const instructionsPath = path.join(FIXTURES, '.vasmc', 'build-instructions.md');
+        assert.ok(fs.existsSync(instructionsPath), 'build-instructions.md must exist');
 
         const content = fs.readFileSync(instructionsPath, 'utf8');
         assert.ok(content.includes('compiledFiles'), 'Must contain compiledFiles section');
@@ -191,5 +191,21 @@ describe('Contract: vasmc agent generates agent-instructions.md', () => {
 
         fs.rmSync(outDir, { recursive: true, force: true });
         // Don't remove .vasmc — other tests may need it
+    });
+});
+
+// ─── Contract 7: AI CLI command surface ───────────────────────────
+
+describe('Contract: vasmc does not expose legacy agent command', () => {
+    it('rejects agent as an unknown command', async () => {
+        assert.throws(
+            () => execSync(`node ${CLI} agent inline-test.vasm.md`, {
+                cwd: FIXTURES,
+                encoding: 'utf8',
+                env: { ...process.env, NO_COLOR: '1' },
+                stdio: 'pipe'
+            }),
+            /unknown command 'agent'/
+        );
     });
 });

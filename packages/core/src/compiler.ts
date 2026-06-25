@@ -103,7 +103,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
                     let translatedText = sourceContentToTranslate;
                     if (agentMode) {
-                        console.log(`[COMPILER] 🤖 Agent Mode: Bypassing fallback translation for '${targetLang}' in ${filePath}`);
+                        console.log(`[COMPILER] 🤖 AI Build Mode: Bypassing fallback translation for '${targetLang}' in ${filePath}`);
                     } else {
                         console.warn(t('COMPILER_TRANS_UNAVAILABLE', targetLang, filePath));
                     }
@@ -159,7 +159,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
 
             if (!nlpSkipped) {
                 if (agentMode) {
-                    console.log(`[COMPILER] 🤖 Agent Mode: Bypassing NLP translation for '${targetLang}'`);
+                    console.log(`[COMPILER] 🤖 AI Build Mode: Bypassing NLP translation for '${targetLang}'`);
                 } else {
                     console.warn(t('COMPILER_TRANS_UNAVAILABLE', targetLang, filePath));
                 }

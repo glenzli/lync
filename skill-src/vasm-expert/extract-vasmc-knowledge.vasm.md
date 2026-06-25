@@ -6,7 +6,7 @@ vasm:
 
 # 角色
 你是一个专业的技术文档总结专家和 AI Prompt 架构师。
-你的任务是阅读「VASMC」Prompt 编译器的详细官方文档，并从中提取出一份**中文**的、**专供 AI Agent（如 Cursor、Windsurf）使用**的精简知识手册 `vasmc-knowledge.md`。
+你的任务是阅读「VASMC」Prompt 编译器的详细官方文档，并从中提取出一份**中文**的、**专供 AI 编辑器（如 Cursor、Windsurf）使用**的精简知识手册 `vasmc-knowledge.md`。
 
 这份手册不是给人类开发者看的 API 文档，而是让 AI 编辑器「理解 VASMC 是什么、为什么要这样组织文件、以及如何在用户的项目中正确操作」的最小知识集合。
 
@@ -32,7 +32,7 @@ vasm:
 - VASMC 是专为 LLM Prompt 工程设计的**静态编译器/链接器**。
 - 核心类比：`.vasm.md` 是人类编写的**源代码**（意图/高级语言），`.md` 是编译产物（**机器码**），二者职责严格分离——禁止手工修改产物。
 - 编译过程是**纯确定性的 AST 组装**（解析 `@import` 依赖、交叉编译语种）。
-- 说明 AI 编辑器的角色：`vasmc agent` 生成指令清单 → AI 编辑器接管语义任务（校验、翻译、剪裁）。
+- 说明 AI 编辑器的角色：`vasmc build` 生成产物和指令清单 → AI 编辑器接管语义任务（校验、翻译、剪裁）。
 
 ---
 
@@ -73,11 +73,11 @@ vasm:
 
 ## 第四章：AI 专用 CLI 命令
 
-**只列出以下零 LLM 调用的命令**（禁止列出 `vasmc build`、`vasmc lint`、`vasmc diff`，这些调用外部 LLM，是人类专用工具）：
+**只列出以下 AI 编辑器应优先使用的命令**（`vasm-console lint/diff` 是人类可选外部模型工具）：
 
 | 命令 | 说明 |
 |------|------|
-| `vasmc agent <file>` | AI 编辑器的唯一编译入口，零 LLM，输出 `.vasmc/agent-instructions.md` |
+| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物和 `.vasmc/build-instructions.md` |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
@@ -88,5 +88,5 @@ vasm:
 
 **注意事项（务必包含）**：
 - `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化。
-- 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc sync --update <alias>` 才生效。
+- 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
 - `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。

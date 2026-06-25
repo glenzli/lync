@@ -136,8 +136,8 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
     const isDocFormat = compileFormat === 'doc';
     const compiledMap = new Map<string, string>();
 
-    // In agent mode for prompt format with multiple langs, only compile the source language.
-    // Non-source languages will be produced by AI translation (agent-instructions.md Translate step).
+    // In AI build mode for prompt format with multiple langs, only compile the source language.
+    // Non-source languages will be produced by AI translation (build-instructions.md Translate step).
     // Compiling them here would: (a) write wrong placeholder files to disk, (b) count tokens on
     // identical source content, making the token comparison meaningless.
     let langsToCompile = targetLangs;
@@ -204,7 +204,7 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
 
 // ========== Layer 3: Command Composers ==========
 
-/** Pure deterministic build — used by `vasmc build` */
+/** Pure deterministic build — used by non-AI tooling and core API consumers. */
 export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
     const buildState = loadBuildState(cwd);
@@ -295,14 +295,14 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
     }
 }
 
-/** Agent build — used by `vasmc agent` workspace mode */
-export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
+/** AI build — used by the AI-facing `vasmc build` workspace mode */
+export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
     const buildState = loadBuildState(cwd);
     let stateChanged = false;
 
-    // Clear previous agent instructions
-    const instructionsPath = path.resolve(cwd, '.vasmc', 'agent-instructions.md');
+    // Clear previous AI build instructions
+    const instructionsPath = path.resolve(cwd, '.vasmc', 'build-instructions.md');
     const instructionsDir = path.dirname(instructionsPath);
     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
     fs.writeFileSync(instructionsPath, '', 'utf8');
@@ -326,7 +326,7 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             }
         }
 
-        // Incremental skip check for agent mode
+        // Incremental skip check for AI build mode
         let allSkipped = true;
         if (isDocFormat) {
             const key = buildStateKey(relativeFile, 'merged');
@@ -360,11 +360,11 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             }
         }
         if (allSkipped) {
-            console.log(`[AGENT] ⚡️ Skipped (unchanged): ${relativeFile}`);
+            console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
             continue;
         }
 
-        // Cache old content for agent history diffing
+        // Cache old content for AI diff work orders
         const historyPaths: { lang: string; backupPath: string }[] = [];
         if (!isDocFormat) {
             for (const targetLang of targetLangs) {
@@ -384,7 +384,7 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             }
         }
 
-        // Compile with agent mode (zero LLM)
+        // Compile with AI build mode (zero LLM)
         const result = await compileEntry(entry, cwd, true);
 
         // Find minimal-token variant
@@ -398,8 +398,16 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             }
         }
 
-        const minVariantPath = path.relative(cwd, finalDest.replace(/\.md$/, bestLang === 'auto' ? '.md' : `.${bestLang}.md`));
-        const langsNeedingTranslation = targetLangs.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
+        const outputPathForLang = (lang?: string) => {
+            if (!isDocFormat && lang && lang !== 'auto' && targetLangs.length > 1) {
+                return finalDest.replace(/\.md$/, `.${lang}.md`);
+            }
+            return finalDest;
+        };
+        const minVariantPath = path.relative(cwd, outputPathForLang(bestLang));
+        const langsNeedingTranslation = isDocFormat
+            ? []
+            : targetLangs.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
 
         // Build action items as a lean work order (execution manifest, not tutorial)
         const actionItems: string[] = [];
@@ -418,7 +426,7 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
         // 2. Translation (only if other langs needed)
         if (langsNeedingTranslation.length > 0) {
             const targetFiles = langsNeedingTranslation
-                .map(l => `\`${path.relative(cwd, finalDest.replace(/\.md$/, `.${l}.md`))}\``)
+                .map(l => `\`${path.relative(cwd, outputPathForLang(l))}\``)
                 .join(', ');
             actionItems.push(`${itemIndex++}. **Translate** \`${minVariantPath}\` → ${targetFiles}`);
         }
@@ -435,35 +443,37 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
             actionItems.push(`${itemIndex++}. **Tree-Shake** \`${minVariantPath}\` *(conditional — only if user requested optimization)*`);
         }
 
-        // Build compiled files yaml block
-        const compiledFilesYaml = targetLangs
-            .map(lang => `  - ${path.relative(cwd, finalDest.replace(/\.md$/, lang === 'auto' || !lang ? '.md' : `.${lang}.md`))}`)
-            .join('\n');
+        if (actionItems.length > 0) {
+            // Build compiled files yaml block
+            const compiledFilesYaml = targetLangs
+                .map(lang => `  - ${path.relative(cwd, outputPathForLang(lang))}`)
+                .join('\n');
 
-        const visionLines = vision
-            ? [`**Vision:** ${vision.replace(/\n/g, ' ')}`, `**Fix Mode:** ${fixMode}`, ``]
-            : [];
+            const visionLines = vision
+                ? [`**Vision:** ${vision.replace(/\n/g, ' ')}`, `**Fix Mode:** ${fixMode}`, ``]
+                : [];
 
-        const instructions = [
-            `# VASMC Agent Instructions — \`${entry.relativeFile}\``,
-            ``,
-            `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
-            `**Target Languages:** ${targetLangs.join(', ')}`,
-            ...visionLines,
-            `\`\`\`yaml`,
-            `compiledFiles:`,
-            compiledFilesYaml,
-            `\`\`\``,
-            ``,
-            `## 🛠️ Action Items`,
-            ``,
-            actionItems.join('\n\n'),
-        ].join('\n');
+            const instructions = [
+                `# VASMC Build Instructions — \`${entry.relativeFile}\``,
+                ``,
+                `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
+                `**Target Languages:** ${targetLangs.join(', ')}`,
+                ...visionLines,
+                `\`\`\`yaml`,
+                `compiledFiles:`,
+                compiledFilesYaml,
+                `\`\`\``,
+                ``,
+                `## 🛠️ Action Items`,
+                ``,
+                actionItems.join('\n\n'),
+            ].join('\n');
 
-        fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
-        console.log(`[AGENT] 🤖 Instructions appended for: ${entry.relativeFile}`);
+            fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
+            console.log(`[BUILD] 🤖 Instructions appended for: ${entry.relativeFile}`);
+        }
 
-        // Update incremental build cache after successful agent compile
+        // Update incremental build cache after successful AI build
         const deps = collectDependencies(absoluteFile, cwd);
         const sig = computeInputSignature(deps);
         if (isDocFormat) {
@@ -495,5 +505,5 @@ export async function runAgentBuild(cwd: string, cliOptions?: { baseDir?: string
         saveBuildState(buildState, cwd);
     }
 
-    console.log(`\n[AGENT] 📋 Full instructions: ${path.relative(cwd, instructionsPath)}`);
+    console.log(`\n[BUILD] 📋 Full instructions: ${path.relative(cwd, instructionsPath)}`);
 }
