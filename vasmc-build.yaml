@@ -22,6 +22,11 @@ compile:
     targetLangs:
       - "zh-CN"
 
+security:
+  # review: expose policy status in .vasmc/build-report.yaml.
+  # enforce: block unsafe skill outputs from being updated when policy status is blocked.
+  mode: review
+
 routing:
   # 顶层阅读文档：docs-src 是维护对象，docs/ 是 AI 和人读取的生成态入口
   - match: "docs-src/docs/*.vasm.md"

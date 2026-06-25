@@ -105,7 +105,7 @@ vasm:
 
 | 命令 | 说明 |
 |------|------|
-| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物和 `.vasmc/build-instructions.md` |
+| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物、`.vasmc/build-instructions.md` 和 `.vasmc/build-report.yaml` |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
@@ -119,3 +119,5 @@ vasm:
 * `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化架构。
 * 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
+* `kind: skill` 的模块应声明 scope、capabilities、activation 和 trust；如果 `.vasmc/build-instructions.md` 出现 Policy Review，必须读取 `.vasmc/build-report.yaml` 再处理。
+* `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，正式 skill 输出不会被更新。

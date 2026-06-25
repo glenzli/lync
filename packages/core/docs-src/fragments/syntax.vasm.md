@@ -52,6 +52,24 @@ vasm:
   compile:
     format: prompt        # prompt（AI 消费）| doc（人类文档）
     targetLangs: ["zh-CN"]
+  kind: skill             # prompt | skill | doc | policy | fragment
+  scope:
+    domains: ["code-review", "security"]
+    filePatterns: ["**/*.ts", "**/*.js"]
+  capabilities:
+    readFiles: true
+    editFiles: false
+    runCommands: false
+    network: false
+    externalModels: false
+    publish: false
+  activation:
+    intent: ["review", "security audit"]
+    priority: 80
+    conflictsWith: ["general-code-reviewer"]
+  trust:
+    source: "github:example/coder-prompt"
+    license: "MIT"
   vision: |
     产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
     输出结构化（级别/位置/描述/建议），风格简洁，不扮演开发者。
@@ -65,3 +83,29 @@ vasm:
 > **`vision`**：声明编译产物应达到的语义目标。`vasmc build` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
 >
 > **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `prompt` 格式文件有效。
+>
+> **Skill 治理字段**：`kind: skill` 会启用更严格的 manifest 诊断。`scope` 描述适用领域和文件范围，`capabilities` 显式声明该 skill 预期使用的能力边界，`activation` 描述何时应被选择以及与哪些 skill 冲突，`trust` 记录供应链来源和许可证。诊断结果会写入 `.vasmc/build-report.yaml`，必要时也会进入 `.vasmc/build-instructions.md` 的 Policy Review 工作项。
+
+### 确定性 Policy Gate
+
+AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
+
+* `pass`：未发现确定性 policy 风险。
+* `review`：存在需要 AI 或人类阅读的风险信号，例如高危能力声明、过宽 activation、疑似 prompt override 语句。
+* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、依赖声明了入口 skill 未声明的 capability。
+
+默认情况下，VASMC 只报告风险，不阻断输出：
+
+```yaml
+security:
+  mode: review
+```
+
+如果项目希望启用本地确定性阻断，可以在 `vasmc-build.yaml` 中切换为：
+
+```yaml
+security:
+  mode: enforce
+```
+
+`enforce` 只会阻止可执行 skill 类产物被更新；普通文档仍按确定性编译流程输出。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，`.vasmc/build-instructions.md` 会生成 **Policy Gate** 工作项。

@@ -17,11 +17,39 @@ export interface VasmFrontmatter {
     vasm?: {
         alias?: string;
         version?: string;
+        /** Module category. `skill` enables stricter policy diagnostics for skill governance. */
+        kind?: 'prompt' | 'skill' | 'doc' | 'policy' | 'fragment';
         compile?: {
             format?: 'doc' | 'prompt';
             targetLangs?: string[];
         };
         dependencies?: Record<string, DependencyDeclaration>;
+        scope?: {
+            domains?: string[];
+            filePatterns?: string[];
+        };
+        capabilities?: {
+            readFiles?: boolean;
+            editFiles?: boolean;
+            runCommands?: boolean;
+            network?: boolean;
+            externalModels?: boolean;
+            publish?: boolean;
+        };
+        activation?: {
+            intent?: string[];
+            priority?: number;
+            conflictsWith?: string[];
+        };
+        compatibility?: {
+            vasm?: string;
+            formats?: Array<'doc' | 'prompt'>;
+        };
+        trust?: {
+            source?: string;
+            license?: string;
+            maintainers?: string[];
+        };
         /** Semantic intention: describes what the compiled product should achieve. Used by AI during Verify. */
         vision?: string;
         /** Auto-fix mode: 'suggest' (default) = list proposed edits; 'auto' = directly edit the product file. */
@@ -64,5 +92,9 @@ export interface VasmBuild {
         prompt?: {
             targetLangs?: string[];
         };
+    };
+    security?: {
+        /** review: report policy risk only; enforce: block unsafe skill outputs from being updated. */
+        mode?: 'review' | 'enforce';
     };
 }

@@ -189,12 +189,92 @@ describe('Contract: vasmc build generates build-instructions.md', () => {
         assert.ok(content.includes('compiledFiles'), 'Must contain compiledFiles section');
         assert.ok(content.includes('Action Items'), 'Must contain Action Items section');
 
+        const reportPath = path.join(FIXTURES, '.vasmc', 'build-report.yaml');
+        assert.ok(fs.existsSync(reportPath), 'build-report.yaml must exist');
+        const report = fs.readFileSync(reportPath, 'utf8');
+        assert.ok(report.includes('mode: ai-build'), 'report must declare ai-build mode');
+        assert.ok(report.includes('source: inline-test.vasm.md'), 'report must include source file');
+        assert.ok(report.includes('policy:'), 'report must include policy section');
+        assert.ok(report.includes('status: pass'), 'report must include policy pass status');
+
         fs.rmSync(outDir, { recursive: true, force: true });
         // Don't remove .vasmc — other tests may need it
     });
 });
 
-// ─── Contract 7: AI CLI command surface ───────────────────────────
+// ─── Contract 7: policy gate enforcement ──────────────────────────
+
+describe('Contract: security.mode enforce blocks unsafe skill outputs', () => {
+    it('does not update final output when policy status is blocked', async () => {
+        const buildYaml = path.join(FIXTURES, 'vasmc-build.yaml');
+        const depPath = path.join(FIXTURES, 'unsafe-dep.vasm.md');
+        const skillPath = path.join(FIXTURES, 'unsafe-skill.vasm.md');
+        const outDir = path.join(FIXTURES, 'blocked-out');
+
+        fs.writeFileSync(depPath, [
+            '---',
+            'vasm:',
+            '  kind: fragment',
+            '  capabilities:',
+            '    network: true',
+            '---',
+            'Dependency wants network.'
+        ].join('\n'), 'utf8');
+
+        fs.writeFileSync(skillPath, [
+            '---',
+            'vasm:',
+            '  alias: unsafe-skill',
+            '  version: 1.0.0',
+            '  kind: skill',
+            '  scope:',
+            '    domains: ["test"]',
+            '  capabilities:',
+            '    readFiles: true',
+            '    editFiles: false',
+            '    runCommands: false',
+            '    network: false',
+            '    externalModels: false',
+            '    publish: false',
+            '  activation:',
+            '    intent: ["test"]',
+            '  trust:',
+            '    source: "local:test"',
+            '    license: "MIT"',
+            '---',
+            '[Unsafe Dep](./unsafe-dep.vasm.md "@import:inline")'
+        ].join('\n'), 'utf8');
+
+        fs.writeFileSync(buildYaml, [
+            'includes:',
+            '  - "unsafe-skill.vasm.md"',
+            'output:',
+            '  dir: "./blocked-out"',
+            'security:',
+            '  mode: enforce'
+        ].join('\n'), 'utf8');
+
+        try {
+            run('build');
+
+            assert.ok(!fs.existsSync(path.join(outDir, 'unsafe-skill.md')), 'blocked skill output must not be written');
+
+            const report = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-report.yaml'), 'utf8');
+            assert.ok(report.includes('status: blocked'), 'report must mark entry as blocked');
+            assert.ok(report.includes('policy.capability.escalation'), 'report must include blocking policy diagnostic');
+
+            const instructions = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-instructions.md'), 'utf8');
+            assert.ok(instructions.includes('Policy Gate'), 'instructions must include Policy Gate action');
+        } finally {
+            fs.rmSync(outDir, { recursive: true, force: true });
+            for (const file of [buildYaml, depPath, skillPath]) {
+                if (fs.existsSync(file)) fs.unlinkSync(file);
+            }
+        }
+    });
+});
+
+// ─── Contract 8: AI CLI command surface ───────────────────────────
 
 describe('Contract: vasmc does not expose legacy agent command', () => {
     it('rejects agent as an unknown command', async () => {

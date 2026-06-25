@@ -10,6 +10,8 @@ import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 import { estimateTokens } from './utils';
 import { loadBuildState, saveBuildState, computeInputSignature, buildStateKey } from './buildstate';
+import { readVasmManifest, summarizeVasmManifest, validateVasmManifest, ManifestDiagnostic, VasmManifestSummary } from './manifest';
+import { evaluateVasmPolicy, PolicyDiagnostic, PolicyStatus } from './policy';
 
 // ========== Types ==========
 
@@ -24,6 +26,124 @@ export interface WorkspaceEntry {
 export interface CompiledResult {
     entry: WorkspaceEntry;
     compiledMap: Map<string, string>;  // lang -> content
+}
+
+export interface BuildReportDiagnostic extends ManifestDiagnostic {
+    path: string;
+}
+
+export interface BuildReportPolicyDiagnostic extends PolicyDiagnostic { }
+
+export interface BuildReportPolicy {
+    status: PolicyStatus;
+    enforceable: boolean;
+    diagnostics?: BuildReportPolicyDiagnostic[];
+}
+
+export interface BuildReportDependency {
+    path: string;
+    manifest?: VasmManifestSummary;
+    diagnostics?: BuildReportDiagnostic[];
+}
+
+export interface BuildReportEntry {
+    source: string;
+    output: string;
+    status: 'built' | 'skipped' | 'blocked';
+    format: 'doc' | 'prompt';
+    targetLangs: string[];
+    policy: BuildReportPolicy;
+    manifest?: VasmManifestSummary;
+    diagnostics?: BuildReportDiagnostic[];
+    dependencies?: BuildReportDependency[];
+}
+
+export interface BuildReport {
+    version: 1;
+    mode: 'ai-build';
+    generatedAt: string;
+    instructionsFile: string;
+    entries: BuildReportEntry[];
+}
+
+function collectManifestDiagnostics(filePath: string, cwd: string): BuildReportDiagnostic[] {
+    const manifest = readVasmManifest(filePath);
+    return validateVasmManifest(manifest).map(diagnostic => ({
+        path: path.relative(cwd, filePath),
+        ...diagnostic,
+    }));
+}
+
+function collectDependencyManifestReports(filePath: string, cwd: string): BuildReportDependency[] {
+    return [...collectDependencies(filePath, cwd)]
+        .filter(depPath => depPath !== filePath)
+        .map(depPath => {
+            const manifest = readVasmManifest(depPath);
+            const diagnostics = collectManifestDiagnostics(depPath, cwd);
+            const report: BuildReportDependency = {
+                path: path.relative(cwd, depPath),
+            };
+            const summary = summarizeVasmManifest(manifest);
+            if (summary) report.manifest = summary;
+            if (diagnostics.length > 0) report.diagnostics = diagnostics;
+            return report;
+        });
+}
+
+export function createBuildReportEntry(entry: WorkspaceEntry, cwd: string, status: 'built' | 'skipped' | 'blocked'): BuildReportEntry {
+    const manifest = readVasmManifest(entry.absoluteFile);
+    const diagnostics = collectManifestDiagnostics(entry.absoluteFile, cwd);
+    const dependencies = collectDependencyManifestReports(entry.absoluteFile, cwd);
+    const policy = evaluateVasmPolicy(entry, cwd);
+    const report: BuildReportEntry = {
+        source: entry.relativeFile,
+        output: path.relative(cwd, entry.finalDest),
+        status,
+        format: entry.compileFormat,
+        targetLangs: entry.targetLangs,
+        policy: {
+            status: policy.status,
+            enforceable: policy.enforceable,
+        },
+    };
+    if (policy.diagnostics.length > 0) report.policy.diagnostics = policy.diagnostics;
+    const summary = summarizeVasmManifest(manifest);
+    if (summary) report.manifest = summary;
+    if (diagnostics.length > 0) report.diagnostics = diagnostics;
+    if (dependencies.length > 0) report.dependencies = dependencies;
+    return report;
+}
+
+export function flattenReportDiagnostics(entryReport: BuildReportEntry): BuildReportDiagnostic[] {
+    const diagnostics = [...(entryReport.diagnostics || [])];
+    for (const dependency of entryReport.dependencies || []) {
+        diagnostics.push(...(dependency.diagnostics || []));
+    }
+    return diagnostics;
+}
+
+export function getPolicyDiagnostics(entryReport: BuildReportEntry): BuildReportPolicyDiagnostic[] {
+    return entryReport.policy.diagnostics || [];
+}
+
+export function formatPolicyDiagnostics(diagnostics: Array<BuildReportDiagnostic | BuildReportPolicyDiagnostic>): string {
+    return diagnostics
+        .map(diagnostic => `${diagnostic.severity.toUpperCase()} ${diagnostic.code} (${diagnostic.path}): ${diagnostic.message}`)
+        .join('; ');
+}
+
+export function formatPolicyAction(entryReport: BuildReportEntry, itemIndex: number): string | undefined {
+    if (entryReport.policy.status === 'pass') return undefined;
+    const diagnostics = getPolicyDiagnostics(entryReport);
+    if (diagnostics.length === 0) return undefined;
+    const label = entryReport.policy.status === 'blocked' ? 'Policy Gate' : 'Policy Review';
+    return `${itemIndex}. **${label}** \`.vasmc/build-report.yaml\` — ${formatPolicyDiagnostics(diagnostics)}`;
+}
+
+export function shouldBlockPolicyOutput(entryReport: BuildReportEntry, securityMode: 'review' | 'enforce' = 'review'): boolean {
+    return securityMode === 'enforce'
+        && entryReport.policy.enforceable
+        && entryReport.policy.status === 'blocked';
 }
 
 // ========== Layer 1: Workspace Resolution ==========
@@ -298,18 +418,48 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
 /** AI build — used by the AI-facing `vasmc build` workspace mode */
 export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
+    const buildConfig = loadBuildConfig(cwd);
+    const securityMode = buildConfig.security?.mode || 'review';
     const buildState = loadBuildState(cwd);
     let stateChanged = false;
 
     // Clear previous AI build instructions
     const instructionsPath = path.resolve(cwd, '.vasmc', 'build-instructions.md');
+    const reportPath = path.resolve(cwd, '.vasmc', 'build-report.yaml');
     const instructionsDir = path.dirname(instructionsPath);
     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
     fs.writeFileSync(instructionsPath, '', 'utf8');
+    const buildReport: BuildReport = {
+        version: 1,
+        mode: 'ai-build',
+        generatedAt: new Date().toISOString(),
+        instructionsFile: path.relative(cwd, instructionsPath),
+        entries: [],
+    };
 
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isDocFormat = entry.compileFormat === 'doc';
+        const skippedReport = createBuildReportEntry(entry, cwd, 'skipped');
+        const policyAction = (itemIndex: number) => formatPolicyAction(skippedReport, itemIndex);
+
+        if (shouldBlockPolicyOutput(skippedReport, securityMode)) {
+            const blockedReport = createBuildReportEntry(entry, cwd, 'blocked');
+            buildReport.entries.push(blockedReport);
+            const action = formatPolicyAction(blockedReport, 1);
+            const instructions = [
+                `# VASMC Build Instructions — \`${entry.relativeFile}\``,
+                ``,
+                `## 🛠️ Action Items`,
+                ``,
+                action || `1. **Policy Gate** \`.vasmc/build-report.yaml\` — review blocked policy status.`,
+                ``,
+                `Final output was not updated because \`security.mode\` is \`enforce\`.`,
+            ].join('\n');
+            fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
+            console.warn(`[BUILD] ⛔ Blocked by policy gate: ${relativeFile}`);
+            continue;
+        }
 
         // Extract vision and fix from source frontmatter
         let vision: string | undefined;
@@ -361,6 +511,19 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
         }
         if (allSkipped) {
             console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
+            buildReport.entries.push(skippedReport);
+            const action = policyAction(1);
+            if (action) {
+                const instructions = [
+                    `# VASMC Build Instructions — \`${entry.relativeFile}\``,
+                    ``,
+                    `## 🛠️ Action Items`,
+                    ``,
+                    action,
+                ].join('\n');
+                fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
+                console.log(`[BUILD] 🤖 Policy review instructions appended for: ${entry.relativeFile}`);
+            }
             continue;
         }
 
@@ -443,6 +606,12 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
             actionItems.push(`${itemIndex++}. **Tree-Shake** \`${minVariantPath}\` *(conditional — only if user requested optimization)*`);
         }
 
+        const action = policyAction(itemIndex);
+        if (action) {
+            actionItems.push(action);
+            itemIndex++;
+        }
+
         if (actionItems.length > 0) {
             // Build compiled files yaml block
             const compiledFilesYaml = targetLangs
@@ -474,6 +643,8 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
         }
 
         // Update incremental build cache after successful AI build
+        const builtReport = createBuildReportEntry(entry, cwd, 'built');
+        buildReport.entries.push(builtReport);
         const deps = collectDependencies(absoluteFile, cwd);
         const sig = computeInputSignature(deps);
         if (isDocFormat) {
@@ -505,5 +676,21 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
         saveBuildState(buildState, cwd);
     }
 
+    if (fs.readFileSync(instructionsPath, 'utf8').trim().length === 0) {
+        fs.writeFileSync(
+            instructionsPath,
+            [
+                '# VASMC Build Instructions',
+                '',
+                'No pending action items.',
+                '',
+                `See \`${path.relative(cwd, reportPath)}\` for the full build report.`,
+            ].join('\n'),
+            'utf8'
+        );
+    }
+
+    fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
+    console.log(`[BUILD] 📋 Build report: ${path.relative(cwd, reportPath)}`);
     console.log(`\n[BUILD] 📋 Full instructions: ${path.relative(cwd, instructionsPath)}`);
 }

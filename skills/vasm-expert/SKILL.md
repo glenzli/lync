@@ -134,7 +134,7 @@ vasm:
 
 | 命令 | 说明 |
 |------|------|
-| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物和 `.vasmc/build-instructions.md` |
+| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物、`.vasmc/build-instructions.md` 和 `.vasmc/build-report.yaml` |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
@@ -148,6 +148,8 @@ vasm:
 * `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化架构。
 * 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
+* `kind: skill` 的模块应声明 scope、capabilities、activation 和 trust；如果 `.vasmc/build-instructions.md` 出现 Policy Review，必须读取 `.vasmc/build-report.yaml` 再处理。
+* `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，正式 skill 输出不会被更新。
 
 ### 决策规则 & 常见误区
 
@@ -258,7 +260,13 @@ vasm:
    读取 instructions 中给出的**历史备份文件路径**（由 VASMC 自动生成），与新编译产物对比。\
    向用户提供 1-2 句话的简明语义总结，说明本次结构变化对该 Prompt 行为产生了什么实际影响。若变化仅为空白/同义词替换，明确说明。
 
-4. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
+4. **Policy Review**（仅在 Action Items 中存在此步骤时执行）：
+   读取 `.vasmc/build-report.yaml`，检查对应 entry 的 `policy.status`、manifest 摘要、依赖声明和 diagnostics。若状态为 `review`，向用户说明需要人工或 AI 判断的风险，不要把它当成安全阻断。
+
+5. **Policy Gate**（仅在 Action Items 中存在此步骤时执行）：
+   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，正式 skill 输出不会被更新；你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
+
+6. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
 
 ## 核心理念
 

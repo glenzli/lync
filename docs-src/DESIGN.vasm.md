@@ -114,7 +114,7 @@ VASMC 编译器是负责兑现协议的执行引擎。monorepo 内部按使用�
 VASMC CLI 采用严格的关注点分离原则，将命令分为三类：
 
 **AI 编译工具（`@vasm/cli` / `vasmc`）**：
-*   `vasmc build [file]`：AI 侧唯一编译入口。执行确定性的 AST 遍历、`@import` 解析、语言块过滤和产物写入，并输出 `.vasmc/build-instructions.md` 编排操作令。若目标语言缺失，它不会调用外部模型自动补全，而是把翻译、校验、Diff、裁剪等语义任务交给当前 AI。
+*   `vasmc build [file]`：AI 侧唯一编译入口。执行确定性的 AST 遍历、`@import` 解析、语言块过滤和产物写入，并输出 `.vasmc/build-instructions.md` 编排操作令与 `.vasmc/build-report.yaml` 结构化构建报告。若目标语言缺失，它不会调用外部模型自动补全，而是把翻译、校验、Diff、Policy Review、Policy Gate、裁剪等语义任务交给当前 AI。
 *   `vasmc graph <file>`：静态分析 AST 并打印依赖关系的可视化 ASCII 树。
 *   `vasmc seal <patterns>`：将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、语言标签）。
 *   `vasmc sync`、`vasmc add`、`vasmc init`：依赖管理与项目初始化。
@@ -186,6 +186,68 @@ vasm:
 ```
 
 编译器会自动识别以 `./` 或 `../` 开头的链接。它不仅能让您在主流编辑器中点按跳转到源文件，而且**本地相对引用的文件不会被强制执行 Hash Lock 计算**，天然支持本地实时联调与热修改。
+
+### 6. Skill Manifest 治理字段 (Skill Policy Surface)
+
+Skill 泛滥后，核心问题不再是“能否引入”，而是“为什么选择这个 skill、它的能力边界是什么、是否与其他 skill 冲突”。VASMC 因此支持在 `vasm:` Frontmatter 中声明治理字段：
+
+```yaml
+vasm:
+  kind: skill
+  scope:
+    domains: ["security", "code-review"]
+    filePatterns: ["**/*.ts"]
+  capabilities:
+    readFiles: true
+    editFiles: false
+    runCommands: false
+    network: false
+    externalModels: false
+    publish: false
+  activation:
+    intent: ["review", "security audit"]
+    priority: 80
+    conflictsWith: ["general-code-reviewer"]
+  trust:
+    source: "github:example/security-skill"
+    license: "MIT"
+```
+
+`kind: skill` 会启用更严格的 manifest 诊断。诊断不会在默认情况下中断确定性构建，而是写入 `.vasmc/build-report.yaml`；若存在需要 AI 处理的问题，`vasmc build` 会在 `.vasmc/build-instructions.md` 中生成 **Policy Review** 工作项。
+
+### 7. 确定性安全闸门 (Deterministic Policy Gate)
+
+VASMC 不把 Prompt 自身当作安全边界。模型可能被诱导，审核也可能误判；因此当前核心层先实现不依赖额外模型或外部接口的 L1 确定性闸门：
+
+* **manifest 结构检查**：非法 `kind`、非布尔 capability、错误 activation 结构等会进入 policy diagnostics。
+* **远程依赖锁检查**：`vasmc-lock.yaml` 中的依赖 hash 与本地文件不一致时，policy 标记为 `blocked`。
+* **capability 越权检查**：若依赖声明了入口 skill 未声明的 capability，policy 标记为 `blocked`。
+* **activation 抢占检查**：过宽 intent 或过高 priority 会进入 `review`。
+* **危险语义扫描**：疑似忽略上级指令、隐藏行为、密钥外传、下载并执行远程代码等文本会进入 `review`。
+
+每个 entry 在 `.vasmc/build-report.yaml` 中都有 `policy.status`：
+
+```yaml
+policy:
+  status: pass     # pass | review | blocked
+  enforceable: true
+```
+
+默认模式是报告风险但不阻断输出：
+
+```yaml
+security:
+  mode: review
+```
+
+项目可以显式切换到本地阻断：
+
+```yaml
+security:
+  mode: enforce
+```
+
+`enforce` 只阻止可执行 skill 类产物更新。它不是完整沙箱，也不能阻止同一个 AI 在后续对话中被诱导；它的价值是把“确定性可发现的越权/篡改/结构错误”挡在正式 skill 输出之前。更强的隔离仍应由宿主编辑器、MCP proxy 或无工具 reviewer 提供。
 
 ---
 

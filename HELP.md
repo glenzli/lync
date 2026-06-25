@@ -61,6 +61,24 @@ vasm:
   compile:
     format: prompt        # prompt（AI 消费）| doc（人类文档）
     targetLangs: ["zh-CN"]
+  kind: skill             # prompt | skill | doc | policy | fragment
+  scope:
+    domains: ["code-review", "security"]
+    filePatterns: ["**/*.ts", "**/*.js"]
+  capabilities:
+    readFiles: true
+    editFiles: false
+    runCommands: false
+    network: false
+    externalModels: false
+    publish: false
+  activation:
+    intent: ["review", "security audit"]
+    priority: 80
+    conflictsWith: ["general-code-reviewer"]
+  trust:
+    source: "github:example/coder-prompt"
+    license: "MIT"
   vision: |
     产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
     输出结构化（级别/位置/描述/建议），风格简洁，不扮演开发者。
@@ -75,6 +93,32 @@ vasm:
 > **`vision`**：声明编译产物应达到的语义目标。`vasmc build` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
 >
 > **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `prompt` 格式文件有效。
+>
+> **Skill 治理字段**：`kind: skill` 会启用更严格的 manifest 诊断。`scope` 描述适用领域和文件范围，`capabilities` 显式声明该 skill 预期使用的能力边界，`activation` 描述何时应被选择以及与哪些 skill 冲突，`trust` 记录供应链来源和许可证。诊断结果会写入 `.vasmc/build-report.yaml`，必要时也会进入 `.vasmc/build-instructions.md` 的 Policy Review 工作项。
+
+### 确定性 Policy Gate
+
+AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
+
+* `pass`：未发现确定性 policy 风险。
+* `review`：存在需要 AI 或人类阅读的风险信号，例如高危能力声明、过宽 activation、疑似 prompt override 语句。
+* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、依赖声明了入口 skill 未声明的 capability。
+
+默认情况下，VASMC 只报告风险，不阻断输出：
+
+```yaml
+security:
+  mode: review
+```
+
+如果项目希望启用本地确定性阻断，可以在 `vasmc-build.yaml` 中切换为：
+
+```yaml
+security:
+  mode: enforce
+```
+
+`enforce` 只会阻止可执行 skill 类产物被更新；普通文档仍按确定性编译流程输出。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，`.vasmc/build-instructions.md` 会生成 **Policy Gate** 工作项。
 
 <a name="cli"></a>
 
@@ -145,7 +189,7 @@ vasmc build main.vasm.md -o ./dist
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff 和 Tree-Shake 等语义任务。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff、Policy Review、Policy Gate 和 Tree-Shake 等语义任务。
 
 ### 4. 工作单
 
@@ -153,7 +197,7 @@ vasmc build
 cat .vasmc/build-instructions.md
 ```
 
-每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。
+每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。`.vasmc/build-report.yaml` 会记录本次构建涉及的入口、产物、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与权限边界审查。
 
 ### 5. 其他确定性命令
 
@@ -210,9 +254,11 @@ vasmc build [file]
 > **AI 编辑器始终使用 `vasmc build`。**\
 > 在 `@vasm/cli` 中，`build` 会同时产出确定性 Markdown 和 `.vasmc/build-instructions.md` 后续工作单。
 
-在该模式下，VASMC 执行 AST 静态组装，并在项目隐藏目录输出指令清单：
+在该模式下，VASMC 执行 AST 静态组装，并在项目隐藏目录输出指令清单和结构化报告：
 
 **`.vasmc/build-instructions.md`**
+
+**`.vasmc/build-report.yaml`**
 
 ### AI 助手操作规程
 
@@ -221,9 +267,19 @@ vasmc build [file]
 1. **Semantic Verify**：读取 Minimal-Token Variant，检查语义冲突、人格分裂、逻辑冗余和系统破坏风险四类问题。
 2. **Translation**（按需）：若 instructions 中包含此步骤，将已校验的核心文件翻译到指定的其他语种，**严格保留** Markdown AST 结构。
 3. **Semantic Diff**（按需）：若 instructions 中包含此步骤，读取指定的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
-4. **Tree-Shake（条件性）**：**仅在**用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
+4. **Policy Review**（按需）：若 instructions 中包含此步骤，读取 `.vasmc/build-report.yaml`，检查 skill manifest 的 scope、capabilities、activation 和 trust 声明是否足够明确。
+5. **Policy Gate**（按需）：若 instructions 中包含此步骤，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新该 skill 的正式输出。
+6. **Tree-Shake（条件性）**：**仅在**用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
 你是统筹全局的智能主体，而 VASMC 是你最可靠的确权肌肉。
+
+### Policy 状态
+
+`.vasmc/build-report.yaml` 中每个 entry 都包含 `policy.status`：
+
+* `pass`：无确定性风险信号。
+* `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
+* `blocked`：存在可确定的阻断风险，例如依赖 capability 越权或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 unsafe skill 输出被更新。
 
 <a name="console"></a>
 

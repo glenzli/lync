@@ -3,7 +3,7 @@ import { glob } from 'glob';
 import { minimatch } from 'minimatch';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
-import { runWorkspaceBuild, runAIBuild } from './build';
+import { runWorkspaceBuild, runAIBuild, createBuildReportEntry, formatPolicyAction, shouldBlockPolicyOutput } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
 import { detectLanguage, estimateTokens } from './utils';
 import { fetchMarkdown } from './network';
@@ -15,6 +15,7 @@ import type { VasmFrontmatter } from './types';
 import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 import { parseFrontmatter, stringifyFrontmatter } from './frontmatter';
+import type { BuildReport } from './build';
 
 export interface CLIProfileOptions {
     name?: string;
@@ -550,6 +551,44 @@ baseDir: "."
                     }
 
                     const isDocFormat = compileFormat === 'doc' && fileLangsToProcess!;
+                    const reportEntry = {
+                        relativeFile: entry,
+                        absoluteFile: absoluteEntry,
+                        finalDest,
+                        compileFormat,
+                        targetLangs: fileLangsToProcess!,
+                    };
+                    const entryReport = createBuildReportEntry(reportEntry, process.cwd(), 'built');
+                    const instructionsPath = path.resolve(process.cwd(), '.vasmc', 'build-instructions.md');
+                    const instructionsDir = path.dirname(instructionsPath);
+                    if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
+                    const reportPath = path.resolve(process.cwd(), '.vasmc', 'build-report.yaml');
+                    const securityMode = buildConfig.security?.mode || 'review';
+
+                    if (shouldBlockPolicyOutput(entryReport, securityMode)) {
+                        const blockedReport = createBuildReportEntry(reportEntry, process.cwd(), 'blocked');
+                        const action = formatPolicyAction(blockedReport, 1);
+                        const instructions = [
+                            `# VASMC Build Instructions — \`${entry}\``,
+                            ``,
+                            `## 🛠️ Action Items`,
+                            ``,
+                            action || `1. **Policy Gate** \`.vasmc/build-report.yaml\` — review blocked policy status.`,
+                            ``,
+                            `Final output was not updated because \`security.mode\` is \`enforce\`.`,
+                        ].join('\n');
+                        fs.writeFileSync(instructionsPath, instructions, 'utf8');
+                        const buildReport: BuildReport = {
+                            version: 1,
+                            mode: 'ai-build',
+                            generatedAt: new Date().toISOString(),
+                            instructionsFile: path.relative(process.cwd(), instructionsPath),
+                            entries: [blockedReport],
+                        };
+                        fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
+                        console.warn(`[BUILD] ⛔ Blocked by policy gate: ${entry}`);
+                        return;
+                    }
                     const compiledMap = new Map<string, string>();
                     let minTokens = Infinity;
                     let bestLang = 'auto';
@@ -621,10 +660,6 @@ baseDir: "."
                     }
 
                     // Output AI build instructions
-                    const instructionsPath = path.resolve(process.cwd(), '.vasmc', 'build-instructions.md');
-                    const instructionsDir = path.dirname(instructionsPath);
-                    if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
-
                     const needsLangSuffix = !isDocFormat && fileLangsToProcess!.length > 1;
                     const minVariantPath = path.relative(process.cwd(), finalDest.replace(/\.md$/, needsLangSuffix && bestLang !== 'auto' ? `.${bestLang}.md` : '.md'));
                     const langsNeedingTranslation = fileLangsToProcess!.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
@@ -663,6 +698,12 @@ baseDir: "."
                         actionItems.push(`${itemIndex++}. **Tree-Shake** \`${minVariantPath}\` *(conditional — only if user requested optimization)*`);
                     }
 
+                    const policyAction = formatPolicyAction(entryReport, itemIndex);
+                    if (policyAction) {
+                        actionItems.push(policyAction);
+                        itemIndex++;
+                    }
+
                     const compiledFilesYaml = fileLangsToProcess!
                         .map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, (!isDocFormat && fileLangsToProcess!.length > 1 && lang !== 'auto' && lang) ? `.${lang}.md` : '.md'))}`)
                         .join('\n');
@@ -671,6 +712,9 @@ baseDir: "."
                         ? [`**Vision:** ${vision.replace(/\n/g, ' ')}`, `**Fix Mode:** ${fixMode}`, ``]
                         : [];
 
+                    const renderedActionItems = actionItems.length > 0
+                        ? actionItems.join('\n\n')
+                        : `No pending action items. See \`.vasmc/build-report.yaml\` for the full build report.`;
                     const instructions = [
                         `# VASMC Build Instructions — \`${entry}\``,
                         ``,
@@ -684,11 +728,21 @@ baseDir: "."
                         ``,
                         `## 🛠️ Action Items`,
                         ``,
-                        actionItems.join('\n\n'),
+                        renderedActionItems,
                     ].join('\n');
 
                     fs.writeFileSync(instructionsPath, instructions, 'utf8');
                     console.log(`\n[BUILD] 🤖 Orchestration instructions generated: ${path.relative(process.cwd(), instructionsPath)}`);
+
+                    const buildReport: BuildReport = {
+                        version: 1,
+                        mode: 'ai-build',
+                        generatedAt: new Date().toISOString(),
+                        instructionsFile: path.relative(process.cwd(), instructionsPath),
+                        entries: [entryReport],
+                    };
+                    fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
+                    console.log(`[BUILD] 📋 Build report: ${path.relative(process.cwd(), reportPath)}`);
 
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));

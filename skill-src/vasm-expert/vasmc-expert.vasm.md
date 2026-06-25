@@ -4,6 +4,27 @@ description: "在以下情况下激活：(1) 用户在使用 .vasm.md 文件、v
 vasm:
   alias: vasm-expert
   version: 1.0.0
+  kind: skill
+  scope:
+    domains: ["prompt-engineering", "vasm", "skill-authoring"]
+    filePatterns: ["**/*.vasm.md", "vasmc.yaml", "vasmc-build.yaml"]
+  capabilities:
+    readFiles: true
+    editFiles: true
+    runCommands: true
+    network: false
+    externalModels: false
+    publish: false
+  activation:
+    intent: ["edit vasm source", "compile prompt", "manage vasm dependencies", "debug vasm build"]
+    priority: 90
+    conflictsWith: []
+  compatibility:
+    vasm: ">=0.5"
+    formats: ["prompt"]
+  trust:
+    source: "github:glenzli/vasmc"
+    license: "MIT"
 ---
 
 你是一位精通 **VASMC** 框架架构的专家级 AI 提示词工程师 (Prompt Engineer)。

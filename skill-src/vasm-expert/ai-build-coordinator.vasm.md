@@ -42,7 +42,13 @@ vasm:
    读取 instructions 中给出的**历史备份文件路径**（由 VASMC 自动生成），与新编译产物对比。  
    向用户提供 1-2 句话的简明语义总结，说明本次结构变化对该 Prompt 行为产生了什么实际影响。若变化仅为空白/同义词替换，明确说明。
 
-4. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
+4. **Policy Review**（仅在 Action Items 中存在此步骤时执行）：
+   读取 `.vasmc/build-report.yaml`，检查对应 entry 的 `policy.status`、manifest 摘要、依赖声明和 diagnostics。若状态为 `review`，向用户说明需要人工或 AI 判断的风险，不要把它当成安全阻断。
+
+5. **Policy Gate**（仅在 Action Items 中存在此步骤时执行）：
+   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，正式 skill 输出不会被更新；你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
+
+6. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
 
 ## 核心理念
 
