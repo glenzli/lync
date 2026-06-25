@@ -42,29 +42,9 @@ const dictionaries: Record<string, Dictionary> = {
         'BUILD_NO_FILES': '[BUILD] No source files found matching patterns: {0}',
         'BUILD_COMPILING': '[BUILD] Compiling {0} {1} -> {2}',
         'BUILD_SUCCESS': '[BUILD] ✅ Success: {0}',
-        'BUILD_VERIFY_FAILED': '[BUILD] 🛑 Verification failed for {0} ({1}), aborting further builds.',
         'BUILD_WARN_EXTRACT': '[WARN] Skipping unknown language \'{0}\' in {1}',
         'BUILD_ERR_WORKSPACE': '[BUILD] ❌ Failed to compile {0} ({1}): {2}',
         'WARN_TOKEN_LIMIT': '\\n[WARN] ⚠️ The compiled output contains approximately {0} tokens, which exceeds the recommended 20,000 token limit for System Prompts. Consider refactoring or trimming your context window.',
-
-        // Verify
-        'verify.lang': 'en', // Explicit mapping for exactly what verifyLLMLang needs
-        'LINT_INIT': '\\n[LINT] 🤖 Initiating LLM Semantic Analysis (Lang: {0})...',
-        'LINT_ANALYZING': '[LINT] Analyzing composite logic ({0} characters)...\\n',
-        'LINT_PASS': '[LINT] ✅ No semantic issues found. Result: PASS.',
-        'LINT_WARN': '\\n[LINT] ⚠️ Minor issues or redundancies found. Result: WARN (Non-blocking).',
-        'LINT_BLOCK': '\\n[LINT] 🛑 Critical system destruction risk detected! Result: BLOCK.',
-        'LINT_UNKNOWN': '\\n[LINT] ❓ Unknown verification result format. Assuming BLOCK for safety.',
-        'LINT_ERR_FAILED': '[LINT] ❌ Failed to run LLM verification: {0}',
-        'LINT_ERR_CONTINUE': '\\n[LINT] ⚠️ Verify API failed, but --verify-continue-on-error is set. Continuing build...',
-        'LINT_SELECT_BEST': '\\n[LINT] ⚖️ Selected best variant for verification: {0} ({1} tokens)',
-
-        // Diff
-        'DIFF_INIT': '\\n[DIFF] 🤖 Initiating LLM Semantic Diff Analysis (Lang: {0})...',
-        'DIFF_ANALYZING': '[DIFF] Diffing contexts: {0} chars (old) vs {1} chars (new)...\\n',
-        'DIFF_ERR_FAILED': '[DIFF] ❌ LLM Diff Analysis failed: {0}',
-        'DIFF_NO_CHANGES': '[DIFF] ⚪ No structural or semantic changes detected by LLM.',
-        'DIFF_RESULT_PREFIX': '[DIFF] 📝 Analysis Report:\\n{0}\\n',
 
         // Network / Sync
         'SYNC_WARN_NO_URL': '[SYNC] ⚠️ No URL defined for alias \'{0}\'. Skipping.',
@@ -81,16 +61,11 @@ const dictionaries: Record<string, Dictionary> = {
 
         // Compiler
         'COMPILER_USE_EXISTING_BLOCK': '[COMPILER] ⚡️ Using existing \'{0}\' block for {1}',
-        'COMPILER_TRANS_START': '[COMPILER] 🌐 Target language \'{0}\' not found in blocks. Translating fallback block for {1}...',
-        'COMPILER_TRANS_TOKENS': '[TRANSLATE] 📊 Tokens used: {0} prompt + {1} completion = {2} total',
-        'COMPILER_NLP_SKIP': '[COMPILER] ⚡️ NLP detected source is already \'{0}\'. Skipping LLM translation.',
-        'COMPILER_ROUTER_SKIP': '[COMPILER] ⚡️ Pure routing module detected. Skipping LLM translation to \'{0}\'.',
-        'COMPILER_TRANS_FULL': '[COMPILER] 🌐 No language blocks found. Translating the entire content to \'{0}\'...',
+        'COMPILER_NLP_SKIP': '[COMPILER] ⚡️ Detected source already matches \'{0}\'. Keeping deterministic source text.',
+        'COMPILER_ROUTER_SKIP': '[COMPILER] ⚡️ Routing-only module detected. Keeping deterministic source text for \'{0}\'.',
+        'COMPILER_TRANS_UNAVAILABLE': '[COMPILER] Missing target language \'{0}\' in {1}. Deterministic compile will keep source text; use vasmc agent work orders or the console package for assisted translation.',
         'COMPILER_ERR_INFER_LANG': '[ERROR] Could not infer AST language from {0}. Please ensure it contains <!-- lang:xx --> blocks or specify --target-langs.',
-        'COMPILER_SKIP_MATCHING': '[COMPILER] Skipped matching translation code for \'{0}\'',
-        'COMPILER_ERR_MISSING_LLM': '[COMPILER] No suitable language block found in {0} and no OPENAI_API_KEY provided for auto-translation.',
-        'COMPILER_TRANS_SUCCESS': '[COMPILER] ✅ Auto-translation to \'{0}\' successful.',
-        'COMPILER_TRANS_ERR': '[COMPILER] ❌ LLM Auto-Translation failed: {0}'
+        'COMPILER_SKIP_MATCHING': '[COMPILER] Skipped matching translation code for \'{0}\''
     },
     'zh-CN': {
         // General
@@ -131,29 +106,9 @@ const dictionaries: Record<string, Dictionary> = {
         'BUILD_NO_FILES': '[BUILD] 未找到匹配该模式的源文件: {0}',
         'BUILD_COMPILING': '[BUILD] 正在编译 {0} {1} -> {2}',
         'BUILD_SUCCESS': '[BUILD] ✅ 编译成功: {0}',
-        'BUILD_VERIFY_FAILED': '[BUILD] 🛑 目标文件 {0} ({1}) 语义验证失败，中止后续构建。',
         'BUILD_WARN_EXTRACT': '[WARN] 跳过 {1} 中的未知语言 \'{0}\'',
         'BUILD_ERR_WORKSPACE': '[BUILD] ❌ 编译失败 {0} ({1}): {2}',
         'WARN_TOKEN_LIMIT': '\\n[WARN] ⚠️ 编译后的产物大约包含 {0} 个 Token。这超过了 System Prompt 推荐的安全阈值 (20,000)，请合理管控以防大模型注意力丢失或触发截断。',
-
-        // Verify
-        'verify.lang': 'zh-CN',
-        'LINT_INIT': '\\n[LINT] 🤖 正在启动大模型原生语义检查 (语言: {0})...',
-        'LINT_ANALYZING': '[LINT] 正在分析组合后的逻辑上下文 (共 {0} 个字符)...\\n',
-        'LINT_PASS': '[LINT] ✅ 未发现严重的语义风险。结果: PASS(通过)。',
-        'LINT_WARN': '\\n[LINT] ⚠️ 发现次要问题或逻辑冗余。结果: WARN (非阻断警告)。',
-        'LINT_BLOCK': '\\n[LINT] 🛑 探测到严重的系统破坏风险！结果: BLOCK(阻断)。',
-        'LINT_UNKNOWN': '\\n[LINT] ❓ 未知的验证结果格式。为安全起见假定为 BLOCK。',
-        'LINT_ERR_FAILED': '[LINT] ❌ 大模型验证运行失败: {0}',
-        'LINT_ERR_CONTINUE': '\\n[LINT] ⚠️ 验证API调用失败，但检测到 --verify-continue-on-error 标志，继续执行构建...',
-        'LINT_SELECT_BEST': '\\n[LINT] ⚖️ 选择最佳变体验证: {0} ({1} tokens)',
-
-        // Diff
-        'DIFF_INIT': '\\n[DIFF] 🤖 正在启动大模型语义 Diff 分析 (语言: {0})...',
-        'DIFF_ANALYZING': '[DIFF] 正在比对上下文区块: {0} 字符 (旧) vs {1} 字符 (新)...\\n',
-        'DIFF_ERR_FAILED': '[DIFF] ❌ 大模型 Diff 分析失败: {0}',
-        'DIFF_NO_CHANGES': '[DIFF] ⚪ 大模型未检测到结构性或重大的语义变化。',
-        'DIFF_RESULT_PREFIX': '[DIFF] 📝 变更分析报告:\\n{0}\\n',
 
         // Network / Sync
         'SYNC_WARN_NO_URL': '[SYNC] ⚠️ 别名 \'{0}\' 未定义 URL，已跳过。',
@@ -170,23 +125,18 @@ const dictionaries: Record<string, Dictionary> = {
 
         // Compiler
         'COMPILER_USE_EXISTING_BLOCK': '[COMPILER] ⚡️ 对于文件 {1}，已复用现有的 \'{0}\' 语言块',
-        'COMPILER_TRANS_START': '[COMPILER] 🌐 在源中未找到目标语言 \'{0}\' 的区块。正在为 {1} 动态翻译降级块...',
-        'COMPILER_TRANS_TOKENS': '[TRANSLATE] 📊 Token 消耗: {0} 提示 + {1} 生成 = {2} 总计',
-        'COMPILER_NLP_SKIP': '[COMPILER] ⚡️ NLP 探测到全量源码已是 \'{0}\' 语言。跳过大模型翻译。',
-        'COMPILER_ROUTER_SKIP': '[COMPILER] ⚡️ 检测到纯路由聚合模块。跳过针对 \'{0}\' 的大模型盲翻。',
-        'COMPILER_TRANS_FULL': '[COMPILER] 🌐 未找到局部语种编译块。正在对全量内容进行 \'{0}\' 翻译...',
+        'COMPILER_NLP_SKIP': '[COMPILER] ⚡️ 检测到源文本已经匹配 \'{0}\'。确定性保留源文本。',
+        'COMPILER_ROUTER_SKIP': '[COMPILER] ⚡️ 检测到纯路由聚合模块。针对 \'{0}\' 确定性保留源文本。',
+        'COMPILER_TRANS_UNAVAILABLE': '[COMPILER] 文件 {1} 中缺少目标语言 \'{0}\'。确定性编译将保留源文本；请使用 vasmc agent 工作单或 console 包执行辅助翻译。',
         'COMPILER_ERR_INFER_LANG': '[ERROR] 无法从 {0} 推断 AST 语言。请确保文件中包含 <!-- lang:xx --> 代码块，或者通过 --target-langs 显式指定。',
-        'COMPILER_SKIP_MATCHING': '[COMPILER] 跳过匹配翻译代码 \'{0}\'',
-        'COMPILER_ERR_MISSING_LLM': '[COMPILER] 在 {0} 中未找到对应的语言块，且未配置 OPENAI_API_KEY 无法回退到自动翻译。',
-        'COMPILER_TRANS_SUCCESS': '[COMPILER] ✅ 动态翻译至 \'{0}\' 成功。',
-        'COMPILER_TRANS_ERR': '[COMPILER] ❌ 大模型动态翻译回退失败: {0}'
+        'COMPILER_SKIP_MATCHING': '[COMPILER] 跳过匹配翻译代码 \'{0}\''
     }
 };
 
 let currentLang = 'en';
 
-export function getVerifyLang(): string {
-    return t('verify.lang');
+export function getCurrentLang(): string {
+    return currentLang;
 }
 
 export function initI18n(langOverride?: string) {

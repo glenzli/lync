@@ -3,8 +3,6 @@
     "target": "es2022",
     "module": "commonjs",
     "moduleResolution": "node",
-    "rootDir": "./src",
-    "outDir": "./dist",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -14,6 +12,6 @@
     ]
   },
   "include": [
-    "src/**/*"
+    "packages/**/*"
   ]
 }

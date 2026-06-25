@@ -1,0 +1,15 @@
+{
+  "name": "@vasm/core",
+  "version": "0.5.1",
+  "description": "Shared deterministic compiler core for VASMC.",
+  "main": "dist/index.js",
+  "files": [
+    "dist/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/glenzli/vasmc.git"
+  },
+  "license": "MIT",
+  "type": "commonjs"
+}

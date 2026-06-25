@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const CLI = path.join(__dirname, '..', 'dist', 'index.js');
+const CLI = path.join(__dirname, '..', 'packages', 'cli', 'dist', 'index.js');
 const FIXTURES = path.join(__dirname, 'fixtures', 'contract');
 
 function run(args, cwd = FIXTURES) {
@@ -34,15 +34,15 @@ before(() => {
         `version: 1\ndependencies:\n  greeter:\n    url: "https://example.com/greeter.md"\n    hash: "${hash}"\n    fetchedAt: "2026-01-01T00:00:00.000Z"\n`, 'utf8');
 
     // --- Fixture: @import:link ---
-    fs.writeFileSync(path.join(FIXTURES, 'link-test.vasmc.md'),
+    fs.writeFileSync(path.join(FIXTURES, 'link-test.vasm.md'),
         '# Link Test\n\n[Greeter](vasm:greeter "@import:link")\n', 'utf8');
 
     // --- Fixture: @import:inline ---
-    fs.writeFileSync(path.join(FIXTURES, 'inline-test.vasmc.md'),
+    fs.writeFileSync(path.join(FIXTURES, 'inline-test.vasm.md'),
         '# Inline Test\n\n[Greeter](vasm:greeter "@import:inline")\n', 'utf8');
 
     // --- Fixture: Language blocks ---
-    fs.writeFileSync(path.join(FIXTURES, 'lang-test.vasmc.md'),
+    fs.writeFileSync(path.join(FIXTURES, 'lang-test.vasm.md'),
         [
             '---',
             'vasm:',
@@ -64,10 +64,10 @@ before(() => {
 
     // --- Fixture: Workspace batch build ---
     fs.mkdirSync(path.join(FIXTURES, 'ws-src'), { recursive: true });
-    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'a.vasmc.md'), '# File A\n\nContent A\n', 'utf8');
-    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'b.vasmc.md'), '# File B\n\nContent B\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'a.vasm.md'), '# File A\n\nContent A\n', 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'ws-src', 'b.vasm.md'), '# File B\n\nContent B\n', 'utf8');
     fs.writeFileSync(path.join(FIXTURES, 'ws-build.yaml'),
-        'includes:\n  - "ws-src/*.vasmc.md"\noutput:\n  dir: "./ws-out"\nbaseDir: "./ws-src"\n', 'utf8');
+        'includes:\n  - "ws-src/*.vasm.md"\noutput:\n  dir: "./ws-out"\nbaseDir: "./ws-src"\n', 'utf8');
 
     // --- Fixture: Seal ---
     fs.writeFileSync(path.join(FIXTURES, 'raw-prompt.md'), '# My Raw Prompt\n\nDo something useful.\n', 'utf8');
@@ -82,7 +82,7 @@ after(() => {
 describe('Contract: @import:link rewrites alias to relative path', () => {
     it('output contains relative path and no vasm:alias', async () => {
         const outDir = path.join(FIXTURES, 'out-link');
-        run(`build link-test.vasmc.md -o ${outDir}`);
+        run(`build link-test.vasm.md -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'link-test.md'), 'utf8');
         assert.ok(!output.includes('vasm:greeter'), 'Must not contain vasm:greeter alias');
         assert.ok(output.includes('.vasmc/greeter.md'), 'Must contain relative path to .vasmc/greeter.md');
@@ -95,7 +95,7 @@ describe('Contract: @import:link rewrites alias to relative path', () => {
 describe('Contract: @import:inline expands content in-place', () => {
     it('output contains inlined content and no vasm:alias', async () => {
         const outDir = path.join(FIXTURES, 'out-inline');
-        run(`build inline-test.vasmc.md -o ${outDir}`);
+        run(`build inline-test.vasm.md -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'inline-test.md'), 'utf8');
         assert.ok(!output.includes('vasm:greeter'), 'Must not contain vasm:greeter alias');
         assert.ok(output.includes('Hello from greeter!'), 'Must contain inlined content');
@@ -108,7 +108,7 @@ describe('Contract: @import:inline expands content in-place', () => {
 describe('Contract: Cross-compilation filters language blocks', () => {
     it('--target-langs en keeps only English', async () => {
         const outDir = path.join(FIXTURES, 'out-lang-en');
-        run(`build lang-test.vasmc.md --target-langs en -o ${outDir}`);
+        run(`build lang-test.vasm.md --target-langs en -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'lang-test.md'), 'utf8');
         assert.ok(output.includes('English content'), 'Must contain English content');
         assert.ok(!output.includes('中文内容'), 'Must not contain Chinese content');
@@ -117,7 +117,7 @@ describe('Contract: Cross-compilation filters language blocks', () => {
 
     it('--target-langs zh-CN keeps only Chinese', async () => {
         const outDir = path.join(FIXTURES, 'out-lang-zh');
-        run(`build lang-test.vasmc.md --target-langs zh-CN -o ${outDir}`);
+        run(`build lang-test.vasm.md --target-langs zh-CN -o ${outDir}`);
         const output = fs.readFileSync(path.join(outDir, 'lang-test.md'), 'utf8');
         assert.ok(output.includes('中文内容'), 'Must contain Chinese content');
         assert.ok(!output.includes('English content'), 'Must not contain English content');
@@ -155,14 +155,14 @@ describe('Contract: Workspace build compiles all matched files', () => {
 // ─── Contract 5: Seal ─────────────────────────────────────────────
 
 describe('Contract: seal injects Frontmatter and renames file', () => {
-    it('creates .vasmc.md with Frontmatter', async () => {
+    it('creates .vasm.md with Frontmatter', async () => {
         const sealSource = path.join(FIXTURES, 'seal-test.md');
         fs.writeFileSync(sealSource, '# Seal Target\n\nSome content.\n', 'utf8');
 
         run(`seal seal-test.md`);
 
-        const sealedPath = path.join(FIXTURES, 'seal-test.vasmc.md');
-        assert.ok(fs.existsSync(sealedPath), 'seal-test.vasmc.md must exist');
+        const sealedPath = path.join(FIXTURES, 'seal-test.vasm.md');
+        assert.ok(fs.existsSync(sealedPath), 'seal-test.vasm.md must exist');
 
         const content = fs.readFileSync(sealedPath, 'utf8');
         assert.ok(content.includes('---'), 'Must contain Frontmatter markers');
@@ -180,7 +180,7 @@ describe('Contract: seal injects Frontmatter and renames file', () => {
 describe('Contract: vasmc agent generates agent-instructions.md', () => {
     it('produces .vasmc/agent-instructions.md with compiled file list', async () => {
         const outDir = path.join(FIXTURES, 'out-agent');
-        run(`agent inline-test.vasmc.md -o ${outDir}`);
+        run(`agent inline-test.vasm.md -o ${outDir}`);
 
         const instructionsPath = path.join(FIXTURES, '.vasmc', 'agent-instructions.md');
         assert.ok(fs.existsSync(instructionsPath), 'agent-instructions.md must exist');

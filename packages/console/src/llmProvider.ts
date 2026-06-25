@@ -1,6 +1,39 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { loadVasmRc } from './config';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as yaml from 'yaml';
+
+interface ConsoleRc {
+    llm?: {
+        model?: string;
+        apiKey?: string;
+        baseURL?: string;
+    };
+}
+
+function loadConsoleRc(): ConsoleRc {
+    let rcConfig: ConsoleRc = {};
+
+    for (const rcPath of [path.resolve(os.homedir(), '.vasmrc'), path.resolve(process.cwd(), '.vasmrc')]) {
+        if (!fs.existsSync(rcPath)) continue;
+        try {
+            const parsed = yaml.parse(fs.readFileSync(rcPath, 'utf8'));
+            if (parsed) {
+                rcConfig = {
+                    ...rcConfig,
+                    ...parsed,
+                    llm: { ...rcConfig.llm, ...parsed.llm },
+                };
+            }
+        } catch (e) {
+            console.warn(`[WARN] Failed to parse ${rcPath}: ${e}`);
+        }
+    }
+
+    return rcConfig;
+}
 
 /**
  * Resolves the configuration and initializes an OpenAI-compatible provider instance.
@@ -11,7 +44,7 @@ export function getLLMModel(modelOverride?: string) {
         process.env.DOTENV_CONFIG_QUIET = 'true';
     }
     dotenv.config();
-    const rcConfig = loadVasmRc();
+    const rcConfig = loadConsoleRc();
 
     // 1. Resolve API Key
     const apiKey =

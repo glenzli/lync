@@ -48,7 +48,7 @@ export function loadBuildConfig(cwd: string = process.cwd()): VasmBuild {
 }
 
 /**
- * Loads the cascaded .vasmrc file for independent configurations like LLM tokens.
+ * Loads cascaded core preferences from .vasmrc.
  * Priority: ~ (Global) -> ./ (Local)
  */
 export function loadVasmRc(): VasmRc {
@@ -76,7 +76,6 @@ export function loadVasmRc(): VasmRc {
                 rcConfig = {
                     ...rcConfig,
                     ...parsed,
-                    llm: { ...rcConfig.llm, ...parsed.llm }
                 };
             }
         } catch (e) {

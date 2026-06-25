@@ -1,36 +1,17 @@
 {
-  "name": "@vasm/cli",
+  "name": "vasmc-workspace",
   "version": "0.5.1",
-  "description": "Vibe Assembly Compiler — a deterministic Markdown prompt compiler and package manager for LLM contexts.",
-  "main": "dist/index.js",
-  "bin": {
-    "vasmc": "dist/index.js"
-  },
-  "files": [
-    "dist/"
+  "private": true,
+  "description": "Vibe Assembly Compiler monorepo.",
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
     "build": "tsup",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf packages/*/dist dist",
     "prepublishOnly": "npm run clean && npm run build",
-    "test": "tsc --noEmit && node --test tests/*.test.js",
-    "login": "npm login --registry=https://registry.npmjs.org",
-    "publish": "npm publish --registry=https://registry.npmjs.org --access public"
+    "test": "tsc --noEmit && node --test tests/*.test.js"
   },
-  "keywords": [
-    "markdown",
-    "compiler",
-    "package-manager",
-    "llm",
-    "prompt-engineering"
-  ],
-  "author": "glenzli",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/glenzli/vasmc.git"
-  },
-  "license": "MIT",
-  "type": "commonjs",
   "devDependencies": {
     "@ai-sdk/openai": "3.0.36",
     "@types/mdast": "4.0.4",

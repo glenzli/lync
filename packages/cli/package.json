@@ -1,0 +1,26 @@
+{
+  "name": "@vasm/cli",
+  "version": "0.5.1",
+  "description": "Vibe Assembly Compiler CLI — deterministic prompt compiler and agent work-order generator.",
+  "main": "dist/index.js",
+  "bin": {
+    "vasmc": "dist/index.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "keywords": [
+    "markdown",
+    "compiler",
+    "package-manager",
+    "llm",
+    "prompt-engineering"
+  ],
+  "author": "glenzli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/glenzli/vasmc.git"
+  },
+  "license": "MIT",
+  "type": "commonjs"
+}

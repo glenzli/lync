@@ -1,13 +1,5 @@
-export interface VasmLLMConfig {
-    provider?: string;
-    model?: string;
-    apiKey?: string;
-    baseURL?: string;
-}
-
 export interface VasmRc {
     lang?: string;
-    llm?: VasmLLMConfig;
 }
 
 export interface DependencyConfig {

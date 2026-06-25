@@ -7,7 +7,6 @@ import { runWorkspaceBuild, runAgentBuild } from './build';
 import { compileFile, extractTargetLangs } from './compiler';
 import { detectLanguage, estimateTokens } from './utils';
 import { fetchMarkdown } from './network';
-import { verifyCompiledContent } from './verify';
 import * as path from 'path';
 import * as fs from 'fs';
 import { initI18n, t } from './i18n';
@@ -17,14 +16,21 @@ import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 import { parseFrontmatter, stringifyFrontmatter } from './frontmatter';
 
-export function setupCLI(): Command {
+export interface CLIProfileOptions {
+    name?: string;
+    description?: string;
+    includeAgent?: boolean;
+}
+
+export function setupCLI(options: CLIProfileOptions = {}): Command {
     const program = new Command();
 
     const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
+    const includeAgent = options.includeAgent ?? true;
 
     program
-        .name('vasmc')
-        .description('A decentralized markdown package manager and compiler.')
+        .name(options.name || 'vasmc')
+        .description(options.description || 'A decentralized markdown package manager and compiler.')
         .version(pkg.version || '0.1.0')
         .option('--lang <lang>', 'Global language for CLI interactive outputs (e.g. en, zh-CN)')
         .hook('preAction', (thisCommand) => {
@@ -457,68 +463,16 @@ baseDir: "."
             }
         });
 
-    // ===== LLM Enhanced Tools =====
-
-    program
-        .command('lint <file>')
-        .description('Run LLM-powered semantic linting on a compiled markdown file')
-        .option('--model <model>', 'Specify the LLM model to use (default: gpt-4o)')
-        .option('--continue-on-error', 'Exit with 0 even if the LLM API call fails')
-        .action(async (file: string, options?: { model?: string; continueOnError?: boolean }) => {
-            const absoluteFile = path.resolve(process.cwd(), file);
-            if (!fs.existsSync(absoluteFile)) {
-                console.error(`[LINT] ❌ File not found: ${absoluteFile}`);
-                process.exit(1);
-            }
-            const content = fs.readFileSync(absoluteFile, 'utf8');
-            console.log(`[LINT] 🔍 Running semantic linting on ${file}...`);
-            const verified = await verifyCompiledContent(content, options?.model);
-            if (!verified.passed) {
-                if (verified.error && options?.continueOnError) {
-                    console.log(t('LINT_ERR_CONTINUE'));
-                } else {
-                    process.exit(1);
-                }
-            }
-        });
-
-    program
-        .command('diff <file> [old-file]')
-        .description('Analyze semantic differences between compiled outputs using an LLM')
-        .option('--model <model>', 'Specify the LLM model to use (default: gpt-4o)')
-        .action(async (file: string, oldFile?: string, options?: { model?: string }) => {
-            const absoluteFile = path.resolve(process.cwd(), file);
-            if (!fs.existsSync(absoluteFile)) {
-                console.error(`[DIFF] ❌ File not found: ${absoluteFile}`);
-                process.exit(1);
-            }
-            const newContent = fs.readFileSync(absoluteFile, 'utf8');
-            let oldContent = '';
-            if (oldFile) {
-                const absoluteOld = path.resolve(process.cwd(), oldFile);
-                if (!fs.existsSync(absoluteOld)) {
-                    console.error(`[DIFF] ❌ Old file not found: ${absoluteOld}`);
-                    process.exit(1);
-                }
-                oldContent = fs.readFileSync(absoluteOld, 'utf8');
-            }
-            if (oldContent === newContent) {
-                console.log(`[DIFF] ✅ Files are identical. No semantic differences.`);
-                return;
-            }
-            const { analyzeSemanticDiff } = await import('./verify');
-            await analyzeSemanticDiff(oldContent, newContent, options?.model);
-        });
-
     // ===== Agent Tool =====
 
-    program
-        .command('agent [entry]')
-        .description('Compile for AI editors: deterministic AST assembly + output agent-instructions.md')
-        .option('-o, --out-dir <dir>', 'Specify output directory')
-        .option('--base-dir <dir>', 'Specify base directory for workspace compilation')
-        .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
-        .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
+    if (includeAgent) {
+        program
+            .command('agent [entry]')
+            .description('Compile for AI editors: deterministic AST assembly + output agent-instructions.md')
+            .option('-o, --out-dir <dir>', 'Specify output directory')
+            .option('--base-dir <dir>', 'Specify base directory for workspace compilation')
+            .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
+            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
                 const absoluteEntry = path.resolve(process.cwd(), entry);
@@ -736,7 +690,8 @@ baseDir: "."
                 // Run workspace build in agent mode
                 await runAgentBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
             }
-        });
+            });
+    }
 
     program
         .command('graph <entry>')

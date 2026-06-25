@@ -1,5 +1,4 @@
-
-import { setupCLI } from './cli';
+import { setupCLI } from '../../core/src/cli';
 
 async function main() {
     const program = setupCLI();

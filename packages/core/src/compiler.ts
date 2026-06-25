@@ -10,7 +10,6 @@ import { visitParents } from 'unist-util-visit-parents';
 import { detectLanguage, iso639_3_map, estimateTokens } from './utils';
 import { loadLockfile } from './config';
 import { Root, Link, Parent } from 'mdast';
-import { translateMarkdownContent } from './translate';
 import { t } from './i18n';
 
 /**
@@ -106,17 +105,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                     if (agentMode) {
                         console.log(`[COMPILER] 🤖 Agent Mode: Bypassing fallback translation for '${targetLang}' in ${filePath}`);
                     } else {
-                        console.log(t('COMPILER_TRANS_START', targetLang, filePath));
-                        const translatedResult = await translateMarkdownContent(sourceContentToTranslate, targetLang);
-                        if (translatedResult) {
-                            if (translatedResult.usage) {
-                                const inTokens = translatedResult.usage.inputTokens ?? 0;
-                                const outTokens = translatedResult.usage.outputTokens ?? 0;
-                                const totalTokens = translatedResult.usage.totalTokens ?? (inTokens + outTokens);
-                                console.log(t('COMPILER_TRANS_TOKENS', inTokens, outTokens, totalTokens));
-                            }
-                            translatedText = translatedResult.text;
-                        }
+                        console.warn(t('COMPILER_TRANS_UNAVAILABLE', targetLang, filePath));
                     }
 
                     // Replace all blocks: first one with translation, others with empty
@@ -172,11 +161,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 if (agentMode) {
                     console.log(`[COMPILER] 🤖 Agent Mode: Bypassing NLP translation for '${targetLang}'`);
                 } else {
-                    console.log(t('COMPILER_TRANS_FULL', targetLang));
-                    const translatedResult = await translateMarkdownContent(rawContent, targetLang);
-                    if (translatedResult) {
-                        rawContent = translatedResult.text;
-                    }
+                    console.warn(t('COMPILER_TRANS_UNAVAILABLE', targetLang, filePath));
                 }
             }
         }

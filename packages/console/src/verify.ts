@@ -1,9 +1,9 @@
 import { generateText } from 'ai';
 import { getLLMModel } from './llmProvider';
 import * as crypto from 'crypto';
-import { t, getVerifyLang } from './i18n';
-import { estimateTokens } from './utils';
+import { estimateTokens } from '../../core/src/utils';
 import verifyCriteria from './verify-criteria.md';
+import { consoleT, getVerifyLang } from './i18n';
 
 const LINT_PROMPT = `
 你是 VASMC，一个专为 LLM 时代设计的高级 AI 编译器与静态分析器。
@@ -54,8 +54,8 @@ export async function verifyCompiledContent(content: string, modelOverride?: str
 
     const finalLang = getVerifyLang();
 
-    console.log(t('LINT_INIT', finalLang));
-    console.log(t('LINT_ANALYZING', content.length));
+    console.log(consoleT('LINT_INIT', finalLang));
+    console.log(consoleT('LINT_ANALYZING', content.length));
 
     try {
         const { text } = await generateText({
@@ -67,25 +67,25 @@ export async function verifyCompiledContent(content: string, modelOverride?: str
         const lastLine = lines[lines.length - 1].trim();
 
         if (lastLine === 'LINT_PASS') {
-            console.log(t('LINT_PASS'));
+            console.log(consoleT('LINT_PASS'));
             lastVerifiedHash = hash;
             return { passed: true };
         } else if (lastLine === 'LINT_WARN') {
             console.log(text.replace('LINT_WARN', '').trim());
-            console.log(t('LINT_WARN'));
+            console.log(consoleT('LINT_WARN'));
             lastVerifiedHash = hash;
             return { passed: true };
         } else if (lastLine === 'LINT_BLOCK') {
             console.log(text.replace('LINT_BLOCK', '').trim());
-            console.log(t('LINT_BLOCK'));
+            console.log(consoleT('LINT_BLOCK'));
             return { passed: false }; // blocks the build correctly
         } else {
             console.log(text);
-            console.log(t('LINT_UNKNOWN'));
+            console.log(consoleT('LINT_UNKNOWN'));
             return { passed: false, error: true }; // Unknown output format acts as an error
         }
     } catch (e: any) {
-        console.error(t('LINT_ERR_FAILED', e.message));
+        console.error(consoleT('LINT_ERR_FAILED', e.message));
         return { passed: false, error: true }; // True API failure
     }
 }
@@ -117,12 +117,12 @@ Please explain the analysis using the following language: {VERIFY_LANG}.
 export async function analyzeSemanticDiff(oldContent: string, newContent: string, modelOverride?: string): Promise<void> {
     const finalLang = getVerifyLang();
 
-    console.log(t('DIFF_INIT', finalLang));
+    console.log(consoleT('DIFF_INIT', finalLang));
 
     const countOld = estimateTokens(oldContent);
     const countNew = estimateTokens(newContent);
 
-    console.log(t('DIFF_ANALYZING', countOld, countNew));
+    console.log(consoleT('DIFF_ANALYZING', countOld, countNew));
 
     try {
         const { text } = await generateText({
@@ -131,11 +131,11 @@ export async function analyzeSemanticDiff(oldContent: string, newContent: string
         });
 
         if (text.trim().toLowerCase().includes('no structural or semantic changes')) {
-            console.log(t('DIFF_NO_CHANGES'));
+            console.log(consoleT('DIFF_NO_CHANGES'));
         } else {
-            console.log(t('DIFF_RESULT_PREFIX', text.trim()));
+            console.log(consoleT('DIFF_RESULT_PREFIX', text.trim()));
         }
     } catch (e: any) {
-        console.error(t('DIFF_ERR_FAILED', e.message));
+        console.error(consoleT('DIFF_ERR_FAILED', e.message));
     }
 }

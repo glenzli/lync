@@ -21,7 +21,7 @@ after(() => {
 });
 
 function load(mod) {
-    return require(path.join(TSC_OUT, mod));
+    return require(path.join(TSC_OUT, 'core', 'src', mod));
 }
 
 // ─── Config Tests ───────────────────────────────────────────────────
