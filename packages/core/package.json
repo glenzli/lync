@@ -4,7 +4,8 @@
   "description": "Shared deterministic compiler core for VASMC.",
   "main": "dist/index.js",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "files": [
     "dist/",
