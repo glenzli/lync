@@ -1,13 +1,17 @@
 {
   "name": "@vasm/cli",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Vibe Assembly Compiler CLI — deterministic prompt compiler and agent work-order generator.",
   "main": "dist/index.js",
   "bin": {
     "vasmc": "dist/index.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
-    "dist/"
+    "dist/",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "markdown",

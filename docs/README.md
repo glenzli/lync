@@ -26,6 +26,12 @@ AI-Native 系统中，整个上下文窗口既是执行空间也是数据空间�
 | `@vasm/cli` | `vasmc` | AI build、依赖管理、后续工作单 |
 | `@vasm/console` | `vasm-console` | 人用控制台，包含可选外部模型 `lint/diff` |
 
+### 📌 版本与发布
+
+VASMC 使用 Changesets 管理 npm workspace 版本。`@vasm/core`、`@vasm/cli`、`@vasm/console` 当前作为 fixed version group 发布：三者始终保持同一版本号。原因是 `vasmc` 与 `vasm-console` 的发布产物都会内置 core，core 行为变化通常也意味着两个命令产物的语义变化。
+
+发布前先用 `npm run changeset` 声明变更影响和 SemVer 级别，再用 `npm run release:version` 写入版本号与 changelog。正式发布前执行 `npm run release:check`，确认测试、构建、自举编译和 npm pack dry-run 均通过。发布使用 `npm run release:publish`。
+
 ### 🚀 快速上手
 
 ```bash

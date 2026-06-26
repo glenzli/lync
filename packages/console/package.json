@@ -1,13 +1,17 @@
 {
   "name": "@vasm/console",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Human-facing VASMC console with optional LLM-assisted tools.",
   "main": "dist/index.js",
   "bin": {
     "vasm-console": "dist/index.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
-    "dist/"
+    "dist/",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "markdown",
