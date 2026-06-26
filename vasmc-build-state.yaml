@@ -5,7 +5,7 @@ entries:
     outputFile: skills/vasm-expert/SKILL.md
     targetLang: zh-CN
   docs-src/README.vasm.md|merged:
-    inputSignature: 87404baf99b17e8a1dc2b58327f2a217f882448022c11cbcbd7e04b63e849c61
+    inputSignature: 9604274cb7a1a2b12c8a19860703a03eab45e6444b37300660836104624aba82
     outputFile: README.md
     targetLang: merged
     targetLangs:
@@ -23,7 +23,7 @@ entries:
     targetLangs:
       - zh-CN
   docs-src/docs/README.vasm.md|merged:
-    inputSignature: dc78bc25b63e8f09d5b36ada2f71416c003da2083324e13809916b227cac705f
+    inputSignature: f697b61e77175537ac9965814f292b2f452157f6da276f6f55bbea6db43a56fb
     outputFile: docs/README.md
     targetLang: merged
     targetLangs:

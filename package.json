@@ -12,6 +12,7 @@
     "clean": "rm -rf packages/*/dist dist",
     "prepublishOnly": "npm run clean && npm run build",
     "release:check": "npm test && npm run clean && npm run build && node packages/cli/dist/index.js build && git diff --check && npm --cache /private/tmp/vasmc-npm-cache pack --workspaces --dry-run",
+    "release:github": "node scripts/release-github.js",
     "release:publish": "npm run release:check && changeset publish",
     "release:version": "changeset version",
     "test": "tsc --noEmit && node --test tests/*.test.js"
