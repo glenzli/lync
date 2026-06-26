@@ -50,7 +50,9 @@ project-root/
 ├── vasmc-build.yaml       # 工作区编译配置（includes、output、routing、targetLangs）
 ├── .vasmc/                # ⚠️ 内部缓存 + 临时产物（加入 .gitignore）
 │   ├── <alias>.md         # vasmc sync 下载的纯缓存依赖
-│   └── build-instructions.md  # vasmc build 的 AI 编排指令清单
+│   ├── build-instructions.md  # vasmc build 的 AI 编排指令清单
+│   ├── build-report.yaml      # 结构化构建报告、policy 状态与依赖摘要
+│   └── project-review-context.yaml  # 可选项目感知审查索引
 └── src/
     ├── persona.vasm.md    # 源文件（含 Frontmatter + @import 指令）
     └── main.vasm.md       # 主入口源文件
@@ -150,6 +152,7 @@ vasm:
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 * `kind: skill` 的模块应声明 scope、capabilities、activation 和 trust；如果 `.vasmc/build-instructions.md` 出现 Policy Review，必须读取 `.vasmc/build-report.yaml` 再处理。
 * `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，正式 skill 输出不会被更新。
+* 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。
 
 ### 决策规则 & 常见误区
 
@@ -266,7 +269,10 @@ vasm:
 5. **Policy Gate**（仅在 Action Items 中存在此步骤时执行）：
    读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，正式 skill 输出不会被更新；你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
 
-6. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
+6. **Project Review**（仅在 Action Items 中存在此步骤时执行）：
+   读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，再按 context index 读取相关项目文件。结合项目实际命令、目录、文档术语、配置和 VASM 源文件，提出源文件级改写建议；除非用户明确要求，否则不要直接编辑源文件，且永远不要直接编辑生成物。
+
+7. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
 
 ## 核心理念
 

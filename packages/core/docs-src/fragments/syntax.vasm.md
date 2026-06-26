@@ -109,3 +109,21 @@ security:
 ```
 
 `enforce` 只会阻止可执行 skill 类产物被更新；普通文档仍按确定性编译流程输出。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，`.vasmc/build-instructions.md` 会生成 **Policy Gate** 工作项。
+
+### Project Review Pass
+
+VASMC 可以在编译完成后生成一个项目上下文索引，让当前 AI 主动结合仓库内容审查编译产物是否贴合项目，而不是只做传统的语法编译：
+
+```yaml
+ai:
+  projectReview:
+    mode: suggest      # off | suggest | patch
+    include:
+      - "README.md"
+      - "docs/**/*.md"
+      - "package.json"
+      - "vasmc-build.yaml"
+      - "skill-src/**/*.vasm.md"
+```
+
+开启后，`vasmc build` 会生成 `.vasmc/project-review-context.yaml`，并在 `.vasmc/build-instructions.md` 中加入 **Project Review** 工作项。该 pass 不调用模型，也不自动改文件；它只告诉当前 AI 应读取哪些项目文件，并要求 AI 输出源文件级建议。`patch` 模式表示可以给出聚焦的源文件 patch 建议，但仍不得直接编辑生成物。

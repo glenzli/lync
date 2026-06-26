@@ -27,6 +27,22 @@ security:
   # enforce: block unsafe skill outputs from being updated when policy status is blocked.
   mode: review
 
+ai:
+  projectReview:
+    mode: suggest
+    include:
+      - "README.md"
+      - "HELP.md"
+      - "DESIGN.md"
+      - "docs/**/*.md"
+      - "package.json"
+      - "packages/*/package.json"
+      - "vasmc-build.yaml"
+      - "docs-src/**/*.vasm.md"
+      - "packages/*/docs-src/**/*.vasm.md"
+      - "skill-src/**/*.vasm.md"
+      - "skill-src/**/*.md"
+
 routing:
   # 顶层阅读文档：docs-src 是维护对象，docs/ 是 AI 和人读取的生成态入口
   - match: "docs-src/docs/*.vasm.md"

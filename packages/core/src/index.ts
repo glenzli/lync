@@ -7,6 +7,7 @@ export * from './graph';
 export * from './i18n';
 export * from './manifest';
 export * from './policy';
+export * from './project-review';
 export * from './merge';
 export * from './network';
 export * from './sync';

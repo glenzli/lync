@@ -24,7 +24,9 @@ project-root/
 ├── vasmc-build.yaml       # 工作区编译配置（includes、output、routing、targetLangs）
 ├── .vasmc/                # ⚠️ 内部缓存 + 临时产物（加入 .gitignore）
 │   ├── <alias>.md         # vasmc sync 下载的纯缓存依赖
-│   └── build-instructions.md  # vasmc build 的 AI 编排指令清单
+│   ├── build-instructions.md  # vasmc build 的 AI 编排指令清单
+│   ├── build-report.yaml      # 结构化构建报告、policy 状态与依赖摘要
+│   └── project-review-context.yaml  # 可选项目感知审查索引
 └── src/
     ├── persona.vasm.md    # 源文件（含 Frontmatter + @import 指令）
     └── main.vasm.md       # 主入口源文件
@@ -121,3 +123,4 @@ vasm:
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 * `kind: skill` 的模块应声明 scope、capabilities、activation 和 trust；如果 `.vasmc/build-instructions.md` 出现 Policy Review，必须读取 `.vasmc/build-report.yaml` 再处理。
 * `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，正式 skill 输出不会被更新。
+* 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。

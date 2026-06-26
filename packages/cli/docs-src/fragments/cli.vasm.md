@@ -66,7 +66,7 @@ vasmc build main.vasm.md -o ./dist
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff、Policy Review、Policy Gate 和 Tree-Shake 等语义任务。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
 
 ### 4. 工作单
 
@@ -74,7 +74,7 @@ vasmc build
 cat .vasmc/build-instructions.md
 ```
 
-每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。`.vasmc/build-report.yaml` 会记录本次构建涉及的入口、产物、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与权限边界审查。
+每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。`.vasmc/build-report.yaml` 会记录本次构建涉及的入口、产物、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与权限边界审查。若启用 `ai.projectReview`，`.vasmc/project-review-context.yaml` 会列出可供 AI 做项目感知建议的文件索引。
 
 ### 5. 其他确定性命令
 

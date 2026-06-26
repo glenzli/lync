@@ -16,6 +16,7 @@ import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
 import { parseFrontmatter, stringifyFrontmatter } from './frontmatter';
 import type { BuildReport } from './build';
+import { createProjectReviewContext, formatProjectReviewAction } from './project-review';
 
 export interface CLIProfileOptions {
     name?: string;
@@ -563,17 +564,27 @@ baseDir: "."
                     const instructionsDir = path.dirname(instructionsPath);
                     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
                     const reportPath = path.resolve(process.cwd(), '.vasmc', 'build-report.yaml');
+                    const projectReviewContextPath = path.resolve(process.cwd(), '.vasmc', 'project-review-context.yaml');
+                    const projectReviewContext = await createProjectReviewContext(process.cwd(), buildConfig.ai?.projectReview);
+                    const projectReviewContextFile = path.relative(process.cwd(), projectReviewContextPath);
+                    if (projectReviewContext) {
+                        fs.writeFileSync(projectReviewContextPath, yaml.stringify(projectReviewContext), 'utf8');
+                    }
                     const securityMode = buildConfig.security?.mode || 'review';
 
                     if (shouldBlockPolicyOutput(entryReport, securityMode)) {
                         const blockedReport = createBuildReportEntry(reportEntry, process.cwd(), 'blocked');
                         const action = formatPolicyAction(blockedReport, 1);
+                        const projectReviewAction = projectReviewContext
+                            ? formatProjectReviewAction(2, projectReviewContextFile, projectReviewContext.mode)
+                            : undefined;
                         const instructions = [
                             `# VASMC Build Instructions — \`${entry}\``,
                             ``,
                             `## 🛠️ Action Items`,
                             ``,
                             action || `1. **Policy Gate** \`.vasmc/build-report.yaml\` — review blocked policy status.`,
+                            ...(projectReviewAction ? [``, projectReviewAction] : []),
                             ``,
                             `Final output was not updated because \`security.mode\` is \`enforce\`.`,
                         ].join('\n');
@@ -585,6 +596,13 @@ baseDir: "."
                             instructionsFile: path.relative(process.cwd(), instructionsPath),
                             entries: [blockedReport],
                         };
+                        if (projectReviewContext) {
+                            buildReport.projectReview = {
+                                mode: projectReviewContext.mode,
+                                contextFile: projectReviewContextFile,
+                                files: projectReviewContext.files,
+                            };
+                        }
                         fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
                         console.warn(`[BUILD] ⛔ Blocked by policy gate: ${entry}`);
                         return;
@@ -703,6 +721,9 @@ baseDir: "."
                         actionItems.push(policyAction);
                         itemIndex++;
                     }
+                    if (projectReviewContext) {
+                        actionItems.push(formatProjectReviewAction(itemIndex++, projectReviewContextFile, projectReviewContext.mode));
+                    }
 
                     const compiledFilesYaml = fileLangsToProcess!
                         .map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, (!isDocFormat && fileLangsToProcess!.length > 1 && lang !== 'auto' && lang) ? `.${lang}.md` : '.md'))}`)
@@ -741,6 +762,13 @@ baseDir: "."
                         instructionsFile: path.relative(process.cwd(), instructionsPath),
                         entries: [entryReport],
                     };
+                    if (projectReviewContext) {
+                        buildReport.projectReview = {
+                            mode: projectReviewContext.mode,
+                            contextFile: projectReviewContextFile,
+                            files: projectReviewContext.files,
+                        };
+                    }
                     fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
                     console.log(`[BUILD] 📋 Build report: ${path.relative(process.cwd(), reportPath)}`);
 

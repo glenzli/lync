@@ -48,7 +48,10 @@ vasm:
 5. **Policy Gate**（仅在 Action Items 中存在此步骤时执行）：
    读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，正式 skill 输出不会被更新；你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
 
-6. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
+6. **Project Review**（仅在 Action Items 中存在此步骤时执行）：
+   读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，再按 context index 读取相关项目文件。结合项目实际命令、目录、文档术语、配置和 VASM 源文件，提出源文件级改写建议；除非用户明确要求，否则不要直接编辑源文件，且永远不要直接编辑生成物。
+
+7. **Tree-Shake（条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 Minimal-Token Variant 中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。提议或直接执行针对性裁剪。
 
 ## 核心理念
 

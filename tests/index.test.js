@@ -264,6 +264,36 @@ describe('Policy Gate', () => {
     });
 });
 
+// ─── Project Review Tests ──────────────────────────────────────────
+describe('Project Review', () => {
+    const projectReviewDir = path.join(FIXTURES, 'project-review');
+
+    after(() => {
+        fs.rmSync(projectReviewDir, { recursive: true, force: true });
+    });
+
+    it('creates a deterministic project context index from configured includes', async () => {
+        const { createProjectReviewContext } = load('project-review');
+        fs.mkdirSync(projectReviewDir, { recursive: true });
+        fs.writeFileSync(path.join(projectReviewDir, 'README.md'), '# Test Project\n', 'utf8');
+        fs.writeFileSync(path.join(projectReviewDir, 'README.copy.md'), '# Test Project\n', 'utf8');
+        fs.writeFileSync(path.join(projectReviewDir, 'package.json'), '{"name":"test-project"}\n', 'utf8');
+        fs.writeFileSync(path.join(projectReviewDir, 'ignored.md'), '# Ignored\n', 'utf8');
+
+        const context = await createProjectReviewContext(projectReviewDir, {
+            mode: 'suggest',
+            include: ['README.md', 'README.copy.md', 'package.json', 'ignored.md'],
+            exclude: ['ignored.md']
+        });
+
+        assert.ok(context);
+        assert.strictEqual(context.mode, 'suggest');
+        assert.deepStrictEqual(context.files.map(file => file.path), ['README.md', 'package.json']);
+        assert.deepStrictEqual(context.files[0].duplicates, ['README.copy.md']);
+        assert.ok(context.files.every(file => file.hash.length === 64));
+    });
+});
+
 // ─── Compiler Tests ─────────────────────────────────────────────────
 describe('Compiler', () => {
     const compilerDir = path.join(FIXTURES, 'compiler-test');

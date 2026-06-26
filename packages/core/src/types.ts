@@ -75,6 +75,14 @@ export interface BuildRoutingRule {
     dest: string;
 }
 
+export interface ProjectReviewConfig {
+    mode?: 'off' | 'suggest' | 'patch';
+    include?: string[];
+    exclude?: string[];
+    maxFiles?: number;
+    maxFileBytes?: number;
+}
+
 export interface VasmBuild {
     includes?: string[];
     excludes?: string[];
@@ -96,5 +104,9 @@ export interface VasmBuild {
     security?: {
         /** review: report policy risk only; enforce: block unsafe skill outputs from being updated. */
         mode?: 'review' | 'enforce';
+    };
+    ai?: {
+        /** Project-aware AI pass emitted as build instructions, never executed by VASMC itself. */
+        projectReview?: ProjectReviewConfig;
     };
 }

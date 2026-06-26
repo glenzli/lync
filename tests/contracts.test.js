@@ -274,7 +274,49 @@ describe('Contract: security.mode enforce blocks unsafe skill outputs', () => {
     });
 });
 
-// ─── Contract 8: AI CLI command surface ───────────────────────────
+// ─── Contract 8: Project Review pass ──────────────────────────────
+
+describe('Contract: projectReview emits context and action item', () => {
+    it('writes project-review-context.yaml and records it in build report', async () => {
+        const buildYaml = path.join(FIXTURES, 'vasmc-build.yaml');
+        const contextSource = path.join(FIXTURES, 'project-review-source.md');
+        const outDir = path.join(FIXTURES, 'out-project-review');
+
+        fs.writeFileSync(contextSource, '# Project Review Source\n\nProject-specific guidance.\n', 'utf8');
+        fs.writeFileSync(buildYaml, [
+            'ai:',
+            '  projectReview:',
+            '    mode: suggest',
+            '    include:',
+            '      - "project-review-source.md"'
+        ].join('\n'), 'utf8');
+
+        try {
+            run(`build inline-test.vasm.md -o ${outDir}`);
+
+            const contextPath = path.join(FIXTURES, '.vasmc', 'project-review-context.yaml');
+            assert.ok(fs.existsSync(contextPath), 'project-review-context.yaml must exist');
+
+            const context = fs.readFileSync(contextPath, 'utf8');
+            assert.ok(context.includes('mode: suggest'), 'context must include review mode');
+            assert.ok(context.includes('project-review-source.md'), 'context must include configured file');
+
+            const instructions = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-instructions.md'), 'utf8');
+            assert.ok(instructions.includes('Project Review'), 'instructions must include Project Review action');
+
+            const report = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-report.yaml'), 'utf8');
+            assert.ok(report.includes('projectReview:'), 'report must include projectReview section');
+            assert.ok(report.includes('contextFile: .vasmc/project-review-context.yaml'), 'report must point to context file');
+        } finally {
+            fs.rmSync(outDir, { recursive: true, force: true });
+            for (const file of [buildYaml, contextSource]) {
+                if (fs.existsSync(file)) fs.unlinkSync(file);
+            }
+        }
+    });
+});
+
+// ─── Contract 9: AI CLI command surface ───────────────────────────
 
 describe('Contract: vasmc does not expose legacy agent command', () => {
     it('rejects agent as an unknown command', async () => {

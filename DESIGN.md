@@ -109,7 +109,7 @@ VASMC CLI 采用严格的关注点分离原则，将命令分为三类：
 
 **AI 编译工具（`@vasm/cli` / `vasmc`）**：
 
-* `vasmc build [file]`：AI 侧唯一编译入口。执行确定性的 AST 遍历、`@import` 解析、语言块过滤和产物写入，并输出 `.vasmc/build-instructions.md` 编排操作令与 `.vasmc/build-report.yaml` 结构化构建报告。若目标语言缺失，它不会调用外部模型自动补全，而是把翻译、校验、Diff、Policy Review、Policy Gate、裁剪等语义任务交给当前 AI。
+* `vasmc build [file]`：AI 侧唯一编译入口。执行确定性的 AST 遍历、`@import` 解析、语言块过滤和产物写入，并输出 `.vasmc/build-instructions.md` 编排操作令与 `.vasmc/build-report.yaml` 结构化构建报告。若目标语言缺失，它不会调用外部模型自动补全，而是把翻译、校验、Diff、Policy Review、Policy Gate、Project Review、裁剪等语义任务交给当前 AI。
 * `vasmc graph <file>`：静态分析 AST 并打印依赖关系的可视化 ASCII 树。
 * `vasmc seal <patterns>`：将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、语言标签）。
 * `vasmc sync`、`vasmc add`、`vasmc init`：依赖管理与项目初始化。
@@ -244,6 +244,37 @@ security:
 ```
 
 `enforce` 只阻止可执行 skill 类产物更新。它不是完整沙箱，也不能阻止同一个 AI 在后续对话中被诱导；它的价值是把“确定性可发现的越权/篡改/结构错误”挡在正式 skill 输出之前。更强的隔离仍应由宿主编辑器、MCP proxy 或无工具 reviewer 提供。
+
+### 8. 项目感知 AI Pass (Project Review)
+
+传统编译器通常到“生成产物”即结束；VASM 面对的是给 AI 消费的 Prompt/Skill，因此编译完成后更有价值的一步，是让当前 AI 结合项目事实主动审查产物是否仍然贴合项目。
+
+VASMC 不在核心内置模型，也不自动改仓库。它只在配置开启时生成项目上下文索引和工作单：
+
+```yaml
+ai:
+  projectReview:
+    mode: suggest      # off | suggest | patch
+    include:
+      - "README.md"
+      - "docs/**/*.md"
+      - "package.json"
+      - "vasmc-build.yaml"
+      - "skill-src/**/*.vasm.md"
+```
+
+`vasmc build` 会输出 `.vasmc/project-review-context.yaml`，其中包含被纳入审查的项目文件路径、大小和 hash。随后 `.vasmc/build-instructions.md` 会加入 **Project Review** 工作项，让 AI 读取 context index、build report 和相关项目文件，给出源文件级建议。
+
+这个 pass 适合发现：
+
+* skill 描述是否过宽，容易误激活。
+* capabilities 是否可以继续收窄。
+* prompt 是否缺少项目实际命令、目录结构、发布约束或安全策略。
+* README、docs、skill 之间术语是否不一致。
+* 多处重复内容是否应该抽成 fragment。
+* 哪些隐性项目知识应该写回 `.vasm.md` 源文件。
+
+`mode: suggest` 只要求 AI 输出建议；`mode: patch` 允许 AI 给出聚焦的源文件 patch 建议。两者都不允许直接编辑生成物。
 
 ***
 

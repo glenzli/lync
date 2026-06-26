@@ -92,3 +92,4 @@ vasm:
 - `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 - `kind: skill` 的模块必须尽量声明 scope、capabilities、activation 和 trust；AI 应阅读 build report 中的 policy diagnostics。
 - `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`；若出现 Policy Gate，说明确定性 policy 已发现阻断风险，`security.mode: enforce` 下正式 skill 输出不会被更新。
+- `ai.projectReview` 会生成 `.vasmc/project-review-context.yaml`，AI 应结合项目文件给出源文件级建议或 patch 建议，不应直接编辑生成物。

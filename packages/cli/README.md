@@ -71,7 +71,7 @@ vasmc build main.vasm.md -o ./dist
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff、Policy Review、Policy Gate 和 Tree-Shake 等语义任务。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
 
 ### 4. 工作单
 
@@ -79,7 +79,7 @@ vasmc build
 cat .vasmc/build-instructions.md
 ```
 
-每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。`.vasmc/build-report.yaml` 会记录本次构建涉及的入口、产物、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与权限边界审查。
+每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。`.vasmc/build-report.yaml` 会记录本次构建涉及的入口、产物、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与权限边界审查。若启用 `ai.projectReview`，`.vasmc/project-review-context.yaml` 会列出可供 AI 做项目感知建议的文件索引。
 
 ### 5. 其他确定性命令
 
@@ -142,6 +142,8 @@ vasmc build [file]
 
 **`.vasmc/build-report.yaml`**
 
+**`.vasmc/project-review-context.yaml`**（仅在 `ai.projectReview` 开启时生成）
+
 ### AI 助手操作规程
 
 每当你执行了 `vasmc build` 命令后，**立即读取 `.vasmc/build-instructions.md`**，并按其中列出的 Action Items 顺序执行以下任务（具体步骤由编译器按需生成）：
@@ -151,7 +153,8 @@ vasmc build [file]
 3. **Semantic Diff**（按需）：若 instructions 中包含此步骤，读取指定的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
 4. **Policy Review**（按需）：若 instructions 中包含此步骤，读取 `.vasmc/build-report.yaml`，检查 skill manifest 的 scope、capabilities、activation 和 trust 声明是否足够明确。
 5. **Policy Gate**（按需）：若 instructions 中包含此步骤，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新该 skill 的正式输出。
-6. **Tree-Shake（条件性）**：**仅在**用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
+6. **Project Review**（按需）：若 instructions 中包含此步骤，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
+7. **Tree-Shake（条件性）**：**仅在**用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
 你是统筹全局的智能主体，而 VASMC 是你最可靠的确权肌肉。
 
@@ -162,3 +165,19 @@ vasmc build [file]
 * `pass`：无确定性风险信号。
 * `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
 * `blocked`：存在可确定的阻断风险，例如依赖 capability 越权或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 unsafe skill 输出被更新。
+
+### Project Review
+
+项目可以在 `vasmc-build.yaml` 中开启项目感知审查：
+
+```yaml
+ai:
+  projectReview:
+    mode: suggest
+    include:
+      - "README.md"
+      - "docs/**/*.md"
+      - "package.json"
+```
+
+这是 AI pass，不是编译器自动重写。VASMC 只生成上下文索引和工作单；当前 AI 根据索引读取项目文件，检查 skill/prompt 是否缺少项目实际命令、目录、术语、约束，或是否有过宽 activation、可收窄 capability、重复 fragment 等问题。

@@ -12,6 +12,7 @@ import { estimateTokens } from './utils';
 import { loadBuildState, saveBuildState, computeInputSignature, buildStateKey } from './buildstate';
 import { readVasmManifest, summarizeVasmManifest, validateVasmManifest, ManifestDiagnostic, VasmManifestSummary } from './manifest';
 import { evaluateVasmPolicy, PolicyDiagnostic, PolicyStatus } from './policy';
+import { createProjectReviewContext, formatProjectReviewAction, ProjectReviewReport } from './project-review';
 
 // ========== Types ==========
 
@@ -63,6 +64,7 @@ export interface BuildReport {
     mode: 'ai-build';
     generatedAt: string;
     instructionsFile: string;
+    projectReview?: ProjectReviewReport;
     entries: BuildReportEntry[];
 }
 
@@ -144,6 +146,17 @@ export function shouldBlockPolicyOutput(entryReport: BuildReportEntry, securityM
     return securityMode === 'enforce'
         && entryReport.policy.enforceable
         && entryReport.policy.status === 'blocked';
+}
+
+function appendProjectReviewInstructions(instructionsPath: string, contextFile: string, mode: 'suggest' | 'patch') {
+    const instructions = [
+        '# VASMC Build Instructions — Project Review',
+        '',
+        '## 🛠️ Action Items',
+        '',
+        formatProjectReviewAction(1, contextFile, mode),
+    ].join('\n');
+    fs.appendFileSync(instructionsPath, '\n\n' + instructions, 'utf8');
 }
 
 // ========== Layer 1: Workspace Resolution ==========
@@ -426,9 +439,15 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
     // Clear previous AI build instructions
     const instructionsPath = path.resolve(cwd, '.vasmc', 'build-instructions.md');
     const reportPath = path.resolve(cwd, '.vasmc', 'build-report.yaml');
+    const projectReviewContextPath = path.resolve(cwd, '.vasmc', 'project-review-context.yaml');
     const instructionsDir = path.dirname(instructionsPath);
     if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
     fs.writeFileSync(instructionsPath, '', 'utf8');
+    const projectReviewContext = await createProjectReviewContext(cwd, buildConfig.ai?.projectReview);
+    const projectReviewContextFile = path.relative(cwd, projectReviewContextPath);
+    if (projectReviewContext) {
+        fs.writeFileSync(projectReviewContextPath, yaml.stringify(projectReviewContext), 'utf8');
+    }
     const buildReport: BuildReport = {
         version: 1,
         mode: 'ai-build',
@@ -436,6 +455,13 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
         instructionsFile: path.relative(cwd, instructionsPath),
         entries: [],
     };
+    if (projectReviewContext) {
+        buildReport.projectReview = {
+            mode: projectReviewContext.mode,
+            contextFile: projectReviewContextFile,
+            files: projectReviewContext.files,
+        };
+    }
 
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
@@ -674,6 +700,11 @@ export async function runAIBuild(cwd: string, cliOptions?: { baseDir?: string; o
 
     if (stateChanged) {
         saveBuildState(buildState, cwd);
+    }
+
+    if (projectReviewContext) {
+        appendProjectReviewInstructions(instructionsPath, projectReviewContextFile, projectReviewContext.mode);
+        console.log(`[BUILD] 🧭 Project review context: ${projectReviewContextFile}`);
     }
 
     if (fs.readFileSync(instructionsPath, 'utf8').trim().length === 0) {
