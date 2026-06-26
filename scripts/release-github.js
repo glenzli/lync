@@ -70,15 +70,11 @@ function tagCommit(tag) {
     return run('git', ['rev-list', '-n', '1', tag], { capture: true });
 }
 
-function ensureTagAtHead(tag) {
-    const head = run('git', ['rev-parse', 'HEAD'], { capture: true });
+function ensureTagExists(tag) {
     if (!tagExists(tag)) {
         throw new Error(`Required tag does not exist: ${tag}. Run npm publishing before GitHub release finalization.`);
     }
-    const commit = tagCommit(tag);
-    if (commit !== head) {
-        throw new Error(`Tag ${tag} points to ${commit}, but HEAD is ${head}.`);
-    }
+    return tagCommit(tag);
 }
 
 function ensureNpmPackagePublished(pkg) {
@@ -91,16 +87,36 @@ function ensureNpmPackagePublished(pkg) {
     }
 }
 
-function ensureAggregateTag(tag) {
-    const head = run('git', ['rev-parse', 'HEAD'], { capture: true });
+function releaseCommitForPackageTags(packages) {
+    const commits = packages.map((pkg) => ({
+        tag: pkg.tag,
+        commit: ensureTagExists(pkg.tag),
+    }));
+    const uniqueCommits = [...new Set(commits.map((entry) => entry.commit))];
+    if (uniqueCommits.length !== 1) {
+        throw new Error(`Package tags do not point to the same commit: ${commits.map((entry) => `${entry.tag}=${entry.commit}`).join(', ')}`);
+    }
+
+    const releaseCommit = uniqueCommits[0];
+    const ancestor = run('git', ['merge-base', '--is-ancestor', releaseCommit, 'HEAD'], {
+        capture: true,
+        allowFailure: true,
+    });
+    if (!ancestor.ok) {
+        throw new Error(`Release commit ${releaseCommit} is not contained in the current branch.`);
+    }
+    return releaseCommit;
+}
+
+function ensureAggregateTag(tag, releaseCommit) {
     if (!tagExists(tag)) {
-        run('git', ['tag', '-a', tag, '-m', `Release ${tag}`], { mutates: true });
+        run('git', ['tag', '-a', tag, releaseCommit, '-m', `Release ${tag}`], { mutates: true });
         return;
     }
 
     const commit = tagCommit(tag);
-    if (commit !== head) {
-        throw new Error(`Release tag ${tag} points to ${commit}, but HEAD is ${head}.`);
+    if (commit !== releaseCommit) {
+        throw new Error(`Release tag ${tag} points to ${commit}, but package tags point to ${releaseCommit}.`);
     }
 }
 
@@ -172,9 +188,9 @@ function main() {
     }
 
     ensureCleanWorktree();
-    packages.forEach((pkg) => ensureTagAtHead(pkg.tag));
+    const releaseCommit = releaseCommitForPackageTags(packages);
     packages.forEach((pkg) => ensureNpmPackagePublished(pkg));
-    ensureAggregateTag(releaseTag);
+    ensureAggregateTag(releaseTag, releaseCommit);
 
     run('gh', ['auth', 'status']);
 
