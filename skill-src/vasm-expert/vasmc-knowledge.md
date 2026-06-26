@@ -123,4 +123,5 @@ vasm:
 * `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 * `kind: skill` 的模块应声明 scope、capabilities、activation 和 trust；如果 `.vasmc/build-instructions.md` 出现 Policy Review，必须读取 `.vasmc/build-report.yaml` 再处理。
 * `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，正式 skill 输出不会被更新。
+* activation 治理会检查 intent 碰撞、依赖 skill 与入口 skill 共享 intent、依赖 priority 抢占，以及 `conflictsWith` 命中；这些通常进入 `review`，用于提示 AI 或人类明确路由决策。
 * 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。

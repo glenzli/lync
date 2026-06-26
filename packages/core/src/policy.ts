@@ -192,6 +192,90 @@ function collectActivationDiagnostics(entry: PolicyEntry, cwd: string, manifest:
     return diagnostics;
 }
 
+function normalizeActivationIntent(intent: string): string {
+    return intent
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]+/g, ' ');
+}
+
+function collectActivationGraphDiagnostics(entry: PolicyEntry, files: string[], cwd: string, rootManifest: VasmFrontmatter['vasm'] | undefined): PolicyDiagnostic[] {
+    const diagnostics: PolicyDiagnostic[] = [];
+    const rootAlias = rootManifest?.alias;
+    const rootIntents = new Set((rootManifest?.activation?.intent || []).map(normalizeActivationIntent));
+    const rootConflicts = new Set((rootManifest?.activation?.conflictsWith || []).map(normalizeActivationIntent));
+    const rootPriority = rootManifest?.activation?.priority ?? 0;
+    const seenIntentOwners = new Map<string, { alias: string; path: string }>();
+
+    for (const filePath of files) {
+        const manifest = readVasmManifest(filePath);
+        if (manifest?.kind !== 'skill' || !manifest.activation) continue;
+
+        const alias = manifest.alias || relative(cwd, filePath);
+        const normalizedAlias = normalizeActivationIntent(alias);
+        const intents = manifest.activation.intent || [];
+        const priority = manifest.activation.priority ?? 0;
+        const isRoot = path.resolve(filePath) === path.resolve(entry.absoluteFile);
+
+        for (const conflict of manifest.activation.conflictsWith || []) {
+            const normalizedConflict = normalizeActivationIntent(conflict);
+            if (normalizedConflict === normalizeActivationIntent(rootAlias || '') || rootConflicts.has(normalizedAlias)) {
+                diagnostics.push({
+                    severity: 'warn',
+                    code: 'policy.activation.conflict',
+                    message: `Skill '${alias}' declares activation conflict with '${conflict}'.`,
+                    path: relative(cwd, filePath),
+                    source: 'activation',
+                    gate: 'review',
+                });
+            }
+        }
+
+        for (const intent of intents) {
+            const normalizedIntent = normalizeActivationIntent(intent);
+            if (!normalizedIntent) continue;
+
+            const existing = seenIntentOwners.get(normalizedIntent);
+            if (existing && existing.alias !== alias) {
+                diagnostics.push({
+                    severity: 'warn',
+                    code: 'policy.activation.intent_collision',
+                    message: `Activation intent '${intent}' is declared by both '${existing.alias}' and '${alias}'.`,
+                    path: relative(cwd, filePath),
+                    source: 'activation',
+                    gate: 'review',
+                });
+            } else {
+                seenIntentOwners.set(normalizedIntent, { alias, path: filePath });
+            }
+
+            if (!isRoot && rootIntents.has(normalizedIntent)) {
+                diagnostics.push({
+                    severity: 'warn',
+                    code: 'policy.activation.dependency_overlap',
+                    message: `Dependency skill '${alias}' shares entry activation intent '${intent}'.`,
+                    path: relative(cwd, filePath),
+                    source: 'activation',
+                    gate: 'review',
+                });
+            }
+        }
+
+        if (!isRoot && priority > rootPriority && intents.some(intent => rootIntents.has(normalizeActivationIntent(intent)))) {
+            diagnostics.push({
+                severity: 'warn',
+                code: 'policy.activation.priority_hijack',
+                message: `Dependency skill '${alias}' has priority ${priority}, higher than entry priority ${rootPriority}, for overlapping activation intent.`,
+                path: relative(cwd, filePath),
+                source: 'activation',
+                gate: 'review',
+            });
+        }
+    }
+
+    return diagnostics;
+}
+
 function stripCodeAndFrontmatter(content: string): string {
     return content
         .replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '')
@@ -268,6 +352,7 @@ export function evaluateVasmPolicy(entry: PolicyEntry, cwd: string): PolicyVerdi
     if (enforceable) {
         diagnostics.push(...collectCapabilityDiagnostics(entry, files, cwd, rootManifest));
         diagnostics.push(...collectActivationDiagnostics(entry, cwd, rootManifest));
+        diagnostics.push(...collectActivationGraphDiagnostics(entry, files, cwd, rootManifest));
         diagnostics.push(...collectContentDiagnostics(files, cwd));
     }
 

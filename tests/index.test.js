@@ -170,6 +170,7 @@ describe('Policy Gate', () => {
     after(() => {
         fs.rmSync(path.join(FIXTURES, 'policy-escalation'), { recursive: true, force: true });
         fs.rmSync(path.join(FIXTURES, 'policy-content'), { recursive: true, force: true });
+        fs.rmSync(path.join(FIXTURES, 'policy-activation'), { recursive: true, force: true });
     });
 
     it('blocks dependency capability escalation for skill outputs', () => {
@@ -261,6 +262,77 @@ describe('Policy Gate', () => {
 
         assert.strictEqual(verdict.status, 'review');
         assert.ok(verdict.diagnostics.some(d => d.code === 'policy.content.prompt_override'));
+    });
+
+    it('reviews activation collisions and dependency priority hijack risk', () => {
+        const { evaluateVasmPolicy } = load('policy');
+        const policyDir = path.join(FIXTURES, 'policy-activation');
+        fs.mkdirSync(policyDir, { recursive: true });
+
+        fs.writeFileSync(path.join(policyDir, 'dep.vasm.md'), [
+            '---',
+            'vasm:',
+            '  alias: competing-reviewer',
+            '  version: 1.0.0',
+            '  kind: skill',
+            '  scope:',
+            '    domains: ["review"]',
+            '  capabilities:',
+            '    readFiles: true',
+            '    editFiles: false',
+            '    runCommands: false',
+            '    network: false',
+            '    externalModels: false',
+            '    publish: false',
+            '  activation:',
+            '    intent: ["review"]',
+            '    priority: 95',
+            '    conflictsWith: ["entry-reviewer"]',
+            '  trust:',
+            '    source: "local:test"',
+            '    license: "MIT"',
+            '---',
+            'Dependency skill content.'
+        ].join('\n'), 'utf8');
+
+        fs.writeFileSync(path.join(policyDir, 'skill.vasm.md'), [
+            '---',
+            'vasm:',
+            '  alias: entry-reviewer',
+            '  version: 1.0.0',
+            '  kind: skill',
+            '  scope:',
+            '    domains: ["review"]',
+            '  capabilities:',
+            '    readFiles: true',
+            '    editFiles: false',
+            '    runCommands: false',
+            '    network: false',
+            '    externalModels: false',
+            '    publish: false',
+            '  activation:',
+            '    intent: ["review"]',
+            '    priority: 60',
+            '  trust:',
+            '    source: "local:test"',
+            '    license: "MIT"',
+            '---',
+            '[Dep](./dep.vasm.md "@import:inline")'
+        ].join('\n'), 'utf8');
+
+        const verdict = evaluateVasmPolicy({
+            relativeFile: 'skill.vasm.md',
+            absoluteFile: path.join(policyDir, 'skill.vasm.md'),
+            finalDest: path.join(policyDir, 'skills', 'entry-reviewer', 'SKILL.md'),
+            compileFormat: 'prompt'
+        }, policyDir);
+
+        const codes = verdict.diagnostics.map(d => d.code);
+        assert.strictEqual(verdict.status, 'review');
+        assert.ok(codes.includes('policy.activation.intent_collision'));
+        assert.ok(codes.includes('policy.activation.dependency_overlap'));
+        assert.ok(codes.includes('policy.activation.priority_hijack'));
+        assert.ok(codes.includes('policy.activation.conflict'));
     });
 });
 

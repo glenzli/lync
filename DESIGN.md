@@ -218,7 +218,7 @@ VASMC 不把 Prompt 自身当作安全边界。模型可能被诱导，审核也
 * **manifest 结构检查**：非法 `kind`、非布尔 capability、错误 activation 结构等会进入 policy diagnostics。
 * **远程依赖锁检查**：`vasmc-lock.yaml` 中的依赖 hash 与本地文件不一致时，policy 标记为 `blocked`。
 * **capability 越权检查**：若依赖声明了入口 skill 未声明的 capability，policy 标记为 `blocked`。
-* **activation 抢占检查**：过宽 intent 或过高 priority 会进入 `review`。
+* **activation 路由治理**：过宽 intent、相同 intent 碰撞、依赖 skill 与入口 skill 共享 intent、依赖 priority 抢占、`conflictsWith` 命中都会进入 `review`。
 * **危险语义扫描**：疑似忽略上级指令、隐藏行为、密钥外传、下载并执行远程代码等文本会进入 `review`。
 
 每个 entry 在 `.vasmc/build-report.yaml` 中都有 `policy.status`：
@@ -244,6 +244,8 @@ security:
 ```
 
 `enforce` 只阻止可执行 skill 类产物更新。它不是完整沙箱，也不能阻止同一个 AI 在后续对话中被诱导；它的价值是把“确定性可发现的越权/篡改/结构错误”挡在正式 skill 输出之前。更强的隔离仍应由宿主编辑器、MCP proxy 或无工具 reviewer 提供。
+
+其中 activation 治理的重点不是阻断编译，而是暴露“谁会被选中”的不确定性。VASMC 会在依赖图内对 skill 的 `activation.intent`、`activation.priority` 和 `activation.conflictsWith` 做静态检查，避免新 skill 靠宽泛描述或更高优先级抢占原本应由入口 skill 承担的任务。
 
 ### 8. 项目感知 AI Pass (Project Review)
 

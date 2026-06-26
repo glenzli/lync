@@ -91,7 +91,7 @@ vasm:
 AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
 
 * `pass`：未发现确定性 policy 风险。
-* `review`：存在需要 AI 或人类阅读的风险信号，例如高危能力声明、过宽 activation、疑似 prompt override 语句。
+* `review`：存在需要 AI 或人类阅读的风险信号，例如高危能力声明、过宽 activation、activation 冲突/抢占、疑似 prompt override 语句。
 * `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、依赖声明了入口 skill 未声明的 capability。
 
 默认情况下，VASMC 只报告风险，不阻断输出：
@@ -109,6 +109,13 @@ security:
 ```
 
 `enforce` 只会阻止可执行 skill 类产物被更新；普通文档仍按确定性编译流程输出。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，`.vasmc/build-instructions.md` 会生成 **Policy Gate** 工作项。
+
+Activation 治理会检查当前 entry 与其依赖图中的 skill：
+
+* `activation.intent` 过宽或多个 skill 声明相同 intent，会进入 `review`。
+* 依赖 skill 与入口 skill 共享 intent，会进入 `review`，避免路由含义不清。
+* 依赖 skill 在相同 intent 上拥有更高 priority，会进入 `review`，提示潜在抢占风险。
+* `activation.conflictsWith` 命中入口 skill 或入口声明的冲突对象，会进入 `review`。
 
 ### Project Review Pass
 

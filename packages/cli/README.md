@@ -151,7 +151,7 @@ vasmc build [file]
 1. **Semantic Verify**：读取 Minimal-Token Variant，检查语义冲突、人格分裂、逻辑冗余和系统破坏风险四类问题。
 2. **Translation**（按需）：若 instructions 中包含此步骤，将已校验的核心文件翻译到指定的其他语种，**严格保留** Markdown AST 结构。
 3. **Semantic Diff**（按需）：若 instructions 中包含此步骤，读取指定的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
-4. **Policy Review**（按需）：若 instructions 中包含此步骤，读取 `.vasmc/build-report.yaml`，检查 skill manifest 的 scope、capabilities、activation 和 trust 声明是否足够明确。
+4. **Policy Review**（按需）：若 instructions 中包含此步骤，读取 `.vasmc/build-report.yaml`，检查 skill manifest 的 scope、capabilities、activation、trust，以及 activation intent 是否存在冲突、重叠或 priority 抢占风险。
 5. **Policy Gate**（按需）：若 instructions 中包含此步骤，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新该 skill 的正式输出。
 6. **Project Review**（按需）：若 instructions 中包含此步骤，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
 7. **Tree-Shake（条件性）**：**仅在**用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。

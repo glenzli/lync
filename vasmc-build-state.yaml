@@ -1,7 +1,7 @@
 version: 1
 entries:
   skill-src/vasm-expert/vasmc-expert.vasm.md|zh-CN:
-    inputSignature: da9f77f1dc309b658c438ef159b9660563758e8abb5a7dc4a66806c3f396fecc
+    inputSignature: a6468c99106a3525c27a7c4f25d1973a2798eb64808237580b79639ad290e82e
     outputFile: skills/vasm-expert/SKILL.md
     targetLang: zh-CN
   docs-src/README.vasm.md|merged:
@@ -11,13 +11,13 @@ entries:
     targetLangs:
       - zh-CN
   docs-src/HELP.vasm.md|merged:
-    inputSignature: 8a928a523a689afce58d93ac9e8ba543ea7aef46035a40efb504cd92d9913115
+    inputSignature: f88b32d7efed543af50e76ab4aab13994b77c7bb3591741278736a79fe3feff9
     outputFile: HELP.md
     targetLang: merged
     targetLangs:
       - zh-CN
   docs-src/DESIGN.vasm.md|merged:
-    inputSignature: 74d1f043584dc7f07b302891aab3c7213d664ccd530d2a3c48ae8ee3582d2c4f
+    inputSignature: f13878b47627add1b257aad9b8d38205abbf82f8acfb0a8a7f9f3eb2f5a88116
     outputFile: DESIGN.md
     targetLang: merged
     targetLangs:
@@ -29,25 +29,25 @@ entries:
     targetLangs:
       - zh-CN
   docs-src/docs/HELP.vasm.md|merged:
-    inputSignature: f8157cee88e487fc2cc167e627c292321f0e467afaaa75209960f02b1bbc119d
+    inputSignature: d58891b9bcc0547ca8e7e0448f662788dd4fa92368325121beca9150775e4bcf
     outputFile: docs/HELP.md
     targetLang: merged
     targetLangs:
       - zh-CN
   docs-src/docs/DESIGN.vasm.md|merged:
-    inputSignature: 0e9c1f5ae62451eae2d1d8029b940f7031abf3ae74df5379a7ab970f363aaadc
+    inputSignature: e9073ad243c51e4e0668325776e5893df85ced2c50eed24211bc1d51b8428bfa
     outputFile: docs/DESIGN.md
     targetLang: merged
     targetLangs:
       - zh-CN
   packages/core/docs-src/README.vasm.md|merged:
-    inputSignature: 39d8269a55f62556eae3cea91bafb83eff0d5eb1cac8382b078b0f85a7815dc5
+    inputSignature: c72153ddd171f9af5d4f84e366ad5aaf0aebba2936daaede2583d7d140233775
     outputFile: packages/core/README.md
     targetLang: merged
     targetLangs:
       - zh-CN
   packages/cli/docs-src/README.vasm.md|merged:
-    inputSignature: 9f528f1e8060bd6fd4bf7b2ea392a46dacf29c5b4ac9eae3aeea1f6360bf3230
+    inputSignature: c1456e715ece820b83e7869b9eb8ee74adfa3db06ca85cfa839418daf1697883
     outputFile: packages/cli/README.md
     targetLang: merged
     targetLangs:
