@@ -1,8 +1,71 @@
 # @vasm/console
 
-`@vasm/console` 发布 `vasm-console` 命令，面向人类开发者提供可选的外部模型辅助能力。它不负责 AI 编译入口；`lint` 和 `diff` 这类语义工具只存在于 console 包中。
+[🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-<a name="console"></a>
+***
+
+<a name="en"></a>
+
+## 🌍 English
+
+`@vasm/console` publishes the `vasm-console` command. It is the human-facing VASMC console for optional external-model assistance. It reuses the deterministic compiler path, but adds semantic tools that require an LLM.
+
+It is not the AI compiler entrypoint. AI editors should use `@vasm/cli` and `vasmc build`; semantic tools such as `lint` and `diff` live only in the console package.
+
+### Install
+
+```bash
+npm install -g @vasm/console
+```
+
+### Semantic Lint
+
+After compiling a source, run LLM-assisted semantic conflict checks against the output:
+
+```bash
+vasmc build main.vasm.md
+vasm-console lint main.md --model gpt-4o
+```
+
+`lint` reviews four categories: instruction conflicts, split persona, logical redundancy, and system-destruction risk. It is outside the deterministic compile chain and does not modify source or output files when it fails.
+
+### Semantic Diff
+
+```bash
+vasm-console diff new.md old.md --model gpt-4o
+```
+
+`diff` explains semantic and structural impact between compiled outputs instead of only reporting textual changes.
+
+### External Model Configuration
+
+`vasm-console` can read OpenAI-compatible model settings from environment variables or `.vasmrc`. A `.vasmrc` file can live in the user home directory or project root; project-local `.vasmrc` files should be added to `.gitignore`.
+
+```yaml
+lang: "en"
+llm:
+  baseURL: "https://api.deepseek.com/v1"
+  apiKey: "your-custom-api-key"
+  model: "deepseek-chat"
+```
+
+Equivalent environment variables:
+
+```bash
+VASM_LLM_API_KEY=...
+VASM_LLM_BASE_URL=...
+VASM_LLM_MODEL=...
+```
+
+`lang` also affects VASMC interactive log language. `llm` is only read by the optional external-model tools in `@vasm/console`.
+
+***
+
+<a name="zh-cn"></a>
+
+## 🇨🇳 中文
+
+<a name="console-zh-cn"></a>
 
 ## 🧭 @vasm/console：人用控制台与可选外部模型工具
 

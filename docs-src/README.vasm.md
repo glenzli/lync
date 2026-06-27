@@ -2,9 +2,57 @@
 vasm:
   compile:
     format: "doc"
-    targetLangs: ["zh-CN"]
+    targetLangs: ["en", "zh-CN"]
 ---
 
+<!-- lang:en -->
+# VASMC
+
+Decentralized Markdown prompt compiler for LLM skills: URL imports, deterministic builds, cross-language outputs, and AI build work orders.
+
+In the LLM era, Markdown has become **source code**: system prompts, skill packs, and instruction sets are all written in Markdown. VASMC treats them as first-class compilation targets by resolving `@import` dependencies, cross-compiling language blocks, and generating AI build work orders for semantic tasks that belong to the current AI rather than a deterministic tool.
+
+In AI-native systems, the context window is both execution space and data space. The model cannot reliably separate instructions from data after they enter the prompt. VASMC establishes a deterministic control point before that execution surface exists: every token entering a system prompt is explicitly declared, assembled, traceable to a human-authorized source, and classified by output format.
+
+👉 [Read the full design spec](DESIGN.vasm.md)
+
+### 📦 Core Features
+
+* **Input surface sovereignty**: Compile-time control over content sources. Every token entering the execution surface has traceable human authorization, and `prompt` / `doc` format classification acts as a compile-time safety primitive.
+* **Decentralized package management**: Fetch Markdown modules directly from URLs. No registry, no intermediary.
+* **Deterministic builds**: SHA-256 lock files (`vasmc-lock.yaml`) make builds reproducible.
+* **Cross-compilation**: AST-level language block filtering (`<!-- lang:xx -->`) generates language-specific outputs. Missing language coverage is handed to the current AI through `vasmc build` work orders.
+* **Two import modes**:
+  * `@import:link` rewrites aliases to local relative paths while preserving hyperlink structure.
+  * `@import:inline` expands remote content inline for assembling large prompt contexts.
+
+### 🛠️ Packages And Commands
+
+| Package | Command | Description |
+|------|------|------|
+| `@vasm/core` | No bin | Shared deterministic compiler core and VASM protocol implementation |
+| `@vasm/cli` | `vasmc` | AI build, dependency management, and follow-up work orders |
+| `@vasm/console` | `vasm-console` | Human-facing console with optional external-model `lint` / `diff` tools |
+
+### 📌 Versioning And Release
+
+VASMC uses Changesets to manage npm workspace versions. `@vasm/core`, `@vasm/cli`, and `@vasm/console` are currently released as a fixed version group, so they always share the same version. This matches the publish model: `vasmc` and `vasm-console` bundle core into their command binaries, so core behavior changes usually affect both command artifacts.
+
+Before publishing, run `npm run changeset` to declare the affected packages and SemVer bump, then run `npm run release:version` to write package versions and changelogs. Run `npm run release:check` before publishing to verify tests, builds, self-compilation, and npm pack dry-run. Use `npm run release:publish` for npm publishing. After publishing succeeds, run `npm run release:github` to verify package tags, create the `vX.Y.Z` aggregate tag, push the current branch and tags, and create a GitHub Release with GitHub CLI.
+
+### 🚀 Quick Start
+
+```bash
+npm install -g @vasm/cli
+vasmc init                    # create vasmc-build.yaml
+vasmc add https://example.com/skill.md --alias my-skill
+vasmc build                   # build the workspace and generate follow-up work orders for the current AI
+```
+
+For full CLI usage, see **[Help And Usage](HELP.vasm.md)**.
+<!-- /lang -->
+
+<!-- lang:zh-CN -->
 # VASMC
 
 去中心化的 LLM Prompt 编译器 — 模块化导入、交叉编译、AI 原生的编译编排，以及输入面主权保障。
@@ -49,3 +97,4 @@ vasmc build                   # 编译工作区，并为当前 AI 生成语义�
 ```
 
 完整 CLI 用法请参阅 **[帮助与用法文档](HELP.vasm.md)**。
+<!-- /lang -->

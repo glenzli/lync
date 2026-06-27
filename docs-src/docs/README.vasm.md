@@ -2,7 +2,7 @@
 vasm:
   compile:
     format: "doc"
-    targetLangs: ["zh-CN"]
+    targetLangs: ["en", "zh-CN"]
 ---
 
 [README](../README.vasm.md "@import:inline")
