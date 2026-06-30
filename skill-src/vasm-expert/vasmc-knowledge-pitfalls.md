@@ -6,8 +6,9 @@
 
 | 场景 | 正确位置 |
 |------|----------|
-| 项目内所有 doc 统一交叉编译 | `vasmc-build.yaml` → `compile.doc.targetLangs` |
-| 项目内所有 prompt 统一语种 | `vasmc-build.yaml` → `compile.prompt.targetLangs` |
+| 项目内所有 informational 统一交叉编译 | `vasmc-build.yaml` → `compile.informational.targetLangs` |
+| 项目内所有 executable 统一语种 | `vasmc-build.yaml` → `compile.executable.targetLangs` |
+| 项目内所有 integrative 统一语种 | `vasmc-build.yaml` → `compile.integrative.targetLangs` |
 | 对外发布的独立模块（自带语种声明） | 文件 frontmatter `compile.targetLangs` |
 
 优先级（高到低）：`文件 frontmatter` > `vasmc-build.yaml 按格式配置` > `CLI --target-langs` > `文件内 lang 块自动提取`
@@ -45,12 +46,28 @@ baseDir: ./src
 ```yaml
 vasm:
   compile:
-    format: prompt    # ← 如果是 AI 消费的 Skill/Prompt 文件
-    # format: doc    # ← 如果是 README/HELP/DESIGN 等人类文档
+    format: executable      # ← 如果是 AI 消费的 Skill/Prompt 文件
+    # format: informational # ← 如果是 README/HELP/DESIGN 等信息文档
+    # format: integrative   # ← 如果是组合多个 VASM 模块的整合指导
     targetLangs: ["zh-CN"]  # ← 确认语种，必要时添加 "en" 等目标语种
 ```
 
-* `doc` 格式：多语种内容合并到**单一文件**（如 `README.md` 中文英文都有）
-* `prompt` 格式：每种语种输出**独立文件**（如 `skill.zh-CN.md`, `skill.en.md`）
+* `informational` 格式：多语种内容合并到**单一文件**（如 `README.md` 中文英文都有）
+* `executable` 格式：每种语种输出**独立文件**（如 `skill.zh-CN.md`, `skill.en.md`）
+* `integrative` 格式：每种语种输出**独立文件**，AI 只把它当组合指导
 
 `vasmc seal` 的 `--format` 参数可以显式指定，不要依赖启发式猜测。
+
+***
+
+## 规则四：`@import:link` 目标要进入同一次构建
+
+`@import:link` 只保留链接边界，不会内联内容。编译器会把本地 `.vasm.md` 链接重写为生成 `.md` 路径，但**链接目标也必须被构建**，否则生成的链接可能指向不存在的文件。
+
+| 场景 | 正确做法 |
+|------|----------|
+| workspace 内多个 source 互相 link | 在 `vasmc-build.yaml.includes` 中包含 link target source |
+| 单入口 build 需要可点击 link | 先单独 build link target，或改用 workspace build |
+| 只是想把内容拼进最终 prompt | 使用 `@import:inline` 而不是 `@import:link` |
+
+发现坏链接时，不要手改生成 `.md`；应调整 source import、workspace includes、output/baseDir 或 routing 后重新 `vasmc build`。

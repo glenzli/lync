@@ -1,7 +1,7 @@
 <a name="cli"></a>
-## 🛠️ @vasm/cli：AI 编译与工作单
+## 🛠️ @vasm/cli：AI 编译与报告
 
-`@vasm/cli` 提供 `vasmc` 命令，是 VASMC 的 AI-facing 编译入口。它只做确定性工作：依赖同步、AST 组装、语言块过滤、产物写入，以及生成给当前 AI 使用的后续工作单。
+`@vasm/cli` 提供 `vasmc` 命令，是 VASMC 的 AI-facing 编译入口。它只做确定性工作：依赖同步、AST 组装、语言块过滤、产物写入，以及生成给当前 AI 使用的结构化 report actions。
 
 ### 安装
 
@@ -54,37 +54,37 @@ vasmc update
 
 ### 3. AI 编译
 
-一对一编译并生成工作单：
+一对一编译并生成结构化报告：
 
 ```bash
 vasmc build main.vasm.md -o ./dist
 ```
 
-工作区编译并生成工作单：
+工作区编译并生成结构化报告：
 
 ```bash
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-instructions.md` 中生成后续工作单，让当前 AI 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
 
-### 4. 工作单
+### 4. 构建报告
 
 ```bash
-cat .vasmc/build-instructions.md
+cat .vasmc/build-report.yaml
 ```
 
-每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-instructions.md`，并按其中列出的 Action Items 顺序执行。`.vasmc/build-report.yaml` 会记录本次构建涉及的入口、产物、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与权限边界审查。若启用 `ai.projectReview`，`.vasmc/project-review-context.yaml` 会列出可供 AI 做项目感知建议的文件索引。
+每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-report.yaml`，并由 VASM skill 按 report 中的 `actions` 顺序执行。report 会记录本次构建涉及的入口、产物、`compiledFiles`、`minimalTokenVariant`、manifest 摘要、依赖、`policy.status` 和 policy diagnostics，供 AI 做上下文与边界审查。若启用 `ai.projectReview`，`.vasmc/project-review-context.yaml` 会列出可供 AI 做项目感知建议的文件索引。
 
 ### 5. 其他确定性命令
 
 ```bash
 vasmc graph main.vasm.md
 vasmc seal my-prompt.md --alias my-custom-name
-vasmc seal "prompts/**/*.md" --format prompt
+vasmc seal "prompts/**/*.md" --format executable
 ```
 
-`seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等人类文档，请显式使用 `--format doc`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format prompt`。
+`seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于整合指导文件，请使用 `--format integrative`。
 
 ---
 

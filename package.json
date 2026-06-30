@@ -15,6 +15,7 @@
     "release:github": "node scripts/release-github.js",
     "release:publish": "npm run release:check && changeset publish",
     "release:version": "changeset version",
+    "self-eval:hard-checks": "node scripts/run-self-eval-hard-checks.js",
     "test": "tsc --noEmit && node --test tests/*.test.js"
   },
   "devDependencies": {

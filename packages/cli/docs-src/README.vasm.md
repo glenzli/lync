@@ -1,16 +1,16 @@
 ---
 vasm:
   compile:
-    format: "doc"
+    format: "informational"
     targetLangs: ["en", "zh-CN"]
 ---
 
 <!-- lang:en -->
 # @vasm/cli
 
-`@vasm/cli` publishes the `vasmc` command. It is the AI-facing VASMC entrypoint: it compiles `.vasm.md` sources into clean Markdown outputs and, during `build`, emits `.vasmc/build-instructions.md` so the current AI can continue semantic work.
+`@vasm/cli` publishes the `vasmc` command. It is the AI-facing VASMC entrypoint: it compiles `.vasm.md` sources into clean Markdown outputs and, during `build`, emits structured `.vasmc/build-report.yaml` actions so the active VASM skill can continue semantic work.
 
-`vasmc` only performs deterministic work: dependency sync, AST assembly, language-block filtering, output writes, policy diagnostics, and follow-up work-order generation.
+`vasmc` only performs deterministic work: dependency sync, AST assembly, language-block filtering, output writes, policy diagnostics, and report action generation.
 
 ### Install
 
@@ -63,7 +63,7 @@ vasmc update
 
 ### 3. AI Build
 
-Compile one entry and generate follow-up instructions:
+Compile one entry and generate a structured build report:
 
 ```bash
 vasmc build main.vasm.md -o ./dist
@@ -75,25 +75,25 @@ Compile the workspace through `vasmc-build.yaml`:
 vasmc build
 ```
 
-`vasmc build` is the AI-side compiler entrypoint. It writes deterministic Markdown outputs, `.vasmc/build-report.yaml`, and `.vasmc/build-instructions.md`. If a target language is missing, `vasmc` does not call an external model; instead, it asks the current AI to handle Verify, Translate, Diff, Policy Review, Policy Gate, Project Review, and Tree-Shake tasks as needed.
+`vasmc build` is the AI-side compiler entrypoint. It writes deterministic Markdown outputs and `.vasmc/build-report.yaml`. If a target language is missing, `vasmc` does not call an external model; instead, it records actions for the current AI to handle Verify, Translate, Diff, Policy Review, Policy Gate, Project Review, and Tree-Shake tasks as needed.
 
-### 4. Read The Work Orders
+### 4. Read The Build Report
 
 ```bash
-cat .vasmc/build-instructions.md
+cat .vasmc/build-report.yaml
 ```
 
-After every `vasmc build`, an AI editor should immediately read `.vasmc/build-instructions.md` and perform the listed action items in order. `.vasmc/build-report.yaml` records entries, outputs, manifest summaries, dependencies, `policy.status`, and policy diagnostics. If `ai.projectReview` is enabled, `.vasmc/project-review-context.yaml` lists files the AI can inspect for project-aware suggestions.
+After every `vasmc build`, an AI editor should immediately read `.vasmc/build-report.yaml`; the VASM skill interprets `entries[].actions` and top-level `actions`. The report records entries, outputs, compiled files, minimal-token variants, manifest summaries, dependencies, `policy.status`, and policy diagnostics. If `ai.projectReview` is enabled, `.vasmc/project-review-context.yaml` lists files the AI can inspect for project-aware suggestions.
 
 ### 5. Other Deterministic Commands
 
 ```bash
 vasmc graph main.vasm.md
 vasmc seal my-prompt.md --alias my-custom-name
-vasmc seal "prompts/**/*.md" --format prompt
+vasmc seal "prompts/**/*.md" --format executable
 ```
 
-`seal` injects VASM frontmatter into ordinary Markdown and renames files to `.vasm.md`. Use `--format doc` for human-facing documents such as README, HELP, and DESIGN. Use `--format prompt` for system prompts and skills consumed by AI.
+`seal` injects VASM frontmatter into ordinary Markdown and renames files to `.vasm.md`. Use `--format informational` for documents such as README, HELP, and DESIGN. Use `--format executable` for system prompts and skills consumed by AI. Use `--format integrative` for composition guidance.
 
 ### Workspace Builds
 
@@ -107,9 +107,11 @@ output:
 baseDir: "./src"
 
 compile:
-  doc:
+  informational:
     targetLangs: ["en", "zh-CN"]
-  prompt:
+  executable:
+    targetLangs: ["en"]
+  integrative:
     targetLangs: ["en"]
 
 routing:

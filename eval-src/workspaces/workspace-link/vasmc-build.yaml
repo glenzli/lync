@@ -1,0 +1,13 @@
+includes:
+  - "src/**/*.vasm.md"
+output:
+  dir: "../../../.vasmc/self-eval/out/workspace-link"
+baseDir: "./src"
+compile:
+  informational:
+    targetLangs: ["en"]
+ai:
+  projectReview:
+    mode: suggest
+    include:
+      - "src/**/*.vasm.md"

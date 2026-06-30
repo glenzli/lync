@@ -48,7 +48,7 @@ before(() => {
             'vasm:',
             '  alias: lang-test',
             '  compile:',
-            '    format: exec',
+            '    format: executable',
             '---',
             '# Language Block Test',
             '',
@@ -175,25 +175,26 @@ describe('Contract: seal injects Frontmatter and renames file', () => {
     });
 });
 
-// ─── Contract 6: AI build instructions ────────────────────────────
+// ─── Contract 6: AI build report actions ──────────────────────────
 
-describe('Contract: vasmc build generates build-instructions.md', () => {
-    it('produces .vasmc/build-instructions.md with compiled file list', async () => {
+describe('Contract: vasmc build generates structured report actions', () => {
+    it('produces .vasmc/build-report.yaml with compiled file list and actions', async () => {
         const outDir = path.join(FIXTURES, 'out-ai-build');
         run(`build inline-test.vasm.md -o ${outDir}`);
 
         const instructionsPath = path.join(FIXTURES, '.vasmc', 'build-instructions.md');
-        assert.ok(fs.existsSync(instructionsPath), 'build-instructions.md must exist');
-
-        const content = fs.readFileSync(instructionsPath, 'utf8');
-        assert.ok(content.includes('compiledFiles'), 'Must contain compiledFiles section');
-        assert.ok(content.includes('Action Items'), 'Must contain Action Items section');
+        assert.ok(!fs.existsSync(instructionsPath), 'build-instructions.md must not be generated');
 
         const reportPath = path.join(FIXTURES, '.vasmc', 'build-report.yaml');
         assert.ok(fs.existsSync(reportPath), 'build-report.yaml must exist');
         const report = fs.readFileSync(reportPath, 'utf8');
+        assert.ok(report.includes('version: 2'), 'report must use v2 schema');
         assert.ok(report.includes('mode: ai-build'), 'report must declare ai-build mode');
         assert.ok(report.includes('source: inline-test.vasm.md'), 'report must include source file');
+        assert.ok(report.includes('compiledFiles:'), 'report must include compiledFiles section');
+        assert.ok(report.includes('minimalTokenVariant:'), 'report must include minimal token variant');
+        assert.ok(report.includes('actions:'), 'report must include structured actions');
+        assert.ok(report.includes('type: verify'), 'report must include verify action');
         assert.ok(report.includes('policy:'), 'report must include policy section');
         assert.ok(report.includes('status: pass'), 'report must include policy pass status');
 
@@ -205,7 +206,7 @@ describe('Contract: vasmc build generates build-instructions.md', () => {
 // ─── Contract 7: policy gate enforcement ──────────────────────────
 
 describe('Contract: security.mode enforce blocks unsafe skill outputs', () => {
-    it('does not update final output when policy status is blocked', async () => {
+    it('does not update final output when manifest policy status is blocked', async () => {
         const buildYaml = path.join(FIXTURES, 'vasmc-build.yaml');
         const depPath = path.join(FIXTURES, 'unsafe-dep.vasm.md');
         const skillPath = path.join(FIXTURES, 'unsafe-skill.vasm.md');
@@ -215,10 +216,8 @@ describe('Contract: security.mode enforce blocks unsafe skill outputs', () => {
             '---',
             'vasm:',
             '  kind: fragment',
-            '  capabilities:',
-            '    network: true',
             '---',
-            'Dependency wants network.'
+            'Dependency uses a removed manifest field.'
         ].join('\n'), 'utf8');
 
         fs.writeFileSync(skillPath, [
@@ -226,21 +225,8 @@ describe('Contract: security.mode enforce blocks unsafe skill outputs', () => {
             'vasm:',
             '  alias: unsafe-skill',
             '  version: 1.0.0',
-            '  kind: skill',
-            '  scope:',
-            '    domains: ["test"]',
-            '  capabilities:',
-            '    readFiles: true',
-            '    editFiles: false',
-            '    runCommands: false',
-            '    network: false',
-            '    externalModels: false',
-            '    publish: false',
-            '  activation:',
-            '    intent: ["test"]',
-            '  trust:',
-            '    source: "local:test"',
-            '    license: "MIT"',
+            '  compile:',
+            '    format: executable',
             '---',
             '[Unsafe Dep](./unsafe-dep.vasm.md "@import:inline")'
         ].join('\n'), 'utf8');
@@ -261,10 +247,11 @@ describe('Contract: security.mode enforce blocks unsafe skill outputs', () => {
 
             const report = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-report.yaml'), 'utf8');
             assert.ok(report.includes('status: blocked'), 'report must mark entry as blocked');
-            assert.ok(report.includes('policy.capability.escalation'), 'report must include blocking policy diagnostic');
+            assert.ok(report.includes('manifest.kind.removed'), 'report must include blocking manifest diagnostic');
+            assert.ok(report.includes('type: policy_gate'), 'report must include Policy Gate report action');
 
-            const instructions = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-instructions.md'), 'utf8');
-            assert.ok(instructions.includes('Policy Gate'), 'instructions must include Policy Gate action');
+            const instructionsPath = path.join(FIXTURES, '.vasmc', 'build-instructions.md');
+            assert.ok(!fs.existsSync(instructionsPath), 'build-instructions.md must not be generated');
         } finally {
             fs.rmSync(outDir, { recursive: true, force: true });
             for (const file of [buildYaml, depPath, skillPath]) {
@@ -301,12 +288,13 @@ describe('Contract: projectReview emits context and action item', () => {
             assert.ok(context.includes('mode: suggest'), 'context must include review mode');
             assert.ok(context.includes('project-review-source.md'), 'context must include configured file');
 
-            const instructions = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-instructions.md'), 'utf8');
-            assert.ok(instructions.includes('Project Review'), 'instructions must include Project Review action');
-
             const report = fs.readFileSync(path.join(FIXTURES, '.vasmc', 'build-report.yaml'), 'utf8');
             assert.ok(report.includes('projectReview:'), 'report must include projectReview section');
             assert.ok(report.includes('contextFile: .vasmc/project-review-context.yaml'), 'report must point to context file');
+            assert.ok(report.includes('type: project_review'), 'report must include Project Review report action');
+
+            const instructionsPath = path.join(FIXTURES, '.vasmc', 'build-instructions.md');
+            assert.ok(!fs.existsSync(instructionsPath), 'build-instructions.md must not be generated');
         } finally {
             fs.rmSync(outDir, { recursive: true, force: true });
             for (const file of [buildYaml, contextSource]) {

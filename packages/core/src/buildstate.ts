@@ -11,7 +11,7 @@ export interface BuildStateEntry {
     inputSignature: string;  // SHA-256 of all transitive source file contents
     outputFile: string;      // relative path to expected output file
     targetLang: string;
-    targetLangs?: string[];  // for doc-type: the full set of langs compiled together
+    targetLangs?: string[];  // for informational outputs: the full set of langs compiled together
 }
 
 export interface BuildState {

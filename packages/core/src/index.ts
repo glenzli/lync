@@ -3,6 +3,7 @@ export * from './buildstate';
 export * from './compiler';
 export * from './config';
 export * from './frontmatter';
+export * from './formats';
 export * from './graph';
 export * from './i18n';
 export * from './manifest';

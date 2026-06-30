@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { parseFrontmatter } from './frontmatter';
 import { VasmFrontmatter } from './types';
+import { COMPILE_FORMATS, DEPRECATED_COMPILE_FORMATS, isCompileFormat, isDeprecatedCompileFormat, normalizeCompileFormat } from './formats';
 
 export type ManifestSeverity = 'warn' | 'error';
 
@@ -13,27 +14,21 @@ export interface ManifestDiagnostic {
 export interface VasmManifestSummary {
     alias?: string;
     version?: string;
-    kind?: string;
     compileFormat?: string;
-    domains?: string[];
-    filePatterns?: string[];
-    capabilities?: Record<string, unknown>;
-    activationIntent?: string[];
-    activationPriority?: number;
-    conflictsWith?: string[];
-    trustSource?: string;
-    trustLicense?: string;
+    deprecatedCompileFormat?: string;
+    intent?: string;
 }
 
-const allowedKinds = new Set(['prompt', 'skill', 'doc', 'policy', 'fragment']);
-const allowedCapabilityKeys = new Set([
-    'readFiles',
-    'editFiles',
-    'runCommands',
-    'network',
-    'externalModels',
-    'publish',
-]);
+const removedFields = [
+    'kind',
+    'scope',
+    'capabilities',
+    'activation',
+    'compatibility',
+    'trust',
+    'vision',
+    'fix',
+];
 
 function isObject(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -55,19 +50,14 @@ export function readVasmManifest(filePath: string): VasmFrontmatter['vasm'] | un
 
 export function summarizeVasmManifest(manifest: VasmFrontmatter['vasm'] | undefined): VasmManifestSummary | undefined {
     if (!manifest) return undefined;
+    const rawFormat = manifest.compile?.format;
+    const normalized = normalizeCompileFormat(rawFormat);
     const summary: VasmManifestSummary = {
         alias: manifest.alias,
         version: manifest.version,
-        kind: manifest.kind,
-        compileFormat: manifest.compile?.format,
-        domains: manifest.scope?.domains,
-        filePatterns: manifest.scope?.filePatterns,
-        capabilities: manifest.capabilities,
-        activationIntent: manifest.activation?.intent,
-        activationPriority: manifest.activation?.priority,
-        conflictsWith: manifest.activation?.conflictsWith,
-        trustSource: manifest.trust?.source,
-        trustLicense: manifest.trust?.license,
+        compileFormat: rawFormat ? normalized.format : undefined,
+        deprecatedCompileFormat: normalized.deprecated,
+        intent: manifest.intent,
     };
 
     return Object.fromEntries(
@@ -79,83 +69,57 @@ export function validateVasmManifest(manifest: VasmFrontmatter['vasm'] | undefin
     const diagnostics: ManifestDiagnostic[] = [];
     if (!manifest) return diagnostics;
 
-    if (manifest.kind && !allowedKinds.has(manifest.kind)) {
-        addDiagnostic(diagnostics, 'error', 'manifest.kind.invalid', `Unknown vasm.kind '${manifest.kind}'.`);
+    const rawManifest = manifest as Record<string, unknown>;
+    for (const field of removedFields) {
+        if (rawManifest[field] === undefined) continue;
+        addDiagnostic(
+            diagnostics,
+            'error',
+            `manifest.${field}.removed`,
+            `vasm.${field} was removed from the manifest protocol. Use alias, version, intent, compile, and dependencies only.`
+        );
     }
 
-    if (manifest.scope !== undefined) {
-        if (!isObject(manifest.scope)) {
-            addDiagnostic(diagnostics, 'error', 'manifest.scope.invalid', 'vasm.scope must be an object.');
-        } else {
-            if (manifest.scope.domains !== undefined && !isStringArray(manifest.scope.domains)) {
-                addDiagnostic(diagnostics, 'error', 'manifest.scope.domains.invalid', 'vasm.scope.domains must be a string array.');
-            }
-            if (manifest.scope.filePatterns !== undefined && !isStringArray(manifest.scope.filePatterns)) {
-                addDiagnostic(diagnostics, 'error', 'manifest.scope.filePatterns.invalid', 'vasm.scope.filePatterns must be a string array.');
-            }
-        }
+    if (manifest.alias !== undefined && typeof manifest.alias !== 'string') {
+        addDiagnostic(diagnostics, 'error', 'manifest.alias.invalid', 'vasm.alias must be a string.');
+    }
+    if (manifest.version !== undefined && typeof manifest.version !== 'string') {
+        addDiagnostic(diagnostics, 'error', 'manifest.version.invalid', 'vasm.version must be a string.');
+    }
+    if (manifest.intent !== undefined && typeof manifest.intent !== 'string') {
+        addDiagnostic(diagnostics, 'error', 'manifest.intent.invalid', 'vasm.intent must be a string.');
     }
 
-    if (manifest.capabilities !== undefined) {
-        if (!isObject(manifest.capabilities)) {
-            addDiagnostic(diagnostics, 'error', 'manifest.capabilities.invalid', 'vasm.capabilities must be an object.');
+    if (manifest.compile !== undefined) {
+        if (!isObject(manifest.compile)) {
+            addDiagnostic(diagnostics, 'error', 'manifest.compile.invalid', 'vasm.compile must be an object.');
         } else {
-            for (const [key, value] of Object.entries(manifest.capabilities)) {
-                if (!allowedCapabilityKeys.has(key)) {
-                    addDiagnostic(diagnostics, 'warn', 'manifest.capabilities.unknown', `Unknown capability '${key}'.`);
-                } else if (typeof value !== 'boolean') {
-                    addDiagnostic(diagnostics, 'error', 'manifest.capabilities.value.invalid', `Capability '${key}' must be boolean.`);
+            const rawFormat = manifest.compile.format;
+            if (rawFormat !== undefined) {
+                if (isDeprecatedCompileFormat(rawFormat)) {
+                    addDiagnostic(
+                        diagnostics,
+                        'warn',
+                        'manifest.compile.format.deprecated',
+                        `vasm.compile.format '${rawFormat}' is deprecated; use '${normalizeCompileFormat(rawFormat).format}' instead.`
+                    );
+                } else if (!isCompileFormat(rawFormat)) {
+                    addDiagnostic(
+                        diagnostics,
+                        'error',
+                        'manifest.compile.format.invalid',
+                        `vasm.compile.format must be one of ${COMPILE_FORMATS.join(', ')}. Deprecated compatibility accepts ${DEPRECATED_COMPILE_FORMATS.join(', ')}.`
+                    );
                 }
             }
-        }
-    }
-
-    if (manifest.activation !== undefined) {
-        if (!isObject(manifest.activation)) {
-            addDiagnostic(diagnostics, 'error', 'manifest.activation.invalid', 'vasm.activation must be an object.');
-        } else {
-            if (manifest.activation.intent !== undefined && !isStringArray(manifest.activation.intent)) {
-                addDiagnostic(diagnostics, 'error', 'manifest.activation.intent.invalid', 'vasm.activation.intent must be a string array.');
-            }
-            if (manifest.activation.conflictsWith !== undefined && !isStringArray(manifest.activation.conflictsWith)) {
-                addDiagnostic(diagnostics, 'error', 'manifest.activation.conflictsWith.invalid', 'vasm.activation.conflictsWith must be a string array.');
-            }
-            if (manifest.activation.priority !== undefined) {
-                const priority = manifest.activation.priority;
-                if (typeof priority !== 'number' || priority < 0 || priority > 100) {
-                    addDiagnostic(diagnostics, 'error', 'manifest.activation.priority.invalid', 'vasm.activation.priority must be a number between 0 and 100.');
-                }
+            if (manifest.compile.targetLangs !== undefined && !isStringArray(manifest.compile.targetLangs)) {
+                addDiagnostic(diagnostics, 'error', 'manifest.compile.targetLangs.invalid', 'vasm.compile.targetLangs must be a string array.');
             }
         }
     }
 
-    if (manifest.compatibility?.formats !== undefined && !isStringArray(manifest.compatibility.formats)) {
-        addDiagnostic(diagnostics, 'error', 'manifest.compatibility.formats.invalid', 'vasm.compatibility.formats must be a string array.');
-    }
-
-    if (manifest.trust?.maintainers !== undefined && !isStringArray(manifest.trust.maintainers)) {
-        addDiagnostic(diagnostics, 'error', 'manifest.trust.maintainers.invalid', 'vasm.trust.maintainers must be a string array.');
-    }
-
-    if (manifest.kind === 'skill') {
-        if (!manifest.alias) {
-            addDiagnostic(diagnostics, 'warn', 'skill.alias.missing', 'Skill should declare vasm.alias for stable references.');
-        }
-        if (!manifest.version) {
-            addDiagnostic(diagnostics, 'warn', 'skill.version.missing', 'Skill should declare vasm.version for human compatibility review.');
-        }
-        if (!manifest.scope?.domains?.length && !manifest.activation?.intent?.length) {
-            addDiagnostic(diagnostics, 'warn', 'skill.activation.missing', 'Skill should declare scope.domains or activation.intent so AI can choose it deliberately.');
-        }
-        if (!manifest.capabilities) {
-            addDiagnostic(diagnostics, 'warn', 'skill.capabilities.missing', 'Skill should declare capabilities to make its permission surface explicit.');
-        }
-        if (!manifest.trust?.source) {
-            addDiagnostic(diagnostics, 'warn', 'skill.trust.source.missing', 'Skill should declare trust.source for supply-chain review.');
-        }
-        if (!manifest.trust?.license) {
-            addDiagnostic(diagnostics, 'warn', 'skill.trust.license.missing', 'Skill should declare trust.license.');
-        }
+    if (manifest.dependencies !== undefined && !isObject(manifest.dependencies)) {
+        addDiagnostic(diagnostics, 'error', 'manifest.dependencies.invalid', 'vasm.dependencies must be an object.');
     }
 
     return diagnostics;

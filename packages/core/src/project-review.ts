@@ -103,17 +103,10 @@ export async function createProjectReviewContext(cwd: string, config?: ProjectRe
         reviewGoals: [
             'Check whether compiled prompts and skills reflect the current project structure, commands, terminology, and constraints.',
             'Suggest source-level changes only; do not edit generated outputs directly.',
-            'Look for overly broad skill activation, capabilities that can be narrowed, duplicated fragments, stale project facts, and missing project-specific guidance.',
+            'Look for unclear intent, incorrect compile.format choices, duplicated fragments, stale project facts, and missing project-specific guidance.',
             mode === 'patch'
                 ? 'If useful, provide focused patches against .vasm.md or docs-src files.'
                 : 'Provide concise recommendations and ask before making source edits.',
         ],
     };
-}
-
-export function formatProjectReviewAction(itemIndex: number, contextFile: string, mode: ProjectReviewMode): string {
-    const modeText = mode === 'patch'
-        ? 'produce focused source patch proposals'
-        : 'produce concise source-level recommendations';
-    return `${itemIndex}. **Project Review** \`${contextFile}\` — read the context index and \`.vasmc/build-report.yaml\`; ${modeText}, never edit generated outputs directly`;
 }

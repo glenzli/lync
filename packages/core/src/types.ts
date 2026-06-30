@@ -1,3 +1,5 @@
+import type { RawCompileFormat } from './formats';
+
 export interface VasmRc {
     lang?: string;
 }
@@ -17,43 +19,13 @@ export interface VasmFrontmatter {
     vasm?: {
         alias?: string;
         version?: string;
-        /** Module category. `skill` enables stricter policy diagnostics for skill governance. */
-        kind?: 'prompt' | 'skill' | 'doc' | 'policy' | 'fragment';
+        /** Human-readable intent summary for AI review and integration. */
+        intent?: string;
         compile?: {
-            format?: 'doc' | 'prompt';
+            format?: RawCompileFormat;
             targetLangs?: string[];
         };
         dependencies?: Record<string, DependencyDeclaration>;
-        scope?: {
-            domains?: string[];
-            filePatterns?: string[];
-        };
-        capabilities?: {
-            readFiles?: boolean;
-            editFiles?: boolean;
-            runCommands?: boolean;
-            network?: boolean;
-            externalModels?: boolean;
-            publish?: boolean;
-        };
-        activation?: {
-            intent?: string[];
-            priority?: number;
-            conflictsWith?: string[];
-        };
-        compatibility?: {
-            vasm?: string;
-            formats?: Array<'doc' | 'prompt'>;
-        };
-        trust?: {
-            source?: string;
-            license?: string;
-            maintainers?: string[];
-        };
-        /** Semantic intention: describes what the compiled product should achieve. Used by AI during Verify. */
-        vision?: string;
-        /** Auto-fix mode: 'suggest' (default) = list proposed edits; 'auto' = directly edit the product file. */
-        fix?: 'suggest' | 'auto';
     }
 }
 
@@ -94,9 +66,20 @@ export interface VasmBuild {
     baseDir?: string;
     routing?: BuildRoutingRule[];
     compile?: {
+        informational?: {
+            targetLangs?: string[];
+        };
+        executable?: {
+            targetLangs?: string[];
+        };
+        integrative?: {
+            targetLangs?: string[];
+        };
+        /** @deprecated use informational */
         doc?: {
             targetLangs?: string[];
         };
+        /** @deprecated use executable */
         prompt?: {
             targetLangs?: string[];
         };

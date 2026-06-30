@@ -47,52 +47,34 @@ Please explain the code step by step.
 vasm:
   alias: "my-coder-prompt"
   version: "1.0.0"
+  intent: "Assemble a concise code-review prompt focused on security findings."
   dependencies:
     anti-delusion: "https://example.com/system.md"
   compile:
-    format: prompt        # prompt（AI 消费）| doc（人类文档）
+    format: executable    # informational | executable | integrative
     targetLangs: ["zh-CN"]
-  kind: skill             # prompt | skill | doc | policy | fragment
-  scope:
-    domains: ["code-review", "security"]
-    filePatterns: ["**/*.ts", "**/*.js"]
-  capabilities:
-    readFiles: true
-    editFiles: false
-    runCommands: false
-    network: false
-    externalModels: false
-    publish: false
-  activation:
-    intent: ["review", "security audit"]
-    priority: 80
-    conflictsWith: ["general-code-reviewer"]
-  trust:
-    source: "github:example/coder-prompt"
-    license: "MIT"
-  vision: |
-    产物应形成一个严格的代码审查专家角色，专注于安全漏洞检测，
-    输出结构化（级别/位置/描述/建议），风格简洁，不扮演开发者。
-  fix: suggest          # suggest（默认，输出建议）| auto（直接编辑产物并报告）
 ---
 
 # 你的 Prompt 正文内容...
 ```
 *当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会自动解析这些内容并完美还原环境。*
 
-> **`vision`**：声明编译产物应达到的语义目标。`vasmc build` 执行时，AI 协调器将对照此目标对产物进行意图对齐验证（语义编译的 Verify Pass）。
+> **`intent`**：声明源文件希望产物达成的用途。`vasmc build` 不调用模型执行它，只把它写入 AI report actions，供当前 AI 做 Verify 或 Integration Review。
 >
-> **`fix`**：控制发现问题时的修复策略——`suggest` 仅列出建议等待用户确认，`auto` 直接修改产物文件并输出变更摘要。仅对 `prompt` 格式文件有效。
+> **`compile.format`**：
+> * `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
+> * `executable`：进入 AI 执行面的 prompt/skill 产物，多语种时每种语言输出独立文件。
+> * `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
 >
-> **Skill 治理字段**：`kind: skill` 会启用更严格的 manifest 诊断。`scope` 描述适用领域和文件范围，`capabilities` 显式声明该 skill 预期使用的能力边界，`activation` 描述何时应被选择以及与哪些 skill 冲突，`trust` 记录供应链来源和许可证。诊断结果会写入 `.vasmc/build-report.yaml`，必要时也会进入 `.vasmc/build-instructions.md` 的 Policy Review 工作项。
+> 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
 
 ### 确定性 Policy Gate
 
 AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
 
 * `pass`：未发现确定性 policy 风险。
-* `review`：存在需要 AI 或人类阅读的风险信号，例如高危能力声明、过宽 activation、activation 冲突/抢占、疑似 prompt override 语句。
-* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、依赖声明了入口 skill 未声明的 capability。
+* `review`：存在需要 AI 或人类阅读的风险信号，例如疑似 prompt override、隐藏行为、密钥外传、integrative/executable 边界不清。
+* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
 
 默认情况下，VASMC 只报告风险，不阻断输出：
 
@@ -108,14 +90,7 @@ security:
   mode: enforce
 ```
 
-`enforce` 只会阻止可执行 skill 类产物被更新；普通文档仍按确定性编译流程输出。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，`.vasmc/build-instructions.md` 会生成 **Policy Gate** 工作项。
-
-Activation 治理会检查当前 entry 与其依赖图中的 skill：
-
-* `activation.intent` 过宽或多个 skill 声明相同 intent，会进入 `review`。
-* 依赖 skill 与入口 skill 共享 intent，会进入 `review`，避免路由含义不清。
-* 依赖 skill 在相同 intent 上拥有更高 priority，会进入 `review`，提示潜在抢占风险。
-* `activation.conflictsWith` 命中入口 skill 或入口声明的冲突对象，会进入 `review`。
+`enforce` 会阻止 `executable` 和 `integrative` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
 
 ### Project Review Pass
 
@@ -133,4 +108,4 @@ ai:
       - "skill-src/**/*.vasm.md"
 ```
 
-开启后，`vasmc build` 会生成 `.vasmc/project-review-context.yaml`，并在 `.vasmc/build-instructions.md` 中加入 **Project Review** 工作项。该 pass 不调用模型，也不自动改文件；它只告诉当前 AI 应读取哪些项目文件，并要求 AI 输出源文件级建议。`patch` 模式表示可以给出聚焦的源文件 patch 建议，但仍不得直接编辑生成物。
+开启后，`vasmc build` 会生成 `.vasmc/project-review-context.yaml`，并在 `.vasmc/build-report.yaml` 顶层 `actions` 中写入 `project_review`。该 pass 不调用模型，也不自动改文件；它只告诉当前 AI 应读取哪些项目文件，并要求 AI 输出源文件级建议。`patch` 模式表示可以给出聚焦的源文件 patch 建议，但仍不得直接编辑生成物。

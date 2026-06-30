@@ -7,11 +7,11 @@
 
 **VASMC 是专为 LLM Prompt 工程设计的静态编译器/链接器。**
 
-核心类比：`.vasm.md` 是人类编写的**源码**（意图/高级语言），`.md` 是编译产物（**机器码**）。两者职责严格分离——**人类禁止手工修改产物文件**；AI 协调器在 `fix: auto` 模式下可直接编辑产物，其他情况下也应以修改产物为目标，不改源文件。
+核心类比：`.vasm.md` 是人类编写的**源码**（意图/高级语言），`.md` 是编译产物（**机器码**）。两者职责严格分离——**人类禁止手工修改产物文件**；AI 协调器根据 `.vasmc/build-report.yaml` 的结构化 actions 做校验、翻译、整合审核和源文件级建议。
 
 编译过程是**纯确定性的 AST 组装**：解析 `@import` 依赖、交叉编译语种，无任何非确定性操作。
 
-**AI 编辑器的角色**：你是智能的大脑，VASMC 是确定性的肌肉。运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-instructions.md`，你负责接管后续语义任务（校验、意图对齐验证、产物修复、翻译、Diff）。
+**AI 编辑器的角色**：你是智能的大脑，VASMC 是确定性的肌肉。运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并接管后续语义任务（校验、意图对齐验证、翻译、Diff）。除 `translate` action 明确要求写目标语言产物外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
 
 ***
 
@@ -24,8 +24,7 @@ project-root/
 ├── vasmc-build.yaml       # 工作区编译配置（includes、output、routing、targetLangs）
 ├── .vasmc/                # ⚠️ 内部缓存 + 临时产物（加入 .gitignore）
 │   ├── <alias>.md         # vasmc sync 下载的纯缓存依赖
-│   ├── build-instructions.md  # vasmc build 的 AI 编排指令清单
-│   ├── build-report.yaml      # 结构化构建报告、policy 状态与依赖摘要
+│   ├── build-report.yaml      # 结构化构建报告、actions、policy 状态与依赖摘要
 │   └── project-review-context.yaml  # 可选项目感知审查索引
 └── src/
     ├── persona.vasm.md    # 源文件（含 Frontmatter + @import 指令）
@@ -34,12 +33,13 @@ project-root/
 
 产物文件（`*.md`，无 `.vasm.` 中缀）是纯净的编译输出，供 LLM 直接消费，**禁止手工修改**。
 
-**两种编译格式**（在 Frontmatter 的 `compile.format` 中声明）：
+**三种编译格式**（在 Frontmatter 的 `compile.format` 中声明）：
 
 | 格式 | 用途 | 特点 |
 |------|------|------|
-| `prompt` | System Prompt、技能文件等 AI 消费 | 单语种输出，产物纯净无元数据 |
-| `doc` | README、HELP、DESIGN 等人类文档 | 多语种合并输出 |
+| `informational` | README、HELP、DESIGN 等信息/文档 | 多语种合并输出 |
+| `executable` | System Prompt、技能文件等 AI 执行面内容 | 多语种时每种语种独立输出，产物纯净无元数据 |
+| `integrative` | 指导一组 VASM 模块如何组合 | 供 AI 做整合决策，不直接当最终可执行 prompt |
 
 ***
 
@@ -55,11 +55,13 @@ project-root/
 [技能内容](vasm:my-skill "@import:inline")
 ```
 
-**`@import:link`** — 链接重写，将 `vasm:alias` 替换为本地相对物理路径，保留超链接结构：
+**`@import:link`** — 链接重写，将 `vasm:alias` 或本地 `.vasm.md` source 引用替换为生成 `.md` 的相对路径，保留超链接结构：
 ```markdown
 [技能链接](vasm:my-skill "@import:link")
 <!-- 编译输出：[技能链接](./skills/my-skill.md) -->
 ```
+
+如果使用本地相对路径并希望链接可点击，目标 source 也必须被同一次 workspace build 或前置 build 编译成对应 `.md`。
 
 **本地相对路径引用**（无需在 `vasmc.yaml` 注册，直接使用 `./` 相对路径）：
 ```markdown
@@ -87,15 +89,12 @@ This is English content, only in the `en` output.
 vasm:
   alias: "my-module"          # vasmc add 时自动采用此字段作为本地别名
   version: "1.0.0"            # 供人类评估兼容性（引擎以 Hash 为唯一真理）
+  intent: "Assemble a security-focused code review prompt."
   dependencies:
     anti-delusion: "https://example.com/system.md"  # 嵌套依赖，vasmc sync 自动扁平安装
   compile:
-    format: prompt            # prompt（AI 消费）| doc（人类文档）
+    format: executable        # informational | executable | integrative
     targetLangs: ["zh-CN"]    # 目标交叉编译语种
-  vision: |
-    产物应形成严格的代码审查专家角色，专注安全漏洞检测，
-    输出结构化（级别/位置/描述/建议），风格简洁。
-  fix: suggest                # suggest（输出建议等待确认）| auto（直接编辑产物）
 ---
 ```
 
@@ -107,7 +106,7 @@ vasm:
 
 | 命令 | 说明 |
 |------|------|
-| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物、`.vasmc/build-instructions.md` 和 `.vasmc/build-report.yaml` |
+| `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物和 `.vasmc/build-report.yaml` |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
@@ -120,8 +119,9 @@ vasm:
 
 * `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化架构。
 * 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
-* `prompt` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
-* `kind: skill` 的模块应声明 scope、capabilities、activation 和 trust；如果 `.vasmc/build-instructions.md` 出现 Policy Review，必须读取 `.vasmc/build-report.yaml` 再处理。
-* `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，正式 skill 输出不会被更新。
-* activation 治理会检查 intent 碰撞、依赖 skill 与入口 skill 共享 intent、依赖 priority 抢占，以及 `conflictsWith` 命中；这些通常进入 `review`，用于提示 AI 或人类明确路由决策。
+* `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
+* `integrative` 只用于组合指导，不要把它直接当最终可执行 prompt。
+* `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，`executable` 和 `integrative` 输出不会被更新。
+* 如果 `.vasmc/build-report.yaml` 的 actions 出现 `policy_review` 或 `policy_gate`，必须重点检查 manifest、lockfile、format 边界和内容风险 diagnostics。
 * 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。
+* `tree_shake` 是条件性 action；只有用户明确要求优化或精简 Prompt 时才执行，并且应裁剪 source 或 fragment 后重新 build。

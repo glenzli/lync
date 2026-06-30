@@ -4,11 +4,11 @@ import { collectDependencies } from './compiler';
 import { loadLockfile } from './config';
 import { ManifestDiagnostic, readVasmManifest, validateVasmManifest } from './manifest';
 import { computeHash } from './network';
-import type { VasmFrontmatter } from './types';
+import { CompileFormat, isCompileFormat, isDeprecatedCompileFormat, normalizeCompileFormat } from './formats';
 
 export type PolicyStatus = 'pass' | 'review' | 'blocked';
 export type PolicyGate = 'review' | 'block';
-export type PolicyDiagnosticSource = 'manifest' | 'lockfile' | 'capability' | 'activation' | 'content';
+export type PolicyDiagnosticSource = 'manifest' | 'lockfile' | 'format' | 'content';
 
 export interface PolicyDiagnostic extends ManifestDiagnostic {
     path: string;
@@ -22,7 +22,7 @@ export interface PolicyEntry {
     relativeFile: string;
     absoluteFile: string;
     finalDest: string;
-    compileFormat: 'doc' | 'prompt';
+    compileFormat: CompileFormat;
 }
 
 export interface PolicyVerdict {
@@ -30,19 +30,6 @@ export interface PolicyVerdict {
     enforceable: boolean;
     diagnostics: PolicyDiagnostic[];
 }
-
-type CapabilityKey = 'readFiles' | 'editFiles' | 'runCommands' | 'network' | 'externalModels' | 'publish';
-
-const capabilityKeys: CapabilityKey[] = [
-    'readFiles',
-    'editFiles',
-    'runCommands',
-    'network',
-    'externalModels',
-    'publish',
-];
-
-const highRiskCapabilities: CapabilityKey[] = ['network', 'externalModels', 'publish'];
 
 function relative(cwd: string, filePath: string): string {
     return path.relative(cwd, filePath) || '.';
@@ -64,12 +51,6 @@ function toPolicyDiagnostic(filePath: string, cwd: string, diagnostic: ManifestD
 function collectManifestPolicyDiagnostics(filePath: string, cwd: string): PolicyDiagnostic[] {
     const manifest = readVasmManifest(filePath);
     return validateVasmManifest(manifest).map(diagnostic => toPolicyDiagnostic(filePath, cwd, diagnostic));
-}
-
-function isSkillLikeEntry(entry: PolicyEntry, cwd: string, manifest: VasmFrontmatter['vasm'] | undefined): boolean {
-    if (manifest?.kind === 'skill') return true;
-    const outputParts = path.normalize(relative(cwd, entry.finalDest)).split(path.sep);
-    return outputParts.includes('skills');
 }
 
 function collectGraphFiles(entry: PolicyEntry, cwd: string): string[] {
@@ -119,155 +100,51 @@ function collectLockfileDiagnostics(files: string[], cwd: string): PolicyDiagnos
     return diagnostics;
 }
 
-function collectCapabilityDiagnostics(entry: PolicyEntry, files: string[], cwd: string, rootManifest: VasmFrontmatter['vasm'] | undefined): PolicyDiagnostic[] {
-    const diagnostics: PolicyDiagnostic[] = [];
-    const rootCapabilities = rootManifest?.capabilities || {};
-
-    for (const capability of highRiskCapabilities) {
-        if (rootCapabilities[capability] === true) {
-            diagnostics.push({
-                severity: 'warn',
-                code: 'policy.capability.high_risk',
-                message: `Skill declares high-risk capability '${capability}'.`,
-                path: relative(cwd, entry.absoluteFile),
-                source: 'capability',
-                gate: 'review',
-            });
-        }
+function readDeclaredFormat(filePath: string): CompileFormat | undefined {
+    const rawFormat = readVasmManifest(filePath)?.compile?.format;
+    if (isCompileFormat(rawFormat) || isDeprecatedCompileFormat(rawFormat)) {
+        return normalizeCompileFormat(rawFormat).format;
     }
+    return undefined;
+}
+
+function collectFormatDiagnostics(entry: PolicyEntry, files: string[], cwd: string): PolicyDiagnostic[] {
+    const diagnostics: PolicyDiagnostic[] = [];
 
     for (const filePath of files) {
         if (path.resolve(filePath) === path.resolve(entry.absoluteFile)) continue;
-        const dependencyManifest = readVasmManifest(filePath);
-        const dependencyCapabilities = dependencyManifest?.capabilities;
-        if (!dependencyCapabilities) continue;
+        const dependencyFormat = readDeclaredFormat(filePath);
+        if (!dependencyFormat) continue;
 
-        for (const capability of capabilityKeys) {
-            if (dependencyCapabilities[capability] !== true) continue;
-            if (rootCapabilities[capability] === true) continue;
+        if (entry.compileFormat === 'informational' && dependencyFormat !== 'informational') {
             diagnostics.push({
                 severity: 'error',
-                code: 'policy.capability.escalation',
-                message: `Dependency requires '${capability}' but the entry skill does not declare it.`,
+                code: 'policy.format.informational_imports_active',
+                message: `Informational output imports ${dependencyFormat} content. Move active guidance behind an executable or integrative entry.`,
                 path: relative(cwd, filePath),
-                source: 'capability',
+                source: 'format',
                 gate: 'block',
             });
         }
-    }
 
-    return diagnostics;
-}
-
-function collectActivationDiagnostics(entry: PolicyEntry, cwd: string, manifest: VasmFrontmatter['vasm'] | undefined): PolicyDiagnostic[] {
-    const diagnostics: PolicyDiagnostic[] = [];
-    const intents = manifest?.activation?.intent || [];
-    const broadIntent = /^(all|any|anything|everything|default|always|general|global)$/i;
-    const broadIntentZh = /(所有|任何|全部|一切|默认|总是|全局|通用)/;
-
-    for (const intent of intents) {
-        if (broadIntent.test(intent.trim()) || broadIntentZh.test(intent)) {
+        if (entry.compileFormat === 'executable' && dependencyFormat === 'integrative') {
             diagnostics.push({
                 severity: 'warn',
-                code: 'policy.activation.too_broad',
-                message: `Activation intent '${intent}' is too broad for automatic routing.`,
-                path: relative(cwd, entry.absoluteFile),
-                source: 'activation',
+                code: 'policy.format.executable_imports_integrative',
+                message: 'Executable output imports integrative guidance. Review whether the dependency should guide composition instead of entering the final executable prompt.',
+                path: relative(cwd, filePath),
+                source: 'format',
                 gate: 'review',
             });
         }
-    }
 
-    if ((manifest?.activation?.priority ?? 0) >= 95) {
-        diagnostics.push({
-            severity: 'warn',
-            code: 'policy.activation.high_priority',
-            message: 'Activation priority is very high and should be reviewed for routing hijack risk.',
-            path: relative(cwd, entry.absoluteFile),
-            source: 'activation',
-            gate: 'review',
-        });
-    }
-
-    return diagnostics;
-}
-
-function normalizeActivationIntent(intent: string): string {
-    return intent
-        .trim()
-        .toLowerCase()
-        .replace(/[\s_-]+/g, ' ');
-}
-
-function collectActivationGraphDiagnostics(entry: PolicyEntry, files: string[], cwd: string, rootManifest: VasmFrontmatter['vasm'] | undefined): PolicyDiagnostic[] {
-    const diagnostics: PolicyDiagnostic[] = [];
-    const rootAlias = rootManifest?.alias;
-    const rootIntents = new Set((rootManifest?.activation?.intent || []).map(normalizeActivationIntent));
-    const rootConflicts = new Set((rootManifest?.activation?.conflictsWith || []).map(normalizeActivationIntent));
-    const rootPriority = rootManifest?.activation?.priority ?? 0;
-    const seenIntentOwners = new Map<string, { alias: string; path: string }>();
-
-    for (const filePath of files) {
-        const manifest = readVasmManifest(filePath);
-        if (manifest?.kind !== 'skill' || !manifest.activation) continue;
-
-        const alias = manifest.alias || relative(cwd, filePath);
-        const normalizedAlias = normalizeActivationIntent(alias);
-        const intents = manifest.activation.intent || [];
-        const priority = manifest.activation.priority ?? 0;
-        const isRoot = path.resolve(filePath) === path.resolve(entry.absoluteFile);
-
-        for (const conflict of manifest.activation.conflictsWith || []) {
-            const normalizedConflict = normalizeActivationIntent(conflict);
-            if (normalizedConflict === normalizeActivationIntent(rootAlias || '') || rootConflicts.has(normalizedAlias)) {
-                diagnostics.push({
-                    severity: 'warn',
-                    code: 'policy.activation.conflict',
-                    message: `Skill '${alias}' declares activation conflict with '${conflict}'.`,
-                    path: relative(cwd, filePath),
-                    source: 'activation',
-                    gate: 'review',
-                });
-            }
-        }
-
-        for (const intent of intents) {
-            const normalizedIntent = normalizeActivationIntent(intent);
-            if (!normalizedIntent) continue;
-
-            const existing = seenIntentOwners.get(normalizedIntent);
-            if (existing && existing.alias !== alias) {
-                diagnostics.push({
-                    severity: 'warn',
-                    code: 'policy.activation.intent_collision',
-                    message: `Activation intent '${intent}' is declared by both '${existing.alias}' and '${alias}'.`,
-                    path: relative(cwd, filePath),
-                    source: 'activation',
-                    gate: 'review',
-                });
-            } else {
-                seenIntentOwners.set(normalizedIntent, { alias, path: filePath });
-            }
-
-            if (!isRoot && rootIntents.has(normalizedIntent)) {
-                diagnostics.push({
-                    severity: 'warn',
-                    code: 'policy.activation.dependency_overlap',
-                    message: `Dependency skill '${alias}' shares entry activation intent '${intent}'.`,
-                    path: relative(cwd, filePath),
-                    source: 'activation',
-                    gate: 'review',
-                });
-            }
-        }
-
-        if (!isRoot && priority > rootPriority && intents.some(intent => rootIntents.has(normalizeActivationIntent(intent)))) {
+        if (entry.compileFormat === 'integrative' && dependencyFormat === 'executable') {
             diagnostics.push({
                 severity: 'warn',
-                code: 'policy.activation.priority_hijack',
-                message: `Dependency skill '${alias}' has priority ${priority}, higher than entry priority ${rootPriority}, for overlapping activation intent.`,
+                code: 'policy.format.integrative_imports_executable',
+                message: 'Integrative output imports executable content. Review whether it summarizes composition guidance rather than re-exporting an executable prompt.',
                 path: relative(cwd, filePath),
-                source: 'activation',
+                source: 'format',
                 gate: 'review',
             });
         }
@@ -339,20 +216,17 @@ function collectContentDiagnostics(files: string[], cwd: string): PolicyDiagnost
 }
 
 export function evaluateVasmPolicy(entry: PolicyEntry, cwd: string): PolicyVerdict {
-    const rootManifest = readVasmManifest(entry.absoluteFile);
     const files = collectGraphFiles(entry, cwd);
-    const enforceable = isSkillLikeEntry(entry, cwd, rootManifest);
+    const enforceable = entry.compileFormat === 'executable' || entry.compileFormat === 'integrative';
     const diagnostics: PolicyDiagnostic[] = [];
 
     for (const filePath of files) {
         diagnostics.push(...collectManifestPolicyDiagnostics(filePath, cwd));
     }
     diagnostics.push(...collectLockfileDiagnostics(files, cwd));
+    diagnostics.push(...collectFormatDiagnostics(entry, files, cwd));
 
     if (enforceable) {
-        diagnostics.push(...collectCapabilityDiagnostics(entry, files, cwd, rootManifest));
-        diagnostics.push(...collectActivationDiagnostics(entry, cwd, rootManifest));
-        diagnostics.push(...collectActivationGraphDiagnostics(entry, files, cwd, rootManifest));
         diagnostics.push(...collectContentDiagnostics(files, cwd));
     }
 

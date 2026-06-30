@@ -1,28 +1,31 @@
 import { Command } from 'commander';
 import { glob } from 'glob';
-import { minimatch } from 'minimatch';
 import { syncDependencies } from './sync';
-import { loadConfig, saveConfig, loadLockfile, saveLockfile, loadBuildConfig } from './config';
-import { runWorkspaceBuild, runAIBuild, createBuildReportEntry, formatPolicyAction, shouldBlockPolicyOutput } from './build';
-import { compileFile, extractTargetLangs } from './compiler';
-import { detectLanguage, estimateTokens } from './utils';
+import { loadConfig, saveConfig, loadLockfile, saveLockfile } from './config';
+import { compileEntry, resolveSingleWorkspaceEntry, runWorkspaceBuild, runAIBuild, runAIBuildEntry } from './build';
+import { detectLanguage } from './utils';
 import { fetchMarkdown } from './network';
 import * as path from 'path';
 import * as fs from 'fs';
 import { initI18n, t } from './i18n';
 import { generateGraph } from './graph';
-import type { VasmFrontmatter } from './types';
-import * as yaml from 'yaml';
-import { mergeCompiledLangs } from './merge';
 import { parseFrontmatter, stringifyFrontmatter } from './frontmatter';
-import type { BuildReport } from './build';
-import { createProjectReviewContext, formatProjectReviewAction } from './project-review';
+import { assertCompileFormat, formatDeprecationMessage } from './formats';
+import type { CompileFormat } from './formats';
 
 export interface CLIProfileOptions {
     name?: string;
     description?: string;
     includeAgent?: boolean;
     buildMode?: 'deterministic' | 'ai';
+}
+
+function normalizeCliCompileFormat(rawFormat: unknown, fileLabel: string, fallback: CompileFormat = 'executable'): CompileFormat {
+    const normalized = assertCompileFormat(rawFormat, fileLabel, fallback);
+    if (normalized.deprecated) {
+        console.warn(formatDeprecationMessage(normalized.deprecated, fileLabel));
+    }
+    return normalized.format;
 }
 
 export function setupCLI(options: CLIProfileOptions = {}): Command {
@@ -71,9 +74,11 @@ baseDir: "."
 # By default, VASMC infers languages automatically from <!-- lang:xxx --> blocks in your source.
 # Uncomment below to force explicit language generation:
 # compile:
-#   doc:                          # Document format: multi-language merge into one file
+#   informational:                # Informational format: multi-language merge into one file
 #     targetLangs: ["en", "zh-CN"]
-#   exec:                         # Executable prompt format: one file per language
+#   executable:                   # Executable prompt format: one file per language
+#     targetLangs: ["en"]
+#   integrative:                  # Composition guidance format: one file per language
 #     targetLangs: ["en"]
 
 # Advanced Routing Interceptors (optional)
@@ -198,7 +203,7 @@ baseDir: "."
         .description('Convert standard markdown files into VASMC modules by injecting Frontmatter. Supports wildcards.')
         .option('--alias <alias>', 'Explicitly set the alias name (only recommended for single files)')
         .option('--lang <lang>', 'Wrap content in a specific language block (e.g. ja, zh-CN)')
-        .option('--format <format>', 'Compile format: prompt (AI consumption, default) or doc (human documentation, multi-lang merge)')
+        .option('--format <format>', 'Compile format: executable (default), informational, or integrative')
         .action(async (patterns: string[], options: { alias?: string; lang?: string; format?: string }) => {
             if (!patterns || patterns.length === 0) {
                 console.error(t('SEAL_ERR_NO_FILES'));
@@ -263,7 +268,14 @@ baseDir: "."
                 // Determine compile format: explicit flag > heuristic from filename
                 const docFilenamePattern = /^(readme|help|design|changelog|contributing|license|docs?|guide|tutorial|manual|api)/i;
                 const isLikelyDoc = docFilenamePattern.test(path.basename(file).split('.')[0]);
-                const compileFormat = options.format || (isLikelyDoc ? 'doc' : 'prompt');
+                const defaultFormat: CompileFormat = isLikelyDoc ? 'informational' : 'executable';
+                let compileFormat: CompileFormat;
+                try {
+                    compileFormat = normalizeCliCompileFormat(options.format, file, defaultFormat);
+                } catch (e: any) {
+                    console.error(e.message);
+                    process.exit(1);
+                }
 
                 // Detect source language for targetLangs default. If inference is weak,
                 // leave targetLangs unset so users can make the declaration explicitly.
@@ -283,8 +295,8 @@ baseDir: "."
                 }
                 parsed.data.vasm = vasmMetadata;
 
-                if (compileFormat !== (options.format || compileFormat)) {
-                    console.log(`[SEAL] 📄 Detected doc-like filename, using format: doc (override with --format prompt)`);
+                if (!options.format && isLikelyDoc) {
+                    console.log(`[SEAL] 📄 Detected doc-like filename, using format: informational (override with --format executable)`);
                 }
 
                 // ----- Cross-compilation Language Auto-wrapping -----
@@ -356,108 +368,13 @@ baseDir: "."
             .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
-                // Compile single file
-                const absoluteEntry = path.resolve(process.cwd(), entry);
-                if (!fs.existsSync(absoluteEntry)) {
-                    console.error(t('BUILD_ERR_ENTRY_NOT_FOUND', absoluteEntry));
-                    process.exit(1);
-                }
-
-                const buildConfig = loadBuildConfig(process.cwd());
-                const configuredOutDir = options?.outDir || buildConfig.output?.dir;
-                let finalDest;
-                if (configuredOutDir) {
-                    const outName = path.basename(entry).replace(/\.vasm\.md$/, '.md');
-                    finalDest = path.resolve(process.cwd(), configuredOutDir, outName);
-                } else {
-                    finalDest = absoluteEntry.replace(/\.vasm\.md$/, '.md');
-                    if (finalDest === absoluteEntry) {
-                        finalDest = finalDest + '.compiled.md';
-                    }
-                }
-
-                // Apply routing interceptors (same logic as workspace build)
-                if (buildConfig.routing && buildConfig.routing.length > 0) {
-                    for (const rule of buildConfig.routing) {
-                        if (minimatch(entry, rule.match, { matchBase: true })) {
-                            const destBase = path.resolve(process.cwd(), rule.dest);
-                            if (!path.extname(destBase)) {
-                                const basename = path.basename(entry).replace(/\.vasm\.md$/, '.md');
-                                finalDest = path.join(destBase, basename);
-                            } else {
-                                finalDest = destBase;
-                            }
-                            break;
-                        }
-                    }
-                }
-
                 try {
-                    let fileLangsToProcess: string[] | undefined;
-
-                    // 1. Determine compile format from frontmatter (default: exec)
-                    let compileFormat: 'doc' | 'prompt' = 'prompt';
-                    let frontmatterTargetLangs: string[] | undefined;
-                    const rawSourceContent = fs.readFileSync(absoluteEntry, 'utf8');
-                    const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
-                    if (fmMatch) {
-                        try {
-                            const fm = yaml.parse(fmMatch[1]) as VasmFrontmatter;
-                            if (fm?.vasm?.compile?.format) {
-                                compileFormat = fm.vasm.compile.format;
-                            }
-                            if (fm?.vasm?.compile?.targetLangs) {
-                                frontmatterTargetLangs = fm.vasm.compile.targetLangs;
-                            }
-                        } catch (e) { }
-                    }
-
-                    // 2. Resolve targetLangs: frontmatter > per-format global > CLI > legacy global > extract
-                    if (frontmatterTargetLangs && frontmatterTargetLangs.length > 0) {
-                        fileLangsToProcess = frontmatterTargetLangs;
-                    } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
-                        fileLangsToProcess = buildConfig.compile.doc.targetLangs;
-                    } else if (compileFormat === 'prompt' && buildConfig.compile?.prompt?.targetLangs?.length) {
-                        fileLangsToProcess = buildConfig.compile.prompt.targetLangs;
-                    } else if (targetLangsArray && targetLangsArray.length > 0) {
-                        fileLangsToProcess = targetLangsArray;
-                    } else {
-                        const extracted = extractTargetLangs(absoluteEntry);
-                        fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
-                    }
-
-                    const isDocFormat = compileFormat === 'doc' && fileLangsToProcess!;
-                    const compiledMap = new Map<string, string>();
-
-                    for (const targetLang of fileLangsToProcess!) {
-                        let currentDest = finalDest;
-                        if (!isDocFormat && targetLang && targetLang !== 'auto' && fileLangsToProcess!.length > 1) {
-                            currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                        }
-
-                        const content = await compileFile(absoluteEntry, currentDest, new Set(), targetLang);
-                        compiledMap.set(targetLang || 'auto', content);
-
-                        if (!isDocFormat) {
-                            const dir = path.dirname(currentDest);
-                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                            fs.writeFileSync(currentDest, content, 'utf8');
-                            console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
-                        }
-                    }
-
-                    if (isDocFormat) {
-                        try {
-                            const dir = path.dirname(finalDest);
-                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                            console.log(`[MERGE] 🪄 Merging ${compiledMap.size} languages into ${path.relative(process.cwd(), finalDest)}...`);
-                            const mergedContent = mergeCompiledLangs(compiledMap);
-                            fs.writeFileSync(finalDest, mergedContent, 'utf8');
-                            console.log(t('BUILD_SUCCESS_SINGLE', entry, '[merged]', path.relative(process.cwd(), finalDest)));
-                        } catch (e: any) {
-                            console.error(`[MERGE_ERR] ❌ Failed to merge ${entry}: ${e.message}`);
-                        }
-                    }
+                    const workspaceEntry = await resolveSingleWorkspaceEntry(process.cwd(), entry, {
+                        baseDir: options?.baseDir,
+                        outDir: options?.outDir,
+                        targetLangs: targetLangsArray,
+                    });
+                    await compileEntry(workspaceEntry, process.cwd(), false);
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
                     process.exit(1);
@@ -474,8 +391,8 @@ baseDir: "."
     if (buildMode === 'ai' || includeAgent) {
         const aiBuildCommand = buildMode === 'ai' ? 'build [entry]' : 'agent [entry]';
         const aiBuildDescription = buildMode === 'ai'
-            ? 'Build for AI editors: deterministic AST assembly + output build-instructions.md'
-            : 'Compile for AI editors: deterministic AST assembly + output build-instructions.md';
+            ? 'Build for AI editors: deterministic AST assembly + structured build report'
+            : 'Compile for AI editors: deterministic AST assembly + structured build report';
         program
             .command(aiBuildCommand)
             .description(aiBuildDescription)
@@ -485,293 +402,8 @@ baseDir: "."
             .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
             if (entry) {
-                const absoluteEntry = path.resolve(process.cwd(), entry);
-                if (!fs.existsSync(absoluteEntry)) {
-                    console.error(t('BUILD_ERR_ENTRY_NOT_FOUND', absoluteEntry));
-                    process.exit(1);
-                }
-
-                const buildConfig = loadBuildConfig(process.cwd());
-                const configuredOutDir = options?.outDir || buildConfig.output?.dir;
-                let finalDest;
-                if (configuredOutDir) {
-                    const outName = path.basename(entry).replace(/\.vasm\.md$/, '.md');
-                    finalDest = path.resolve(process.cwd(), configuredOutDir, outName);
-                } else {
-                    finalDest = absoluteEntry.replace(/\.vasm\.md$/, '.md');
-                    if (finalDest === absoluteEntry) {
-                        finalDest = finalDest + '.compiled.md';
-                    }
-                }
-
-                // Apply routing interceptors (same logic as workspace build)
-                if (buildConfig.routing && buildConfig.routing.length > 0) {
-                    for (const rule of buildConfig.routing) {
-                        if (minimatch(entry, rule.match, { matchBase: true })) {
-                            const destBase = path.resolve(process.cwd(), rule.dest);
-                            if (!path.extname(destBase)) {
-                                const basename = path.basename(entry).replace(/\.vasm\.md$/, '.md');
-                                finalDest = path.join(destBase, basename);
-                            } else {
-                                finalDest = destBase;
-                            }
-                            break;
-                        }
-                    }
-                }
-
                 try {
-                    let fileLangsToProcess: string[] | undefined;
-                    let compileFormat: 'doc' | 'prompt' = 'prompt';
-                    let frontmatterTargetLangs: string[] | undefined;
-                    let vision: string | undefined;
-                    let fixMode: 'suggest' | 'auto' = 'suggest';
-                    const rawSourceContent = fs.readFileSync(absoluteEntry, 'utf8');
-                    const fmMatch = /^---\n([\s\S]*?)\n---/.exec(rawSourceContent);
-                    if (fmMatch) {
-                        try {
-                            const fm = yaml.parse(fmMatch[1]) as VasmFrontmatter;
-                            if (fm?.vasm?.compile?.format) compileFormat = fm.vasm.compile.format;
-                            if (fm?.vasm?.compile?.targetLangs) frontmatterTargetLangs = fm.vasm.compile.targetLangs;
-                            if (fm?.vasm?.vision) vision = fm.vasm.vision.trim();
-                            if (fm?.vasm?.fix) fixMode = fm.vasm.fix;
-                        } catch (e) { }
-                    }
-
-                    if (frontmatterTargetLangs && frontmatterTargetLangs.length > 0) {
-                        fileLangsToProcess = frontmatterTargetLangs;
-                    } else if (compileFormat === 'doc' && buildConfig.compile?.doc?.targetLangs?.length) {
-                        fileLangsToProcess = buildConfig.compile.doc.targetLangs;
-                    } else if (compileFormat === 'prompt' && buildConfig.compile?.prompt?.targetLangs?.length) {
-                        fileLangsToProcess = buildConfig.compile.prompt.targetLangs;
-                    } else if (targetLangsArray && targetLangsArray.length > 0) {
-                        fileLangsToProcess = targetLangsArray;
-                    } else {
-                        const extracted = extractTargetLangs(absoluteEntry);
-                        fileLangsToProcess = extracted.length > 0 ? extracted : [undefined] as any;
-                    }
-
-                    const isDocFormat = compileFormat === 'doc' && fileLangsToProcess!;
-                    const reportEntry = {
-                        relativeFile: entry,
-                        absoluteFile: absoluteEntry,
-                        finalDest,
-                        compileFormat,
-                        targetLangs: fileLangsToProcess!,
-                    };
-                    const entryReport = createBuildReportEntry(reportEntry, process.cwd(), 'built');
-                    const instructionsPath = path.resolve(process.cwd(), '.vasmc', 'build-instructions.md');
-                    const instructionsDir = path.dirname(instructionsPath);
-                    if (!fs.existsSync(instructionsDir)) fs.mkdirSync(instructionsDir, { recursive: true });
-                    const reportPath = path.resolve(process.cwd(), '.vasmc', 'build-report.yaml');
-                    const projectReviewContextPath = path.resolve(process.cwd(), '.vasmc', 'project-review-context.yaml');
-                    const projectReviewContext = await createProjectReviewContext(process.cwd(), buildConfig.ai?.projectReview);
-                    const projectReviewContextFile = path.relative(process.cwd(), projectReviewContextPath);
-                    if (projectReviewContext) {
-                        fs.writeFileSync(projectReviewContextPath, yaml.stringify(projectReviewContext), 'utf8');
-                    }
-                    const securityMode = buildConfig.security?.mode || 'review';
-
-                    if (shouldBlockPolicyOutput(entryReport, securityMode)) {
-                        const blockedReport = createBuildReportEntry(reportEntry, process.cwd(), 'blocked');
-                        const action = formatPolicyAction(blockedReport, 1);
-                        const projectReviewAction = projectReviewContext
-                            ? formatProjectReviewAction(2, projectReviewContextFile, projectReviewContext.mode)
-                            : undefined;
-                        const instructions = [
-                            `# VASMC Build Instructions — \`${entry}\``,
-                            ``,
-                            `## 🛠️ Action Items`,
-                            ``,
-                            action || `1. **Policy Gate** \`.vasmc/build-report.yaml\` — review blocked policy status.`,
-                            ...(projectReviewAction ? [``, projectReviewAction] : []),
-                            ``,
-                            `Final output was not updated because \`security.mode\` is \`enforce\`.`,
-                        ].join('\n');
-                        fs.writeFileSync(instructionsPath, instructions, 'utf8');
-                        const buildReport: BuildReport = {
-                            version: 1,
-                            mode: 'ai-build',
-                            generatedAt: new Date().toISOString(),
-                            instructionsFile: path.relative(process.cwd(), instructionsPath),
-                            entries: [blockedReport],
-                        };
-                        if (projectReviewContext) {
-                            buildReport.projectReview = {
-                                mode: projectReviewContext.mode,
-                                contextFile: projectReviewContextFile,
-                                files: projectReviewContext.files,
-                            };
-                        }
-                        fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
-                        console.warn(`[BUILD] ⛔ Blocked by policy gate: ${entry}`);
-                        return;
-                    }
-                    const compiledMap = new Map<string, string>();
-                    let minTokens = Infinity;
-                    let bestLang = 'auto';
-                    const aiHistoryPaths: { lang: string; backupPath: string }[] = [];
-
-                    // In AI build mode for prompt format with multiple langs, only compile the source language.
-                    // Non-source languages are handled by the AI Translate step; pre-compiling them
-                    // with placeholder content is wasteful and creates misleading files on disk.
-                    let aiLangsToCompile = fileLangsToProcess!;
-                    if (!isDocFormat && fileLangsToProcess!.length > 1) {
-                        const rawContent = fs.readFileSync(absoluteEntry, 'utf8');
-                        const detected = detectLanguage(rawContent);
-                        let sourceLang = fileLangsToProcess![0];
-                        if (detected && fileLangsToProcess!.includes(detected)) {
-                            sourceLang = detected;
-                        } else if (!detected) {
-                            console.warn(t('LANG_DETECT_AGENT_FALLBACK', entry, sourceLang));
-                        }
-                        aiLangsToCompile = [sourceLang];
-                    }
-
-                    for (const targetLang of aiLangsToCompile) {
-                        let currentDest = finalDest;
-                        if (!isDocFormat && targetLang && targetLang !== 'auto' && fileLangsToProcess!.length > 1) {
-                            currentDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                        }
-
-                        // Cache old content for AI diff work orders
-                        if (fs.existsSync(currentDest) && !isDocFormat) {
-                            const oldContent = fs.readFileSync(currentDest, 'utf8');
-                            const cacheDir = path.resolve(process.cwd(), '.vasmc', 'cache');
-                            if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
-                            const timestamp = new Date().getTime();
-                            const oldContentPath = path.resolve(cacheDir, `history-${timestamp}-${path.basename(currentDest)}`);
-                            fs.writeFileSync(oldContentPath, oldContent, 'utf8');
-                            aiHistoryPaths.push({ lang: targetLang || 'auto', backupPath: oldContentPath });
-                        }
-
-                        // AI build mode: zero LLM, pure AST assembly
-                        const content = await compileFile(absoluteEntry, currentDest, new Set(), targetLang, true);
-                        compiledMap.set(targetLang || 'auto', content);
-
-                        if (!isDocFormat) {
-                            const dir = path.dirname(currentDest);
-                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                            fs.writeFileSync(currentDest, content, 'utf8');
-                            console.log(t('BUILD_SUCCESS_SINGLE', entry, targetLang ? `[${targetLang}]` : '', path.relative(process.cwd(), currentDest)));
-                        }
-
-                        const tokens = estimateTokens(content);
-                        if (tokens < minTokens) {
-                            minTokens = tokens;
-                            bestLang = targetLang || 'auto';
-                        }
-                    }
-
-
-                    if (isDocFormat) {
-                        try {
-                            const dir = path.dirname(finalDest);
-                            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                            console.log(`[MERGE] 🪄 Merging ${compiledMap.size} languages into ${path.relative(process.cwd(), finalDest)}...`);
-                            const mergedContent = mergeCompiledLangs(compiledMap);
-                            fs.writeFileSync(finalDest, mergedContent, 'utf8');
-                            console.log(t('BUILD_SUCCESS_SINGLE', entry, '[merged]', path.relative(process.cwd(), finalDest)));
-                        } catch (e: any) {
-                            console.error(`[MERGE_ERR] ❌ Failed to merge ${entry}: ${e.message}`);
-                        }
-                    }
-
-                    // Output AI build instructions
-                    const needsLangSuffix = !isDocFormat && fileLangsToProcess!.length > 1;
-                    const minVariantPath = path.relative(process.cwd(), finalDest.replace(/\.md$/, needsLangSuffix && bestLang !== 'auto' ? `.${bestLang}.md` : '.md'));
-                    const langsNeedingTranslation = fileLangsToProcess!.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
-
-                    const actionItems: string[] = [];
-                    let itemIndex = 1;
-
-
-                    // 1. Verify (exec only)
-                    if (!isDocFormat) {
-                        const verifyLabel = vision
-                            ? (fixMode === 'auto'
-                                ? `**Verify & Auto-Fix** \`${minVariantPath}\` — check against vision + 4 criteria; directly edit product to fix any issues`
-                                : `**Verify** \`${minVariantPath}\` — check against vision + 4 criteria; if issues found, output suggested edits (do NOT modify product)`)
-                            : `**Verify** \`${minVariantPath}\``;
-                        actionItems.push(`${itemIndex++}. ${verifyLabel}`);
-                    }
-
-                    // 2. Translation (only if needed)
-                    if (langsNeedingTranslation.length > 0) {
-                        const targetFiles = langsNeedingTranslation
-                            .map(l => `\`${path.relative(process.cwd(), finalDest.replace(/\.md$/, `.${l}.md`))}\``)
-                            .join(', ');
-                        actionItems.push(`${itemIndex++}. **Translate** \`${minVariantPath}\` → ${targetFiles}`);
-                    }
-
-                    // 3. Diff (only if backup exists)
-                    if (aiHistoryPaths.length > 0) {
-                        const backupList = aiHistoryPaths.map(h => `\`${path.relative(process.cwd(), h.backupPath)}\` (${h.lang})`).join(', ');
-                        const diffPrereq = actionItems.some(a => a.includes('Verify')) ? ' *(prerequisite: Verify & Fix must be completed first)*' : '';
-                        actionItems.push(`${itemIndex++}. **Diff** against ${backupList}${diffPrereq}`);
-                    }
-
-                    // 4. Tree-Shake (conditional, exec only)
-                    if (!isDocFormat) {
-                        actionItems.push(`${itemIndex++}. **Tree-Shake** \`${minVariantPath}\` *(conditional — only if user requested optimization)*`);
-                    }
-
-                    const policyAction = formatPolicyAction(entryReport, itemIndex);
-                    if (policyAction) {
-                        actionItems.push(policyAction);
-                        itemIndex++;
-                    }
-                    if (projectReviewContext) {
-                        actionItems.push(formatProjectReviewAction(itemIndex++, projectReviewContextFile, projectReviewContext.mode));
-                    }
-
-                    const compiledFilesYaml = fileLangsToProcess!
-                        .map(lang => `  - ${path.relative(process.cwd(), finalDest.replace(/\.md$/, (!isDocFormat && fileLangsToProcess!.length > 1 && lang !== 'auto' && lang) ? `.${lang}.md` : '.md'))}`)
-                        .join('\n');
-
-                    const visionLines = vision
-                        ? [`**Vision:** ${vision.replace(/\n/g, ' ')}`, `**Fix Mode:** ${fixMode}`, ``]
-                        : [];
-
-                    const renderedActionItems = actionItems.length > 0
-                        ? actionItems.join('\n\n')
-                        : `No pending action items. See \`.vasmc/build-report.yaml\` for the full build report.`;
-                    const instructions = [
-                        `# VASMC Build Instructions — \`${entry}\``,
-                        ``,
-                        `**Minimal-Token Variant:** ${minVariantPath} (${minTokens} tokens)`,
-                        `**Target Languages:** ${fileLangsToProcess!.join(', ')}`,
-                        ...visionLines,
-                        '```yaml',
-                        `compiledFiles:`,
-                        compiledFilesYaml,
-                        '```',
-                        ``,
-                        `## 🛠️ Action Items`,
-                        ``,
-                        renderedActionItems,
-                    ].join('\n');
-
-                    fs.writeFileSync(instructionsPath, instructions, 'utf8');
-                    console.log(`\n[BUILD] 🤖 Orchestration instructions generated: ${path.relative(process.cwd(), instructionsPath)}`);
-
-                    const buildReport: BuildReport = {
-                        version: 1,
-                        mode: 'ai-build',
-                        generatedAt: new Date().toISOString(),
-                        instructionsFile: path.relative(process.cwd(), instructionsPath),
-                        entries: [entryReport],
-                    };
-                    if (projectReviewContext) {
-                        buildReport.projectReview = {
-                            mode: projectReviewContext.mode,
-                            contextFile: projectReviewContextFile,
-                            files: projectReviewContext.files,
-                        };
-                    }
-                    fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
-                    console.log(`[BUILD] 📋 Build report: ${path.relative(process.cwd(), reportPath)}`);
-
+                    await runAIBuildEntry(process.cwd(), entry, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
                     process.exit(1);

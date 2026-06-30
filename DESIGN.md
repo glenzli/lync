@@ -9,9 +9,9 @@
 1. **意图即源码，Prompt 即编译产物**：在 AI-Native 架构中，系统级的指令（如 System-Prompt、固化的 SKILL 流程说明）应当被严格视为用于驱动底层模型的“汇编语言（Assembly / Machine Code）”。人类开发者的“自然语言意图”和抽象拓扑结构（通过 `vasm:alias` 组合）才是真正的 Source Code（源码）。
 2. **拒绝手工字句微调 (No Manual Prompt Tweaking)**：人类不应当，也不需要直接在文本级手工雕琢已被验证的高维 Prompt。Prompt 的唯一评价标准是“能否稳定触发底层模型的正确动作”。这种模块化组装应该交给像 VASMC 这样的静态链接器，系统严禁基于“玄学”的手工微调。
 3. **闭环编译体系 (Agentic Compilation Workflow)**：对系统 Prompt 的功能性修改必须借由 LLM 自主生成、执行、验证、修正的闭环完成。AI 侧 `vasmc build` 命令正是这一流程的物理载体，将 VASMC 提升为了客观的“编译器前端”，由当前 AI 读取 AST 指令后接管编译的后半段过程（优化、剪裁与翻译）。
-4. **多语种交叉编译 (Cross-Compilation Targets)**：当 Prompt 被视为机器码，它的具体语种就不再是传统意义上的"国际化（i18n）"，而是指定"CPU 架构"（各模型对不同语系的解析性能不同）。VASMC 支持使用母语编写意图源文件（高级语言），先由确定性编译器过滤已有语种块，再通过 `vasmc build` 工作单把缺失目标语种交给当前 AI 处理，从而消灭在同一份大文件中杂糅双语对照导致的 Token 浪费与幻觉问题。
-5. **语义编译与意图规约 (Semantic Compilation via Vision)**：真正的编译器不只做结构变换，还要保证语义正确性。VASMC 允许开发者在源文件 Frontmatter 中声明 `vision`（产物应达成的语义目标），并通过 `fix: suggest | auto` 控制修复策略。在 AI build 的 Verify Pass 中，AI 协调器将对照 vision 检查编译产物的意图对齐程度——`suggest` 模式输出修改建议等待确认，`auto` 模式直接编辑产物文件并报告变更摘要。这将 VASMC 从"结构链接器"升格为"语义编译器"。
-6. **输入面主权 (Input Sovereignty)**：在 AI-Native 系统中，上下文窗口既是执行空间也是数据空间——LLM 在架构层面无法区分"应当执行的指令"与"应当处理的数据"，整个输入面即执行面。VASMC 是这一架构约束下**在输入层建立的唯一确定性控制点**：所有进入执行面的内容都必须经过编译链的显式声明与组装，来源可追溯，格式有分类（`prompt` 与 `doc` 的区分是编译期的安全分类原语），内容不可被隐式污染。VASMC 不试图修复 LLM 的执行层，而是在执行面形成之前，将人类的主权意志确定性地写入其中。
+4. **多语种交叉编译 (Cross-Compilation Targets)**：当 Prompt 被视为机器码，它的具体语种就不再是传统意义上的"国际化（i18n）"，而是指定"CPU 架构"（各模型对不同语系的解析性能不同）。VASMC 支持使用母语编写意图源文件（高级语言），先由确定性编译器过滤已有语种块，再通过 `vasmc build` report actions 把缺失目标语种交给当前 AI 处理，从而消灭在同一份大文件中杂糅双语对照导致的 Token 浪费与幻觉问题。
+5. **语义编译与意图规约 (Semantic Compilation via Intent)**：真正的编译器不只做结构变换，还要保证语义正确性。VASMC 允许开发者在源文件 Frontmatter 中声明 `intent`（产物应达成的用途），并把它写入 AI 侧 `vasmc build` report actions。当前 AI 协调器负责根据 intent 做 Verify 或 Integration Review，输出源文件级建议，而 VASMC 核心自身保持零模型调用。
+6. **输入面主权 (Input Sovereignty)**：在 AI-Native 系统中，上下文窗口既是执行空间也是数据空间——LLM 在架构层面无法区分"应当执行的指令"与"应当处理的数据"，整个输入面即执行面。VASMC 是这一架构约束下**在输入层建立的唯一确定性控制点**：所有进入执行面的内容都必须经过编译链的显式声明与组装，来源可追溯，格式有分类（`informational`、`executable`、`integrative` 是编译期的用途声明），内容不可被隐式污染。VASMC 不试图修复 LLM 的执行层，而是在执行面形成之前，将人类的主权意志确定性地写入其中。
 
 VASMC 是一个专为 LLM 相关开发流设计的轻量级、去中心化 Markdown 包管理器与 **跨平台编译器**。它将 Markdown 视为高级工程抽象代码，提供依赖管理、内联组合、确定性构建和输入面主权保障机制，且不依赖任何中心化注册表。
 
@@ -96,7 +96,7 @@ VASM 采用向下兼容的设计原则：将编译指令编码为标准 Markdown
 VASMC 编译器是负责兑现协议的执行引擎。monorepo 内部按使用边界拆成三类发布包：
 
 * `@vasm/core`：共享确定性核心。实现 VASM 协议解析、依赖图、Frontmatter 脱水、语言块过滤、工作区构建与合并，不包含外部模型 SDK。
-* `@vasm/cli`：发布 `vasmc` 命令。面向 AI 编辑器和自动化流程，提供 AI build：确定性编译产物 + 后续语义工作单。
+* `@vasm/cli`：发布 `vasmc` 命令。面向 AI 编辑器和自动化流程，提供 AI build：确定性编译产物 + 结构化构建报告。
 * `@vasm/console`：发布 `vasm-console` 命令。面向人类开发者，承载可选外部模型能力，例如语义 lint 和语义 diff。
 
 ### 1. 锁文件 (`vasmc-lock.yaml`)
@@ -109,7 +109,7 @@ VASMC CLI 采用严格的关注点分离原则，将命令分为三类：
 
 **AI 编译工具（`@vasm/cli` / `vasmc`）**：
 
-* `vasmc build [file]`：AI 侧唯一编译入口。执行确定性的 AST 遍历、`@import` 解析、语言块过滤和产物写入，并输出 `.vasmc/build-instructions.md` 编排操作令与 `.vasmc/build-report.yaml` 结构化构建报告。若目标语言缺失，它不会调用外部模型自动补全，而是把翻译、校验、Diff、Policy Review、Policy Gate、Project Review、裁剪等语义任务交给当前 AI。
+* `vasmc build [file]`：AI 侧唯一编译入口。执行确定性的 AST 遍历、`@import` 解析、语言块过滤和产物写入，并输出 `.vasmc/build-report.yaml` 结构化构建报告。若目标语言缺失，它不会调用外部模型自动补全，而是在 report 的 `actions` 中记录翻译、校验、Diff、Policy Review、Policy Gate、Project Review、裁剪等语义任务，由当前 AI 加载 VASM skill 后解释执行。
 * `vasmc graph <file>`：静态分析 AST 并打印依赖关系的可视化 ASCII 树。
 * `vasmc seal <patterns>`：将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、语言标签）。
 * `vasmc sync`、`vasmc add`、`vasmc init`：依赖管理与项目初始化。
@@ -161,7 +161,7 @@ vasm:
 
 对于必须引入的嵌套依赖，VASMC 采用全局扁平的 Alias 命名空间，不允许多版本嵌套（像 npm 那样）。
 当主项目和子依赖需要同一个模块时，VASMC 不会像传统包管理器那样对组件进行暴力的“命名空间硬覆盖替换”。因为自然语言构成的 Prompt 强行替换往往会导致上下文断裂和逻辑失控。
-遇到逻辑或定义分歧时，确定性编译器只负责暴露组装结果，不替人类或 AI 做语义裁决。人类可以在编译完成后执行 `vasm-console lint <file>`，让外部模型判断不同模块拼装后是否存在无法调和的冲突；AI 编辑器则应通过 `vasmc build` 读取工作单中的 Verify 项并自行完成判断。
+遇到逻辑或定义分歧时，确定性编译器只负责暴露组装结果，不替人类或 AI 做语义裁决。人类可以在编译完成后执行 `vasm-console lint <file>`，让外部模型判断不同模块拼装后是否存在无法调和的冲突；AI 编辑器则应通过 `vasmc build` 读取 `.vasmc/build-report.yaml` 中的 `verify` action 并自行完成判断。
 
 ### 4. 基于 Hash 的本地锁定 (Hash-Based Locking)
 
@@ -183,42 +183,31 @@ vasm:
 
 编译器会自动识别以 `./` 或 `../` 开头的链接。它不仅能让您在主流编辑器中点按跳转到源文件，而且**本地相对引用的文件不会被强制执行 Hash Lock 计算**，天然支持本地实时联调与热修改。
 
-### 6. Skill Manifest 治理字段 (Skill Policy Surface)
+### 6. Manifest 用途声明 (Manifest Intent Surface)
 
-Skill 泛滥后，核心问题不再是“能否引入”，而是“为什么选择这个 skill、它的能力边界是什么、是否与其他 skill 冲突”。VASMC 因此支持在 `vasm:` Frontmatter 中声明治理字段：
+Skill 和 Prompt 泛滥后，核心问题不再是“能否引入”，而是“这个文件到底要作为信息、执行指令，还是整合指导”。VASMC 因此把 `vasm:` Frontmatter 收窄为少量稳定字段：
 
 ```yaml
 vasm:
-  kind: skill
-  scope:
-    domains: ["security", "code-review"]
-    filePatterns: ["**/*.ts"]
-  capabilities:
-    readFiles: true
-    editFiles: false
-    runCommands: false
-    network: false
-    externalModels: false
-    publish: false
-  activation:
-    intent: ["review", "security audit"]
-    priority: 80
-    conflictsWith: ["general-code-reviewer"]
-  trust:
-    source: "github:example/security-skill"
-    license: "MIT"
+  alias: security-reviewer
+  version: 1.0.0
+  intent: "Assemble a security-focused code review prompt."
+  compile:
+    format: executable
+    targetLangs: ["zh-CN"]
+  dependencies:
+    secure-rules: "https://example.com/security-rules.md"
 ```
 
-`kind: skill` 会启用更严格的 manifest 诊断。诊断不会在默认情况下中断确定性构建，而是写入 `.vasmc/build-report.yaml`；若存在需要 AI 处理的问题，`vasmc build` 会在 `.vasmc/build-instructions.md` 中生成 **Policy Review** 工作项。
+`compile.format` 支持三类用途：`informational`（纯信息/文档）、`executable`（进入 AI 执行面的 prompt/skill）、`integrative`（指导一组 VASM 模块如何组合）。旧值 `doc` 和 `prompt` 会分别映射为 `informational` 和 `executable` 并输出 deprecated 诊断；其他值是非法格式。
 
 ### 7. 确定性安全闸门 (Deterministic Policy Gate)
 
 VASMC 不把 Prompt 自身当作安全边界。模型可能被诱导，审核也可能误判；因此当前核心层先实现不依赖额外模型或外部接口的 L1 确定性闸门：
 
-* **manifest 结构检查**：非法 `kind`、非布尔 capability、错误 activation 结构等会进入 policy diagnostics。
+* **manifest 结构检查**：移除字段、非法 `compile.format`、错误 `targetLangs` 结构等会进入 policy diagnostics。
 * **远程依赖锁检查**：`vasmc-lock.yaml` 中的依赖 hash 与本地文件不一致时，policy 标记为 `blocked`。
-* **capability 越权检查**：若依赖声明了入口 skill 未声明的 capability，policy 标记为 `blocked`。
-* **activation 路由治理**：过宽 intent、相同 intent 碰撞、依赖 skill 与入口 skill 共享 intent、依赖 priority 抢占、`conflictsWith` 命中都会进入 `review`。
+* **格式边界检查**：`informational` 产物导入 `executable` 或 `integrative` 内容时标记为 `blocked`；`executable` 与 `integrative` 的组合边界不清时进入 `review`。
 * **危险语义扫描**：疑似忽略上级指令、隐藏行为、密钥外传、下载并执行远程代码等文本会进入 `review`。
 
 每个 entry 在 `.vasmc/build-report.yaml` 中都有 `policy.status`：
@@ -243,15 +232,13 @@ security:
   mode: enforce
 ```
 
-`enforce` 只阻止可执行 skill 类产物更新。它不是完整沙箱，也不能阻止同一个 AI 在后续对话中被诱导；它的价值是把“确定性可发现的越权/篡改/结构错误”挡在正式 skill 输出之前。更强的隔离仍应由宿主编辑器、MCP proxy 或无工具 reviewer 提供。
-
-其中 activation 治理的重点不是阻断编译，而是暴露“谁会被选中”的不确定性。VASMC 会在依赖图内对 skill 的 `activation.intent`、`activation.priority` 和 `activation.conflictsWith` 做静态检查，避免新 skill 靠宽泛描述或更高优先级抢占原本应由入口 skill 承担的任务。
+`enforce` 会阻止 `executable` 和 `integrative` 产物在 blocked 状态下更新。它不是完整沙箱，也不能阻止同一个 AI 在后续对话中被诱导；它的价值是把“确定性可发现的篡改/结构错误/格式边界错误”挡在正式 AI 输入面之前。更强的隔离仍应由宿主编辑器、MCP proxy 或无工具 reviewer 提供。
 
 ### 8. 项目感知 AI Pass (Project Review)
 
 传统编译器通常到“生成产物”即结束；VASM 面对的是给 AI 消费的 Prompt/Skill，因此编译完成后更有价值的一步，是让当前 AI 结合项目事实主动审查产物是否仍然贴合项目。
 
-VASMC 不在核心内置模型，也不自动改仓库。它只在配置开启时生成项目上下文索引和工作单：
+VASMC 不在核心内置模型，也不自动改仓库。它只在配置开启时生成项目上下文索引和 report action：
 
 ```yaml
 ai:
@@ -265,12 +252,12 @@ ai:
       - "skill-src/**/*.vasm.md"
 ```
 
-`vasmc build` 会输出 `.vasmc/project-review-context.yaml`，其中包含被纳入审查的项目文件路径、大小和 hash。随后 `.vasmc/build-instructions.md` 会加入 **Project Review** 工作项，让 AI 读取 context index、build report 和相关项目文件，给出源文件级建议。
+`vasmc build` 会输出 `.vasmc/project-review-context.yaml`，其中包含被纳入审查的项目文件路径、大小和 hash。随后 `.vasmc/build-report.yaml` 的顶层 `actions` 会加入 `project_review`，让 AI 读取 context index、build report 和相关项目文件，给出源文件级建议。
 
 这个 pass 适合发现：
 
-* skill 描述是否过宽，容易误激活。
-* capabilities 是否可以继续收窄。
+* `intent` 是否准确表达源文件用途。
+* `compile.format` 是否把信息、执行指令和整合指导分清。
 * prompt 是否缺少项目实际命令、目录结构、发布约束或安全策略。
 * README、docs、skill 之间术语是否不一致。
 * 多处重复内容是否应该抽成 fragment。
@@ -324,7 +311,7 @@ skills/vasm-expert/                         # 编译产物目录（纯净）
 * **自包含（Static Linking）**：最终产出的技能文件必须是一个自包含的闭包。AI 编辑器只需加载 `skills/vasm-expert/SKILL.md` 这一个文件，即可同时获得语法速查、CLI 参考和 `vasmc build` 操作规程。不允许出现运行时的外部依赖——"加载即可用，零断链"。
 * **知识蒸馏分离**：`vasmc-knowledge.md` 是由 AI 编辑器根据 `extract-vasmc-knowledge.vasm.md` 的指令从源文档中蒸馏出来的 AI 专用知识手册。它不是手写的，而是随时可以通过重新执行提取流水线来再生的中间产物。
 * **流水线即 Prompt**：`extract-vasmc-knowledge.vasm.md` 本身就是一个 VASM 源文件，它通过 `@import:inline` 拉入最新的编译文档作为上下文，指导 AI 编辑器生成新的知识手册。这意味着**提取流水线本身也是由 VASMC 管理的模块化代码**。
-* **语种一致性**：技能文件（`prompt` 格式）内部的所有内联素材必须与目标编译语种保持一致，避免在单一可执行体中混杂多种语言而导致 LLM 注意力分散。
+* **语种一致性**：技能文件（`executable` 格式）内部的所有内联素材必须与目标编译语种保持一致，避免在单一可执行体中混杂多种语言而导致 LLM 注意力分散。
 
 ***
 
@@ -348,10 +335,11 @@ VASMC 不试图修复 LLM 执行层（这是不可能的），而是在**执行�
 
 * **来源可审计（Provenance）**：所有进入执行面的内容，必须经过 `.vasm.md` 源文件 → 编译链 → `.md` 产物的显式路径。外部内容只能通过 `vasmc add` + `vasmc sync` 的显式声明进入构建链，不存在隐式引入。进入上下文的每一个 token 都有可追溯的人类授权来源。
 
-* **格式分类即安全分类（Format Classification）**：`compile.format: prompt | doc` 的区分远不只是"编译行为不同"——它是人类在构建期对内容用途的**主权声明**：
+* **格式分类即安全分类（Format Classification）**：`compile.format: informational | executable | integrative` 的区分远不只是"编译行为不同"——它是人类在构建期对内容用途的**主权声明**：
 
-  * `prompt`：声明为进入 LLM 执行面的指令内容
-  * `doc`：声明为供人类阅读的信息内容，**不应出现在 system prompt 中**
+  * `informational`：声明为纯信息/文档内容，**不应出现在 system prompt 中**
+  * `executable`：声明为进入 LLM 执行面的指令内容
+  * `integrative`：声明为组合多个 VASM 模块时的整合指导，AI 应参考它做组合决策，但不把它直接当最终可执行 prompt
 
   在冯诺伊曼架构中，代码段与数据段由 CPU 硬件强制隔离。LLM 做不到这件事——VASMC 把这个隔离提前到**编译期**，由人类显式声明，而非期待模型运行时辨别。
 
@@ -402,4 +390,4 @@ entries:
 
 * **可提交（Committable）**：`vasmc-build-state.yaml` 基于内容 Hash，与机器无关，应提交到版本控制，团队成员可直接共享增量缓存。
 * **自动失效**：任何源文件（包括任意层级的传递依赖）变更，签名随之变化，增量 skip 自动失效，确保构建结果始终正确。
-* **对 AI build 透明**：`vasmc build` 同样支持增量构建。若构建被跳过，`.vasmc/build-instructions.md` 中不会生成对应条目，AI 编辑器自然跳过后续语义任务。
+* **对 AI build 透明**：`vasmc build` 同样支持增量构建。若构建被跳过，`.vasmc/build-report.yaml` 中该 entry 会标记为 `status: skipped`，且不会生成 verify/translate/diff 等产物级 actions。

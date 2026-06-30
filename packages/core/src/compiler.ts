@@ -234,6 +234,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
     // 1. Process @import:link
     for (const item of linkNodes) {
         let lockedDestPath: string;
+        let localRelativeImport = false;
 
         if (item.link.url.startsWith('vasm:')) {
             const alias = item.link.url.replace('vasm:', '');
@@ -247,10 +248,17 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         } else {
             // It's a relative local file
             lockedDestPath = path.resolve(path.dirname(filePath), item.link.url);
+            localRelativeImport = true;
         }
 
         const relativeFrom = outPath ? path.dirname(outPath) : process.cwd();
-        let relativeUrl = path.relative(relativeFrom, lockedDestPath);
+        let linkDestPath = lockedDestPath;
+        if (localRelativeImport && outPath && lockedDestPath.endsWith('.vasm.md')) {
+            const sourceRelativeTarget = path.relative(path.dirname(filePath), lockedDestPath);
+            linkDestPath = path.resolve(path.dirname(outPath), sourceRelativeTarget).replace(/\.vasm\.md$/, '.md');
+        }
+
+        let relativeUrl = path.relative(relativeFrom, linkDestPath);
         if (!relativeUrl.startsWith('.')) {
             relativeUrl = './' + relativeUrl;
         }

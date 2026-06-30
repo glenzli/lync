@@ -15,10 +15,13 @@ baseDir: "./"
 
 # 交叉编译目标语种（按输出格式分别配置）
 compile:
-  doc:
+  informational:
     targetLangs:
       - "zh-CN"
-  prompt:
+  executable:
+    targetLangs:
+      - "zh-CN"
+  integrative:
     targetLangs:
       - "zh-CN"
 
@@ -42,6 +45,9 @@ ai:
       - "vasmc-build.yaml"
       - "docs-src/**/*.vasm.md"
       - "packages/*/docs-src/**/*.vasm.md"
+      - "eval-src/**/*.md"
+      - "eval-src/**/*.vasm.md"
+      - "eval-src/**/*.yaml"
       - "skill-src/**/*.vasm.md"
       - "skill-src/**/*.md"
 

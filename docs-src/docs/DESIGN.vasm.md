@@ -1,7 +1,7 @@
 ---
 vasm:
   compile:
-    format: "doc"
+    format: "informational"
     targetLangs: ["zh-CN"]
 ---
 

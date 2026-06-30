@@ -8,9 +8,9 @@
 
 ## 🌍 English
 
-Decentralized Markdown prompt compiler for LLM skills: URL imports, deterministic builds, cross-language outputs, and AI build work orders.
+Decentralized Markdown prompt compiler for LLM skills: URL imports, deterministic builds, cross-language outputs, and AI build report actions.
 
-In the LLM era, Markdown has become **source code**: system prompts, skill packs, and instruction sets are all written in Markdown. VASMC treats them as first-class compilation targets by resolving `@import` dependencies, cross-compiling language blocks, and generating AI build work orders for semantic tasks that belong to the current AI rather than a deterministic tool.
+In the LLM era, Markdown has become **source code**: system prompts, skill packs, and instruction sets are all written in Markdown. VASMC treats them as first-class compilation targets by resolving `@import` dependencies, cross-compiling language blocks, and generating AI build report actions for semantic tasks that belong to the current AI rather than a deterministic tool.
 
 In AI-native systems, the context window is both execution space and data space. The model cannot reliably separate instructions from data after they enter the prompt. VASMC establishes a deterministic control point before that execution surface exists: every token entering a system prompt is explicitly declared, assembled, traceable to a human-authorized source, and classified by output format.
 
@@ -18,10 +18,10 @@ In AI-native systems, the context window is both execution space and data space.
 
 ### 📦 Core Features
 
-* **Input surface sovereignty**: Compile-time control over content sources. Every token entering the execution surface has traceable human authorization, and `prompt` / `doc` format classification acts as a compile-time safety primitive.
+* **Input surface sovereignty**: Compile-time control over content sources. Every token entering the execution surface has traceable human authorization, and `informational` / `executable` / `integrative` format classification acts as a compile-time safety primitive.
 * **Decentralized package management**: Fetch Markdown modules directly from URLs. No registry, no intermediary.
 * **Deterministic builds**: SHA-256 lock files (`vasmc-lock.yaml`) make builds reproducible.
-* **Cross-compilation**: AST-level language block filtering (`<!-- lang:xx -->`) generates language-specific outputs. Missing language coverage is handed to the current AI through `vasmc build` work orders.
+* **Cross-compilation**: AST-level language block filtering (`<!-- lang:xx -->`) generates language-specific outputs. Missing language coverage is handed to the current AI through `vasmc build` report actions.
 * **Two import modes**:
   * `@import:link` rewrites aliases to local relative paths while preserving hyperlink structure.
   * `@import:inline` expands remote content inline for assembling large prompt contexts.
@@ -31,7 +31,7 @@ In AI-native systems, the context window is both execution space and data space.
 | Package | Command | Description |
 |------|------|------|
 | `@vasm/core` | No bin | Shared deterministic compiler core and VASM protocol implementation |
-| `@vasm/cli` | `vasmc` | AI build, dependency management, and follow-up work orders |
+| `@vasm/cli` | `vasmc` | AI build, dependency management, and structured report actions |
 | `@vasm/console` | `vasm-console` | Human-facing console with optional external-model `lint` / `diff` tools |
 
 ### 📌 Versioning And Release
@@ -46,7 +46,7 @@ Before publishing, run `npm run changeset` to declare the affected packages and 
 npm install -g @vasm/cli
 vasmc init                    # create vasmc-build.yaml
 vasmc add https://example.com/skill.md --alias my-skill
-vasmc build                   # build the workspace and generate follow-up work orders for the current AI
+vasmc build                   # build the workspace and generate report actions for the current AI
 ```
 
 For full CLI usage, see **[Help And Usage](HELP.md)**.
@@ -67,10 +67,10 @@ AI-Native 系统中，整个上下文窗口既是执行空间也是数据空间�
 
 ### 📦 核心特性
 
-* **输入面主权**: 编译期内容来源管控——所有进入执行面的 token 都有可追溯的人类授权来源，`prompt` / `doc` 格式分类是编译时的安全分类原语。
+* **输入面主权**: 编译期内容来源管控——所有进入执行面的 token 都有可追溯的人类授权来源，`informational` / `executable` / `integrative` 格式分类是编译时的安全分类原语。
 * **去中心化包管理**: 直接通过 URL 拉取 Markdown 模块 — 无注册表，无中间人。
 * **确定性构建**: SHA-256 锁文件 (`vasmc-lock.yaml`) 确保构建可复现。
-* **交叉编译**: AST 级语言块过滤 (`<!-- lang:xx -->`) 生成各语种产物；未覆盖语种由 `vasmc build` 工作单交给当前 AI 处理。
+* **交叉编译**: AST 级语言块过滤 (`<!-- lang:xx -->`) 生成各语种产物；未覆盖语种由 `vasmc build` report actions 交给当前 AI 处理。
 * **双模式引入**:
   * `@import:link` — 别名重写为本地相对路径（保留超链接结构）。
   * `@import:inline` — 内联展开远程内容（组装大型 Prompt 上下文）。
@@ -80,7 +80,7 @@ AI-Native 系统中，整个上下文窗口既是执行空间也是数据空间�
 | 包 | 命令 | 说明 |
 |------|------|------|
 | `@vasm/core` | 无 bin | 共享确定性编译核心与 VASM 协议实现 |
-| `@vasm/cli` | `vasmc` | AI build、依赖管理、后续工作单 |
+| `@vasm/cli` | `vasmc` | AI build、依赖管理、结构化 report actions |
 | `@vasm/console` | `vasm-console` | 人用控制台，包含可选外部模型 `lint/diff` |
 
 ### 📌 版本与发布
@@ -95,7 +95,7 @@ VASMC 使用 Changesets 管理 npm workspace 版本。`@vasm/core`、`@vasm/cli`
 npm install -g @vasm/cli
 vasmc init                    # 生成 vasmc-build.yaml
 vasmc add https://example.com/skill.md --alias my-skill
-vasmc build                   # 编译工作区，并为当前 AI 生成语义工作单
+vasmc build                   # 编译工作区，并为当前 AI 生成语义 actions
 ```
 
 完整 CLI 用法请参阅 **[帮助与用法文档](HELP.md)**。

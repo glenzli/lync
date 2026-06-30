@@ -6,3 +6,5 @@ dist/
 playground/
 .vasmc/
 .vasmrc
+self-eval-reports/
+eval-src/workspaces/**/vasmc-build-state.yaml
