@@ -8,7 +8,7 @@ import { t } from './i18n';
 import { VasmFrontmatter } from './types';
 import * as yaml from 'yaml';
 import { mergeCompiledLangs } from './merge';
-import { estimateTokens } from './utils';
+import { detectLanguage, estimateTokens } from './utils';
 import { loadBuildState, saveBuildState, computeInputSignature, buildStateKey } from './buildstate';
 import { readVasmManifest, summarizeVasmManifest, validateVasmManifest, ManifestDiagnostic, VasmManifestSummary } from './manifest';
 import { evaluateVasmPolicy, PolicyDiagnostic, PolicyStatus } from './policy';
@@ -218,6 +218,69 @@ export function shouldBlockPolicyOutput(entryReport: BuildReportEntry, securityM
         && entryReport.policy.status === 'blocked';
 }
 
+function findMatchingTargetLang(targetLangs: string[], sourceLang: string): string | undefined {
+    const normalizedSource = sourceLang.toLowerCase();
+    return targetLangs.find(targetLang => {
+        const normalizedTarget = targetLang.toLowerCase();
+        return normalizedTarget === normalizedSource
+            || normalizedTarget.startsWith(`${normalizedSource}-`)
+            || normalizedSource.startsWith(`${normalizedTarget}-`);
+    });
+}
+
+function addDetectedTargetLang(found: Set<string>, targetLangs: string[], sourceLang?: string) {
+    if (!sourceLang) return;
+    const targetLang = findMatchingTargetLang(targetLangs, sourceLang);
+    if (targetLang && targetLang !== 'auto') found.add(targetLang);
+}
+
+function detectScriptTargetLang(content: string, targetLangs: string[]): string | undefined {
+    const prose = content
+        .replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '')
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`[^`\n]+`/g, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/\[[^\]]*]\([^)]+\)/g, '')
+        .replace(/https?:\/\/\S+/g, '');
+    const cjkChars = prose.match(/[\u3400-\u9fff\uf900-\ufaff]/g)?.length ?? 0;
+    if (cjkChars >= 12) {
+        return findMatchingTargetLang(targetLangs, 'zh-CN');
+    }
+    return undefined;
+}
+
+function detectTargetLangsInFile(filePath: string, targetLangs: string[]): string[] {
+    const found = new Set<string>();
+    for (const lang of extractTargetLangs(filePath)) {
+        addDetectedTargetLang(found, targetLangs, lang);
+    }
+    if (found.size > 0) {
+        return targetLangs.filter(lang => found.has(lang));
+    }
+
+    const rawContent = fs.readFileSync(filePath, 'utf8');
+    addDetectedTargetLang(found, targetLangs, detectLanguage(rawContent));
+    addDetectedTargetLang(found, targetLangs, detectScriptTargetLang(rawContent, targetLangs));
+    return targetLangs.filter(lang => found.has(lang));
+}
+
+function resolveAgentSourceTargetLangs(filePath: string, cwd: string, targetLangs: string[]): string[] {
+    const directLangs = detectTargetLangsInFile(filePath, targetLangs);
+    if (directLangs.length > 0) return directLangs;
+
+    const dependencyLangs = new Set<string>();
+    for (const depPath of collectDependencies(filePath, cwd)) {
+        if (depPath === filePath) continue;
+        for (const lang of detectTargetLangsInFile(depPath, targetLangs)) {
+            dependencyLangs.add(lang);
+        }
+    }
+    const orderedDependencyLangs = targetLangs.filter(lang => dependencyLangs.has(lang));
+    if (orderedDependencyLangs.length > 0) return orderedDependencyLangs;
+
+    return targetLangs.length > 0 ? [targetLangs[0]] : ['auto'];
+}
+
 function normalizeBuildCompileFormat(rawFormat: unknown, fileLabel: string): CompileFormat {
     const normalized = assertCompileFormat(rawFormat, fileLabel, 'executable');
     if (normalized.deprecated) {
@@ -421,22 +484,17 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
     const isInformationalFormat = compileFormat === 'informational';
     const compiledMap = new Map<string, string>();
 
-    // In AI build mode for non-informational formats with multiple langs, only compile the source language.
-    // Non-source languages are recorded as report actions for the active AI skill to translate.
-    // Compiling them here would: (a) write wrong placeholder files to disk, (b) count tokens on
-    // identical source content, making the token comparison meaningless.
+    // In AI build mode with multiple langs, only compile languages that are actually present in source.
+    // Missing languages are recorded as report actions for the active AI skill to translate.
+    // Compiling missing languages here would write wrong placeholder content and make token comparison meaningless.
     let langsToCompile = targetLangs;
-    if (agentMode && !isInformationalFormat && targetLangs.length > 1) {
-        const rawContent = fs.readFileSync(absoluteFile, 'utf8');
-        const { detectLanguage } = await import('./utils');
-        const detected = detectLanguage(rawContent);
-        let sourceLang = targetLangs[0];
-        if (detected && targetLangs.includes(detected)) {
-            sourceLang = detected;
-        } else if (!detected) {
-            console.warn(t('LANG_DETECT_AGENT_FALLBACK', relativeFile, sourceLang));
+    if (agentMode && targetLangs.length > 1) {
+        const sourceLangs = resolveAgentSourceTargetLangs(absoluteFile, cwd, targetLangs);
+        if (sourceLangs.length > 0) {
+            langsToCompile = isInformationalFormat ? sourceLangs : [sourceLangs[0]];
+        } else {
+            console.warn(t('LANG_DETECT_AGENT_FALLBACK', relativeFile, targetLangs[0] || 'auto'));
         }
-        langsToCompile = [sourceLang];
     }
 
     for (const targetLang of langsToCompile) {
@@ -723,9 +781,8 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
             return finalDest;
         };
         const minVariantPath = path.relative(cwd, outputPathForLang(bestLang));
-        const langsNeedingTranslation = isInformationalFormat
-            ? []
-            : targetLangs.filter(l => (l || 'auto') !== bestLang && l !== 'auto');
+        const compiledLangs = new Set(result.compiledMap.keys());
+        const langsNeedingTranslation = targetLangs.filter(l => l !== 'auto' && !compiledLangs.has(l));
 
         const actionItems: BuildReportAction[] = [];
 
@@ -759,8 +816,16 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
                 status: 'pending',
                 title: 'Translate',
                 target: minVariantPath,
-                targets: langsNeedingTranslation.map(l => path.relative(cwd, outputPathForLang(l))),
-                notes: ['Preserve Markdown structure, XML tags, and VASM syntax. Translate only human-readable text.'],
+                targets: isInformationalFormat
+                    ? [path.relative(cwd, finalDest)]
+                    : langsNeedingTranslation.map(l => path.relative(cwd, outputPathForLang(l))),
+                notes: isInformationalFormat
+                    ? [
+                        `Missing target languages: ${langsNeedingTranslation.join(', ')}.`,
+                        'This informational output is merged; add missing language sections to the same Markdown file.',
+                        'Preserve Markdown structure, internal links, anchors, code fences, and VASM examples.',
+                    ]
+                    : ['Preserve Markdown structure, XML tags, and VASM syntax. Translate only human-readable text.'],
             });
         }
 

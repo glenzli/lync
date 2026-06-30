@@ -118,6 +118,19 @@ before(() => {
         ''
     ].join('\n'));
 
+    write('src/source-only-docs.vasm.md', [
+        '---',
+        'vasm:',
+        '  alias: source-only-docs',
+        '  compile:',
+        '    format: informational',
+        '---',
+        '# Source Only Docs',
+        '',
+        '这是一份只维护中文源内容的说明文档。',
+        ''
+    ].join('\n'));
+
     write('src/skill.vasm.md', [
         '---',
         'vasm:',
@@ -182,6 +195,15 @@ describe('Compilation capability matrix', () => {
         assert.strictEqual(docsEntry.format, 'informational');
         assert.deepStrictEqual(docsEntry.compiledFiles, ['out/docs.md']);
         assert.deepStrictEqual(docsEntry.targetLangs, ['en', 'zh-CN']);
+
+        const sourceOnlyDocsEntry = entryBySource(report, 'src/source-only-docs.vasm.md');
+        assert.strictEqual(sourceOnlyDocsEntry.format, 'informational');
+        assert.deepStrictEqual(sourceOnlyDocsEntry.compiledFiles, ['out/source-only-docs.md']);
+        assert.ok(actionTypes(sourceOnlyDocsEntry).includes('translate'), 'source-only informational entry must request missing language translation');
+
+        const sourceOnlyDocsTranslate = sourceOnlyDocsEntry.actions.find(action => action.type === 'translate');
+        assert.deepStrictEqual(sourceOnlyDocsTranslate.targets, ['out/source-only-docs.md']);
+        assert.ok(sourceOnlyDocsTranslate.notes.some(note => note.includes('en')), 'translate action must name the missing language');
 
         const skillEntry = entryBySource(report, 'src/skill.vasm.md');
         assert.strictEqual(skillEntry.format, 'executable');

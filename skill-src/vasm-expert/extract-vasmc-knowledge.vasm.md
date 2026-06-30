@@ -30,7 +30,7 @@ vasm:
 
 用 3-5 句话简明阐述：
 - VASMC 是专为 LLM Prompt 工程设计的**静态编译器/链接器**。
-- 核心类比：`.vasm.md` 是人类编写的**源代码**（意图/高级语言），`.md` 是编译产物（**机器码**），二者职责严格分离——禁止手工修改产物。
+- 核心边界：`.vasm.md` 是人类维护的 source，`.md` 是编译产物，二者职责严格分离；除明确的 `translate` action 外，不直接修改产物。
 - 编译过程是**纯确定性的 AST 组装**（解析 `@import` 依赖、交叉编译语种）。
 - 说明 AI 编辑器的角色：`vasmc build` 生成产物和指令清单 → AI 编辑器接管语义任务（校验、翻译、剪裁）。
 - 说明除 `translate` action 明确要求写目标语言产物外，AI 的修复、精简和项目建议都应回到 `.vasm.md` source、fragment、manifest 或 build config。

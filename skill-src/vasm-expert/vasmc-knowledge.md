@@ -7,11 +7,11 @@
 
 **VASMC 是专为 LLM Prompt 工程设计的静态编译器/链接器。**
 
-核心类比：`.vasm.md` 是人类编写的**源码**（意图/高级语言），`.md` 是编译产物（**机器码**）。两者职责严格分离——**人类禁止手工修改产物文件**；AI 协调器根据 `.vasmc/build-report.yaml` 的结构化 actions 做校验、翻译、整合审核和源文件级建议。
+核心边界：`.vasm.md` 是人类维护的 source，`.md` 是编译产物。两者职责严格分离；AI 协调器根据 `.vasmc/build-report.yaml` 的结构化 actions 做校验、翻译、整合审核和源文件级建议。
 
 编译过程是**纯确定性的 AST 组装**：解析 `@import` 依赖、交叉编译语种，无任何非确定性操作。
 
-**AI 编辑器的角色**：你是智能的大脑，VASMC 是确定性的肌肉。运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并接管后续语义任务（校验、意图对齐验证、翻译、Diff）。除 `translate` action 明确要求写目标语言产物外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
+**AI 编辑器的角色**：运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并接管后续语义任务（校验、意图对齐验证、翻译、Diff）。除 `translate` action 明确要求写目标语言产物外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
 
 ***
 
@@ -88,7 +88,7 @@ This is English content, only in the `en` output.
 ---
 vasm:
   alias: "my-module"          # vasmc add 时自动采用此字段作为本地别名
-  version: "1.0.0"            # 供人类评估兼容性（引擎以 Hash 为唯一真理）
+  version: "1.0.0"            # 供人类评估兼容性（确定性锁定以内容 hash 为准）
   intent: "Assemble a security-focused code review prompt."
   dependencies:
     anti-delusion: "https://example.com/system.md"  # 嵌套依赖，vasmc sync 自动扁平安装

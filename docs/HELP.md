@@ -1,6 +1,215 @@
 # VASMC - Help & Usage
 
-<a name="syntax"></a>
+[🌍 English](#en) | [🇨🇳 中文](#zh-cn)
+
+***
+
+<a name="en"></a>
+
+## 🌍 English
+
+## Core Syntax And Import Protocol
+
+VASMC sources are Markdown files with optional VASM frontmatter and import directives. Generated Markdown is clean output and should normally not be edited by hand.
+
+### Import Syntax
+
+```markdown
+[Link Text](vasm:alias "@import:inline")
+[Link Text](./local-file.vasm.md "@import:link")
+```
+
+`@import:inline` expands the compiled target content at the link position. Use it for shared rules, reusable prompt fragments, workflow sections, and skill knowledge blocks.
+
+`@import:link` preserves the Markdown link but rewrites `.vasm.md` source references to generated `.md` paths. Use it when the target should stay as a separate document.
+
+Local imports use relative file paths. Remote dependency aliases use `vasm:alias` and are resolved through `vasmc.yaml` plus `vasmc-lock.yaml`.
+
+### Frontmatter
+
+```yaml
+---
+vasm:
+  alias: "my-reviewer"
+  version: "1.0.0"
+  intent: "Assemble a concise code-review prompt focused on security findings."
+  dependencies:
+    company-rules: "https://example.com/rules.md"
+  compile:
+    format: executable
+    targetLangs: ["en"]
+---
+```
+
+`compile.format` accepts three current values:
+
+* `informational`: documentation or knowledge, not an execution surface. Multiple target languages are merged into one file.
+* `executable`: prompt, skill, or instruction content that enters the model execution surface. Multiple languages produce separate files.
+* `integrative`: guidance for composing multiple VASM modules. AI should read it as composition guidance, not as a final prompt.
+
+Deprecated compatibility values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`. Other values are invalid.
+
+## `@vasm/cli`: AI-Facing Compiler
+
+Install:
+
+```bash
+npm install -g @vasm/cli
+```
+
+Initialize a workspace:
+
+```bash
+vasmc init
+```
+
+Register a dependency:
+
+```bash
+vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
+```
+
+Sync dependencies and lock deterministic inputs:
+
+```bash
+vasmc sync
+vasmc update <alias>
+vasmc update
+```
+
+Compile a single source:
+
+```bash
+vasmc build main.vasm.md -o ./dist
+```
+
+Compile the workspace:
+
+```bash
+vasmc build
+```
+
+`vasmc build` is the AI-side compile entrypoint. It performs deterministic import resolution, AST assembly, language filtering, output writing, and build-report generation. It does not call an external model.
+
+After every build, the current AI editor should read:
+
+```bash
+cat .vasmc/build-report.yaml
+```
+
+The report records compiled entries, output files, manifest summaries, policy status, diagnostics, and semantic actions such as `verify`, `translate`, `diff`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
+
+Other deterministic commands:
+
+```bash
+vasmc graph main.vasm.md
+vasmc seal my-prompt.md --alias my-custom-name
+vasmc seal "prompts/**/*.md" --format executable
+```
+
+`seal` injects VASM frontmatter into ordinary Markdown and renames files to `.vasm.md`. Use `--format informational` for README, HELP, DESIGN, and guides; `--format executable` for prompts and skills; `--format integrative` for composition guidance.
+
+### Workspace Build Configuration
+
+```yaml
+includes:
+  - "src/**/*.vasm.md"
+
+output:
+  dir: "./dist"
+
+baseDir: "./src"
+
+compile:
+  informational:
+    targetLangs: ["en", "zh-CN"]
+  executable:
+    targetLangs: ["en"]
+  integrative:
+    targetLangs: ["en"]
+
+routing:
+  - match: "src/skills/*.vasm.md"
+    dest: "./dist/skills/"
+```
+
+CLI overrides are also available:
+
+```bash
+vasmc build --out-dir ./doc --base-dir ./src
+```
+
+## AI Build Workflow
+
+For AI editors, the workflow is:
+
+1. Run `vasmc build [file]` or `vasmc build`.
+2. Read `.vasmc/build-report.yaml` immediately.
+3. Treat generated `.md` files as review evidence.
+4. Execute report actions in order.
+5. If edits are required, modify `.vasm.md` source, fragments, manifests, or `vasmc-build.yaml`.
+6. Rebuild and report the final outputs and residual risk.
+
+If `ai.projectReview` is enabled, VASMC also writes `.vasmc/project-review-context.yaml` and adds a top-level `project_review` action. The compiler still does not call a model; it only gives the current AI editor a structured review task.
+
+## Policy Status
+
+Every build report entry includes `policy.status`:
+
+* `pass`: no deterministic risk signal.
+* `review`: output is allowed, but AI or human review should inspect diagnostics.
+* `blocked`: a deterministic blocking risk exists, such as invalid manifest shape, format-boundary violation, or lockfile hash mismatch.
+
+`security.mode: review` reports risk without blocking. `security.mode: enforce` prevents blocked `executable` and `integrative` outputs from being updated.
+
+## `@vasm/console`: Human-Facing Optional Model Tools
+
+Install:
+
+```bash
+npm install -g @vasm/console
+```
+
+Semantic lint after compiling:
+
+```bash
+vasmc build main.vasm.md
+vasm-console lint main.md --model gpt-4o
+```
+
+Semantic diff between compiled outputs:
+
+```bash
+vasm-console diff new.md old.md --model gpt-4o
+```
+
+`vasm-console` can read OpenAI-compatible settings from environment variables or `.vasmrc`:
+
+```yaml
+lang: "en"
+llm:
+  baseURL: "https://api.openai.com/v1"
+  apiKey: "your-api-key"
+  model: "gpt-4o"
+```
+
+Environment equivalents:
+
+```bash
+VASM_LLM_API_KEY=...
+VASM_LLM_BASE_URL=...
+VASM_LLM_MODEL=...
+```
+
+The deterministic compiler does not require these model settings. They are only used by optional `@vasm/console` commands.
+
+***
+
+<a name="zh-cn"></a>
+
+## 🇨🇳 中文
+
+<a name="syntax-zh-cn"></a>
 
 ## 🔮 核心语法与引入协议 (Core Syntax)
 
@@ -43,7 +252,7 @@ Please explain the code step by step.
 
 ***
 
-<a name="publish"></a>
+<a name="publish-zh-cn"></a>
 
 ## 📦 发布模块 (Frontmatter 注入)
 
@@ -121,7 +330,7 @@ ai:
 
 开启后，`vasmc build` 会生成 `.vasmc/project-review-context.yaml`，并在 `.vasmc/build-report.yaml` 顶层 `actions` 中写入 `project_review`。该 pass 不调用模型，也不自动改文件；它只告诉当前 AI 应读取哪些项目文件，并要求 AI 输出源文件级建议。`patch` 模式表示可以给出聚焦的源文件 patch 建议，但仍不得直接编辑生成物。
 
-<a name="cli"></a>
+<a name="cli-zh-cn"></a>
 
 ## 🛠️ @vasm/cli：AI 编译与报告
 
@@ -212,7 +421,7 @@ vasmc seal "prompts/**/*.md" --format executable
 
 ***
 
-<a name="workspace"></a>
+<a name="workspace-zh-cn"></a>
 
 ### 🗂️ 工作区批量编译
 
@@ -226,9 +435,11 @@ output:
 baseDir: "./src"
 
 compile:
-  doc:
+  informational:
     targetLangs: ["zh-CN"]
-  prompt:
+  executable:
+    targetLangs: ["zh-CN"]
+  integrative:
     targetLangs: ["zh-CN"]
 
 routing:
@@ -242,7 +453,7 @@ routing:
 vasmc build --out-dir ./doc --base-dir ./src
 ```
 
-<a name="cli-ai-build"></a>
+<a name="cli-ai-build-zh-cn"></a>
 
 ## 🤖 AI Build 工作流
 
@@ -274,7 +485,7 @@ vasmc build [file]
 7. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
 8. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
-你是统筹全局的智能主体，而 VASMC 是你最可靠的确权肌肉。
+VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、翻译和冲突处理。
 
 ### Policy 状态
 
@@ -300,7 +511,7 @@ ai:
 
 这是 AI pass，不是编译器自动重写。VASMC 只生成上下文索引和 report action；当前 AI 根据索引读取项目文件，检查 prompt/skill 是否缺少项目实际命令、目录、术语、约束，`intent` 或 `compile.format` 是否准确，以及是否存在重复 fragment。
 
-<a name="console"></a>
+<a name="console-zh-cn"></a>
 
 ## 🧭 @vasm/console：人用控制台与可选外部模型工具
 

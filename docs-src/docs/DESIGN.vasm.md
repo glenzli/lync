@@ -2,7 +2,7 @@
 vasm:
   compile:
     format: "informational"
-    targetLangs: ["zh-CN"]
+    targetLangs: ["en", "zh-CN"]
 ---
 
 [DESIGN](../DESIGN.vasm.md "@import:inline")

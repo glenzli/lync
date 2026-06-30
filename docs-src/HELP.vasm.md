@@ -2,7 +2,7 @@
 vasm:
   compile:
     format: "informational"
-    targetLangs: ["zh-CN"]
+    targetLangs: ["en", "zh-CN"]
 ---
 
 # VASMC - Help & Usage

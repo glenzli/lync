@@ -236,9 +236,11 @@ output:
 baseDir: "./src"
 
 compile:
-  doc:
+  informational:
     targetLangs: ["zh-CN"]
-  prompt:
+  executable:
+    targetLangs: ["zh-CN"]
+  integrative:
     targetLangs: ["zh-CN"]
 
 routing:
@@ -284,7 +286,7 @@ vasmc build [file]
 7. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
 8. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
-你是统筹全局的智能主体，而 VASMC 是你最可靠的确权肌肉。
+VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、翻译和冲突处理。
 
 ### Policy 状态
 

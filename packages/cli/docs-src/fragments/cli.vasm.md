@@ -101,9 +101,11 @@ output:
 baseDir: "./src"
 
 compile:
-  doc:
+  informational:
     targetLangs: ["zh-CN"]
-  prompt:
+  executable:
+    targetLangs: ["zh-CN"]
+  integrative:
     targetLangs: ["zh-CN"]
 
 routing:

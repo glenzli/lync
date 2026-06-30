@@ -1,0 +1,291 @@
+---
+vasm:
+  alias: vasmc-reference
+  intent: "Document the stable VASM and VASMC protocol reference."
+  compile:
+    format: informational
+    targetLangs: ["en", "zh-CN"]
+---
+
+# VASMC 协议参考
+
+这是一份参考文档，覆盖 VASM source、workspace build config、build report actions 和 policy diagnostics。
+
+## 1. 文件类型
+
+| 文件 | 说明 |
+| --- | --- |
+| `*.vasm.md` | VASM source。包含 frontmatter、import、语言块和正文。 |
+| `*.md` | 编译产物。由 VASMC 生成，通常不手工编辑。 |
+| `vasmc.yaml` | 远程依赖声明。 |
+| `vasmc-lock.yaml` | 远程依赖锁文件，应提交。 |
+| `vasmc-build.yaml` | workspace build 配置。 |
+| `.vasmc/build-report.yaml` | AI build 结构化报告。 |
+| `.vasmc/project-review-context.yaml` | 项目感知审查索引。 |
+
+## 2. VASM frontmatter
+
+```yaml
+---
+vasm:
+  alias: security-reviewer
+  version: 1.0.0
+  intent: "Assemble a security-focused code review prompt."
+  compile:
+    format: executable
+    targetLangs: ["zh-CN"]
+  dependencies:
+    secure-rules: "https://example.com/security-rules.md"
+---
+```
+
+### 字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `alias` | string | 本地别名。`vasmc add` 解析远程模块时可优先采用。 |
+| `version` | string | 人类理解兼容性的版本信息；确定性锁定仍以 hash 为准。 |
+| `intent` | string | 产物用途说明。会进入 build report，供 AI verify/integration review 使用。 |
+| `compile` | object | 编译声明。 |
+| `dependencies` | object | 模块声明的远程依赖。 |
+
+### 已移除字段
+
+以下字段不再属于协议：`kind`、`scope`、`capabilities`、`activation`、`compatibility`、`trust`、`vision`、`fix`。
+
+如果出现这些字段，manifest diagnostics 会报告：
+
+```yaml
+code: manifest.kind.removed
+severity: error
+```
+
+## 3. `compile.format`
+
+| format | 用途 | 输出行为 |
+| --- | --- | --- |
+| `informational` | README、HELP、DESIGN、知识文档、说明材料 | 多语种合并到一个 `.md` |
+| `executable` | system prompt、skill、workflow instruction | 多语种时每个语种独立输出 |
+| `integrative` | 指导一批 VASM 模块如何组合 | 多语种时独立输出，AI 只当组合指导 |
+
+Deprecated 兼容值：
+
+| 旧值 | 新值 | 行为 |
+| --- | --- | --- |
+| `doc` | `informational` | 编译继续，但报告 deprecation diagnostic。 |
+| `prompt` | `executable` | 编译继续，但报告 deprecation diagnostic。 |
+
+其他值非法，例如 `source`：
+
+```yaml
+code: manifest.compile.format.invalid
+severity: error
+```
+
+## 4. `compile.targetLangs`
+
+```yaml
+vasm:
+  compile:
+    targetLangs: ["en", "zh-CN"]
+```
+
+解析优先级：
+
+1. 文件 frontmatter `compile.targetLangs`
+2. `vasmc-build.yaml` 中按 format 配置的 `compile.<format>.targetLangs`
+3. CLI `--target-langs`
+4. 文件内 `<!-- lang:xx -->` 自动提取
+
+工程项目通常把统一语种放在 `vasmc-build.yaml`。对外发布的独立模块可以在文件 frontmatter 中声明。
+
+## 5. Import 指令
+
+VASMC 把 import 写成标准 Markdown 链接 title，未编译时仍可读。
+
+### Inline import
+
+```markdown
+[Rules](./fragments/rules.vasm.md "@import:inline")
+```
+
+行为：读取目标 source，编译后把内容插入当前位置。
+
+### Link import
+
+```markdown
+[Rules](./fragments/rules.vasm.md "@import:link")
+```
+
+行为：保留链接边界，并把 `.vasm.md` source 路径重写成生成 `.md` 路径。
+
+注意：link target 必须也被 build。否则生成链接可能指向不存在的文件。
+
+### Alias import
+
+```markdown
+[Remote Rules](vasm:secure-rules "@import:inline")
+```
+
+`vasm:secure-rules` 来自 `vasmc.yaml` 和 `vasmc-lock.yaml`。
+
+## 6. 语言块
+
+```markdown
+<!-- lang:en -->
+English text.
+<!-- /lang -->
+
+<!-- lang:zh-CN -->
+中文文本。
+<!-- /lang -->
+```
+
+编译目标为 `en` 时只保留英文块；目标为 `zh-CN` 时只保留中文块。未包裹在语言块内的内容会进入所有目标语种。
+
+## 7. `vasmc-build.yaml`
+
+```yaml
+includes:
+  - "src/**/*.vasm.md"
+excludes:
+  - "src/fragments/**/*.vasm.md"
+
+output:
+  dir: "./dist"
+  flat: false
+  inPlace: false
+
+baseDir: "./src"
+
+compile:
+  informational:
+    targetLangs: ["en", "zh-CN"]
+  executable:
+    targetLangs: ["en"]
+  integrative:
+    targetLangs: ["zh-CN"]
+
+security:
+  mode: review
+
+ai:
+  projectReview:
+    mode: suggest
+    include:
+      - "README.md"
+      - "src/**/*.vasm.md"
+
+routing:
+  - match: "src/skills/*.vasm.md"
+    dest: "./skills/"
+```
+
+### 输出路径
+
+默认输出路径：
+
+```text
+output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
+```
+
+如果命中 `routing`，则 `routing.dest` 覆盖默认目录。
+
+### `security.mode`
+
+| mode | 行为 |
+| --- | --- |
+| `review` | 报告风险，但不阻断输出。 |
+| `enforce` | 当 executable / integrative entry 被 policy 标记为 `blocked` 时，不更新产物。 |
+
+## 8. Build report
+
+`.vasmc/build-report.yaml` 的核心结构：
+
+```yaml
+version: 2
+mode: ai-build
+generatedAt: 2026-07-01T00:00:00.000Z
+projectReview:
+  mode: suggest
+  contextFile: .vasmc/project-review-context.yaml
+entries:
+  - source: src/skill.vasm.md
+    output: dist/skill.md
+    status: built
+    format: executable
+    targetLangs:
+      - en
+      - zh-CN
+    compiledFiles:
+      - dist/skill.en.md
+    minimalTokenVariant:
+      path: dist/skill.en.md
+      lang: en
+      tokens: 420
+    policy:
+      status: pass
+      enforceable: true
+    actions:
+      - type: verify
+actions:
+  - type: project_review
+```
+
+### Entry status
+
+| status | 说明 |
+| --- | --- |
+| `built` | 已编译并写入输出。 |
+| `skipped` | 增量缓存判断 source 未变化，跳过写入。 |
+| `blocked` | policy gate 阻断输出。 |
+
+### Policy status
+
+| status | 说明 |
+| --- | --- |
+| `pass` | 未发现 policy diagnostics。 |
+| `review` | 需要人工或 AI 判断。 |
+| `blocked` | 确定性检查发现阻断级风险。 |
+
+## 9. Report actions
+
+| action | 层级 | 说明 |
+| --- | --- | --- |
+| `verify` | entry | AI 检查产物是否符合 intent 和基础质量标准。 |
+| `integration_review` | entry | AI 检查 integrative 输出是否清楚表达组合边界。 |
+| `translate` | entry | AI 按 `targets` 写目标语种产物。 |
+| `diff` | entry | AI 对比历史备份和新产物，总结语义变化。 |
+| `tree_shake` | entry | 条件性 action；用户明确要求精简时才执行。 |
+| `policy_review` | entry | AI 审查 review 级 diagnostics。 |
+| `policy_gate` | entry | AI 解释 blocked 原因，并建议 source-level 修复。 |
+| `project_review` | top-level | AI 结合项目上下文提出 source-level 建议。 |
+
+## 10. Policy diagnostics
+
+常见 code：
+
+| code | source | gate | 说明 |
+| --- | --- | --- | --- |
+| `manifest.*.removed` | manifest | block | 使用了已移除 manifest 字段。 |
+| `manifest.compile.format.invalid` | manifest | block | `compile.format` 非法。 |
+| `manifest.compile.format.deprecated` | manifest | review | 使用了 deprecated format。 |
+| `policy.lockfile.missing` | lockfile | block | lockfile 指向的依赖不存在。 |
+| `policy.lockfile.hash_mismatch` | lockfile | block | 本地依赖 hash 与 lockfile 不一致。 |
+| `policy.format.informational_imports_active` | format | block | informational 引入 executable/integrative 内容。 |
+| `policy.format.executable_imports_integrative` | format | review | executable 引入 integrative。 |
+| `policy.format.integrative_imports_executable` | format | review | integrative 引入 executable。 |
+| `policy.content.prompt_override` | content | review | 发现疑似覆盖上级指令文本。 |
+| `policy.content.concealment` | content | review | 发现疑似隐藏行为文本。 |
+| `policy.content.secret_exfiltration` | content | review | 发现疑似密钥外传文本。 |
+| `policy.content.remote_execution` | content | review | 发现疑似下载并执行远程代码文本。 |
+
+## 11. CLI 包边界
+
+| 包 | 命令 | 说明 |
+| --- | --- | --- |
+| `@vasm/core` | 无 | 共享确定性核心。 |
+| `@vasm/cli` | `vasmc` | AI build、依赖管理、结构化 report actions。 |
+| `@vasm/console` | `vasm-console` | 面向人类的可选外部模型 lint/diff。 |
+
+`@vasm/cli` 和 `@vasm/console` 都内置 core；发布时当前采用 fixed version group。
