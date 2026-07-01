@@ -122,6 +122,6 @@ vasm:
 * `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 * `integrative` 只用于组合指导，不要把它直接当最终可执行 prompt。
 * `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，`executable` 和 `integrative` 输出不会被更新。
-* 如果 `.vasmc/build-report.yaml` 的 actions 出现 `policy_review` 或 `policy_gate`，必须重点检查 manifest、lockfile、format 边界和内容风险 diagnostics。
+* 如果 `.vasmc/build-report.yaml` 的 actions 出现 `policy_review` 或 `policy_gate`，必须重点检查 manifest、lockfile、format 边界 diagnostics。若存在 `policy.contentSignals`，把它们当作词面线索，判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 * 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。
 * `tree_shake` 是条件性 action；只有用户明确要求优化或精简 Prompt 时才执行，并且应裁剪 source 或 fragment 后重新 build。

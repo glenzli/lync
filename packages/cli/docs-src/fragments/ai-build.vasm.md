@@ -24,7 +24,7 @@ vasmc build [file]
 2. **Integration Review**：当 action 为 `integration_review` 时，把目标文件当作组合指导，而不是最终可执行 prompt，检查组合边界是否清楚。
 3. **Translation**：当 action 为 `translate` 时，将 `target` 文件翻译到 `targets` 指定的其他语种，**严格保留** Markdown AST 结构。
 4. **Semantic Diff**：当 action 为 `diff` 时，读取 `history` 中的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
-5. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界和内容风险 diagnostics。
+5. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界 diagnostics，以及 `policy.contentSignals` 中需要语义判断的词面线索。
 6. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 或 `integrative` 输出。
 7. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
 8. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
@@ -38,6 +38,8 @@ VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、�
 * `pass`：无确定性风险信号。
 * `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
 * `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 和 `integrative` 输出被更新。
+
+`policy.contentSignals` 不改变 `policy.status`，也不会触发 enforce 阻断。AI 应判断 signal evidence 是 active instruction、prohibition、example 还是 documentation。
 
 ### Project Review
 

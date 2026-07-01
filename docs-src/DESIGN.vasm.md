@@ -150,7 +150,7 @@ actions:
 | `translate` | 补齐缺失目标语种。 |
 | `diff` | 对比历史产物并说明语义影响。 |
 | `tree_shake` | 在用户明确要求优化/压缩时分析可裁剪内容。 |
-| `policy_review` | 审查 review 级 policy diagnostics。 |
+| `policy_review` | 审查 review 级 policy diagnostics 和 content signals。 |
 | `policy_gate` | 解释 blocked diagnostics，并建议修改源文件。 |
 | `project_review` | 结合项目上下文审查 prompt/docs 是否过期或缺项。 |
 
@@ -164,7 +164,8 @@ VASMC 的 policy gate 是确定性检查，不是运行时安全边界。它当�
 * `compile.format` 非法值。
 * lockfile 缺失或 hash 不一致。
 * `informational` 导入 `executable` / `integrative` 的格式边界错误。
-* 疑似 prompt override、隐藏行为、密钥外传、下载执行远程代码等文本风险信号。
+
+内容文本中的 prompt override、隐藏行为、密钥外传、下载执行远程代码等词面风险不会作为阻断级 diagnostics。VASMC 只把它们写入 `contentSignals`，由 AI 结合上下文判断它是在发出指令、禁止风险、举例，还是普通说明。
 
 每个 entry 都有：
 
@@ -172,9 +173,13 @@ VASMC 的 policy gate 是确定性检查，不是运行时安全边界。它当�
 policy:
   status: pass     # pass | review | blocked
   enforceable: true
+  contentSignals: # optional
+    - code: policy.content.remote_execution
+      stance: prohibitive
+      confidence: low
 ```
 
-`security.mode: review` 只报告风险。`security.mode: enforce` 会阻止 blocked 的 `executable` 和 `integrative` 产物被更新。
+`security.mode: review` 只报告风险。`security.mode: enforce` 只根据确定性 blocked diagnostics 阻止 `executable` 和 `integrative` 产物被更新，不会因为 `contentSignals` 阻断输出。
 
 这不能防御用户输入、工具输出或 RAG 内容中的运行时 prompt injection。那些需要宿主环境、工具代理、权限隔离或独立 reviewer 处理。VASMC 只负责你能控制的输入路径。
 

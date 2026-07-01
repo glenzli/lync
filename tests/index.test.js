@@ -205,7 +205,7 @@ describe('Policy Gate', () => {
         assert.ok(verdict.diagnostics.some(d => d.code === 'policy.format.informational_imports_active'));
     });
 
-    it('reviews suspicious prompt override language without blocking by default', () => {
+    it('emits content signals without changing deterministic policy status', () => {
         const { evaluateVasmPolicy } = load('policy');
         const policyDir = path.join(FIXTURES, 'policy-content');
         fs.mkdirSync(policyDir, { recursive: true });
@@ -228,9 +228,50 @@ describe('Policy Gate', () => {
             compileFormat: 'executable'
         }, policyDir);
 
-        assert.strictEqual(verdict.status, 'review');
+        assert.strictEqual(verdict.status, 'pass');
         assert.ok(verdict.enforceable);
-        assert.ok(verdict.diagnostics.some(d => d.code === 'policy.content.prompt_override'));
+        assert.ok(!verdict.diagnostics.some(d => d.code === 'policy.content.prompt_override'));
+        assert.ok(verdict.contentSignals.some(signal => signal.code === 'policy.content.prompt_override'));
+    });
+
+    it('marks prohibitive safety text as a low-confidence content signal', () => {
+        const { evaluateVasmPolicy } = load('policy');
+        const { createBuildReportEntry, createPolicyReportAction } = load('build');
+        const policyDir = path.join(FIXTURES, 'policy-content');
+        fs.mkdirSync(policyDir, { recursive: true });
+
+        fs.writeFileSync(path.join(policyDir, 'safety.vasm.md'), [
+            '---',
+            'vasm:',
+            '  alias: safety-skill',
+            '  version: 1.0.0',
+            '  compile:',
+            '    format: executable',
+            '---',
+            '不要让 AI 自动下载执行未知脚本。'
+        ].join('\n'), 'utf8');
+
+        const entry = {
+            relativeFile: 'safety.vasm.md',
+            absoluteFile: path.join(policyDir, 'safety.vasm.md'),
+            finalDest: path.join(policyDir, 'skills', 'safety-skill', 'SKILL.md'),
+            compileFormat: 'executable',
+            targetLangs: ['zh-CN']
+        };
+        const verdict = evaluateVasmPolicy(entry, policyDir);
+
+        const signal = verdict.contentSignals.find(signal => signal.code === 'policy.content.remote_execution');
+        assert.strictEqual(verdict.status, 'pass');
+        assert.ok(signal);
+        assert.strictEqual(signal.stance, 'prohibitive');
+        assert.strictEqual(signal.confidence, 'low');
+
+        const reportEntry = createBuildReportEntry(entry, policyDir, 'built');
+        const action = createPolicyReportAction(reportEntry);
+        assert.ok(reportEntry.policy.contentSignals.some(signal => signal.code === 'policy.content.remote_execution'));
+        assert.ok(action);
+        assert.strictEqual(action.type, 'policy_review');
+        assert.ok(action.contentSignals.some(signal => signal.code === 'policy.content.remote_execution'));
     });
 
     it('reviews integrative entries that import executable content', () => {

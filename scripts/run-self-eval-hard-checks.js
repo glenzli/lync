@@ -46,6 +46,7 @@ function collectDiagnosticCodes(entry) {
     return [
         ...(entry?.diagnostics || []).map(diagnostic => diagnostic.code),
         ...(entry?.policy?.diagnostics || []).map(diagnostic => diagnostic.code),
+        ...(entry?.policy?.contentSignals || []).map(signal => signal.code),
         ...(entry?.dependencies || []).flatMap(dependency => (dependency.diagnostics || []).map(diagnostic => diagnostic.code)),
     ];
 }

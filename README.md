@@ -51,7 +51,7 @@ Build result:
 | --- | --- |
 | [Usage Guide](docs/USAGE.md) | Full source-to-output guide with practical examples. |
 | [AI Workflow](docs/AI-WORKFLOW.md) | How an AI editor should execute build report actions. |
-| [Protocol Reference](docs/REFERENCE.md) | Manifest, imports, build config, report actions, and policy diagnostics. |
+| [Protocol Reference](docs/REFERENCE.md) | Manifest, imports, build config, report actions, policy diagnostics, and content signals. |
 | [CLI Help](HELP.md) | Command reference for `vasmc` and `vasm-console`. |
 | [Design](DESIGN.md) | Design philosophy and compiler model. |
 
@@ -116,7 +116,7 @@ vasm:
 | --- | --- |
 | [使用手册](docs/USAGE.md) | 带完整 source 到 output 示例的主教程。 |
 | [AI 工作流](docs/AI-WORKFLOW.md) | AI 编辑器如何执行 build report actions。 |
-| [协议参考](docs/REFERENCE.md) | Manifest、import、build config、report actions 和 policy diagnostics。 |
+| [协议参考](docs/REFERENCE.md) | Manifest、import、build config、report actions、policy diagnostics 和 content signals。 |
 | [CLI 帮助](HELP.md) | `vasmc` 与 `vasm-console` 命令参考。 |
 | [设计文档](DESIGN.md) | 设计哲学与编译器模型。 |
 

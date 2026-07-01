@@ -8,14 +8,32 @@ import { CompileFormat, isCompileFormat, isDeprecatedCompileFormat, normalizeCom
 
 export type PolicyStatus = 'pass' | 'review' | 'blocked';
 export type PolicyGate = 'review' | 'block';
-export type PolicyDiagnosticSource = 'manifest' | 'lockfile' | 'format' | 'content';
+export type PolicyDiagnosticSource = 'manifest' | 'lockfile' | 'format';
+export type PolicyContentSignalKind =
+    | 'prompt_override'
+    | 'concealment'
+    | 'secret_exfiltration'
+    | 'remote_execution';
+export type PolicyContentSignalStance = 'unknown' | 'prohibitive';
+export type PolicyContentSignalConfidence = 'low' | 'medium';
 
 export interface PolicyDiagnostic extends ManifestDiagnostic {
     path: string;
     source: PolicyDiagnosticSource;
     gate: PolicyGate;
+}
+
+export interface PolicyContentSignal {
+    code: `policy.content.${PolicyContentSignalKind}`;
+    kind: PolicyContentSignalKind;
+    message: string;
+    path: string;
+    source: 'content';
     line?: number;
     evidence?: string;
+    stance: PolicyContentSignalStance;
+    confidence: PolicyContentSignalConfidence;
+    review: string;
 }
 
 export interface PolicyEntry {
@@ -29,6 +47,7 @@ export interface PolicyVerdict {
     status: PolicyStatus;
     enforceable: boolean;
     diagnostics: PolicyDiagnostic[];
+    contentSignals: PolicyContentSignal[];
 }
 
 function relative(cwd: string, filePath: string): string {
@@ -160,31 +179,47 @@ function stripCodeAndFrontmatter(content: string): string {
         .replace(/`[^`\n]+`/g, '');
 }
 
-function collectContentDiagnostics(files: string[], cwd: string): PolicyDiagnostic[] {
-    const diagnostics: PolicyDiagnostic[] = [];
-    const linePatterns: Array<{ code: string; message: string; test: (line: string) => boolean }> = [
+function detectProhibitiveStance(line: string): PolicyContentSignalStance {
+    return /\b(do not|don't|never|must not|should not|avoid)\b/i.test(line)
+        || /(不要|禁止|不得|不能|不应|避免|勿)/.test(line)
+        ? 'prohibitive'
+        : 'unknown';
+}
+
+function collectContentSignals(files: string[], cwd: string): PolicyContentSignal[] {
+    const signals: PolicyContentSignal[] = [];
+    const linePatterns: Array<{
+        kind: PolicyContentSignalKind;
+        message: string;
+        review: string;
+        test: (line: string) => boolean;
+    }> = [
         {
-            code: 'policy.content.prompt_override',
-            message: 'Content appears to override previous or higher-priority instructions.',
+            kind: 'prompt_override',
+            message: 'Content contains text that may override previous or higher-priority instructions.',
+            review: 'Decide whether the text is an active instruction, a prohibition, an example, or documentation.',
             test: line => /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|rules)/i.test(line)
                 || /忽略.*(之前|以上|前面).*(指令|规则)/.test(line),
         },
         {
-            code: 'policy.content.concealment',
-            message: 'Content appears to hide behavior from the user or reviewer.',
+            kind: 'concealment',
+            message: 'Content contains text that may hide behavior from the user or reviewer.',
+            review: 'Decide whether the text instructs concealment or warns against concealment.',
             test: line => /(do not|don't)\s+(tell|mention|reveal|explain)\s+(the\s+)?user/i.test(line)
                 || /不要(告诉|透露|提及|说明).*用户/.test(line)
                 || /向用户隐藏/.test(line),
         },
         {
-            code: 'policy.content.secret_exfiltration',
-            message: 'Content appears to combine secret access with exfiltration language.',
+            kind: 'secret_exfiltration',
+            message: 'Content combines secret access words with exfiltration words.',
+            review: 'Decide whether the text requests secret exfiltration or prohibits it.',
             test: line => /(api[_ -]?key|secret|token|credential|env|environment variable|环境变量|密钥|令牌|凭据)/i.test(line)
                 && /(send|upload|post|exfiltrat|leak|steal|发送|上传|泄露|窃取|外传)/i.test(line),
         },
         {
-            code: 'policy.content.remote_execution',
-            message: 'Content appears to request downloading and running remote code.',
+            kind: 'remote_execution',
+            message: 'Content combines remote-fetch words with execution words.',
+            review: 'Decide whether the text requests remote execution or prohibits it.',
             test: line => /(download|curl|wget).*(run|execute|bash|sh|powershell)/i.test(line)
                 || /下载.*(执行|运行)/.test(line),
         },
@@ -198,27 +233,31 @@ function collectContentDiagnostics(files: string[], cwd: string): PolicyDiagnost
             if (!trimmed) continue;
             for (const pattern of linePatterns) {
                 if (!pattern.test(trimmed)) continue;
-                diagnostics.push({
-                    severity: 'warn',
-                    code: pattern.code,
+                const stance = detectProhibitiveStance(trimmed);
+                signals.push({
+                    code: `policy.content.${pattern.kind}`,
+                    kind: pattern.kind,
                     message: pattern.message,
                     path: relative(cwd, filePath),
                     source: 'content',
-                    gate: 'review',
                     line: index + 1,
                     evidence: trimmed.slice(0, 180),
+                    stance,
+                    confidence: stance === 'prohibitive' ? 'low' : 'medium',
+                    review: pattern.review,
                 });
             }
         }
     }
 
-    return diagnostics.slice(0, 20);
+    return signals.slice(0, 20);
 }
 
 export function evaluateVasmPolicy(entry: PolicyEntry, cwd: string): PolicyVerdict {
     const files = collectGraphFiles(entry, cwd);
     const enforceable = entry.compileFormat === 'executable' || entry.compileFormat === 'integrative';
     const diagnostics: PolicyDiagnostic[] = [];
+    const contentSignals: PolicyContentSignal[] = [];
 
     for (const filePath of files) {
         diagnostics.push(...collectManifestPolicyDiagnostics(filePath, cwd));
@@ -227,7 +266,7 @@ export function evaluateVasmPolicy(entry: PolicyEntry, cwd: string): PolicyVerdi
     diagnostics.push(...collectFormatDiagnostics(entry, files, cwd));
 
     if (enforceable) {
-        diagnostics.push(...collectContentDiagnostics(files, cwd));
+        contentSignals.push(...collectContentSignals(files, cwd));
     }
 
     const status = diagnostics.some(diagnostic => diagnostic.gate === 'block')
@@ -236,5 +275,5 @@ export function evaluateVasmPolicy(entry: PolicyEntry, cwd: string): PolicyVerdi
             ? 'review'
             : 'pass';
 
-    return { status, enforceable, diagnostics };
+    return { status, enforceable, diagnostics, contentSignals };
 }

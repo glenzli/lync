@@ -9,7 +9,7 @@ vasm:
 
 # VASMC 协议参考
 
-这是一份参考文档，覆盖 VASM source、workspace build config、build report actions 和 policy diagnostics。
+这是一份参考文档，覆盖 VASM source、workspace build config、build report actions、policy diagnostics 和 content signals。
 
 ## 1. 文件类型
 
@@ -244,8 +244,8 @@ actions:
 
 | status | 说明 |
 | --- | --- |
-| `pass` | 未发现 policy diagnostics。 |
-| `review` | 需要人工或 AI 判断。 |
+| `pass` | 未发现确定性 policy diagnostics。 |
+| `review` | 确定性检查发现非阻断 diagnostics，需要人工或 AI 判断。 |
 | `blocked` | 确定性检查发现阻断级风险。 |
 
 ## 9. Report actions
@@ -257,7 +257,7 @@ actions:
 | `translate` | entry | AI 按 `targets` 写目标语种产物。 |
 | `diff` | entry | AI 对比历史备份和新产物，总结语义变化。 |
 | `tree_shake` | entry | 条件性 action；用户明确要求精简时才执行。 |
-| `policy_review` | entry | AI 审查 review 级 diagnostics。 |
+| `policy_review` | entry | AI 审查 review 级 diagnostics 和 content signals。 |
 | `policy_gate` | entry | AI 解释 blocked 原因，并建议 source-level 修复。 |
 | `project_review` | top-level | AI 结合项目上下文提出 source-level 建议。 |
 
@@ -275,12 +275,21 @@ actions:
 | `policy.format.informational_imports_active` | format | block | informational 引入 executable/integrative 内容。 |
 | `policy.format.executable_imports_integrative` | format | review | executable 引入 integrative。 |
 | `policy.format.integrative_imports_executable` | format | review | integrative 引入 executable。 |
-| `policy.content.prompt_override` | content | review | 发现疑似覆盖上级指令文本。 |
-| `policy.content.concealment` | content | review | 发现疑似隐藏行为文本。 |
-| `policy.content.secret_exfiltration` | content | review | 发现疑似密钥外传文本。 |
-| `policy.content.remote_execution` | content | review | 发现疑似下载并执行远程代码文本。 |
 
-## 11. CLI 包边界
+## 11. Content signals
+
+`policy.contentSignals` 是词面线索，不是确定性 diagnostics。它不会让 `policy.status` 变成 `blocked`，也不会被 `security.mode: enforce` 阻断。AI 应结合上下文判断 evidence 是 active instruction、prohibition、example 还是 documentation。
+
+常见 code：
+
+| code | stance | confidence | 说明 |
+| --- | --- | --- | --- |
+| `policy.content.prompt_override` | `unknown` / `prohibitive` | `medium` / `low` | 文本包含疑似覆盖上级指令的表达。 |
+| `policy.content.concealment` | `unknown` / `prohibitive` | `medium` / `low` | 文本包含疑似隐藏行为的表达。 |
+| `policy.content.secret_exfiltration` | `unknown` / `prohibitive` | `medium` / `low` | 文本同时出现密钥访问和外传表达。 |
+| `policy.content.remote_execution` | `unknown` / `prohibitive` | `medium` / `low` | 文本同时出现远程获取和执行表达。 |
+
+## 12. CLI 包边界
 
 | 包 | 命令 | 说明 |
 | --- | --- | --- |

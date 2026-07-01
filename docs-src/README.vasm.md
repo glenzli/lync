@@ -50,7 +50,7 @@ vasm:
 | --- | --- |
 | [使用手册](docs/USAGE.vasm.md) | 带完整 source 到 output 示例的主教程。 |
 | [AI 工作流](docs/AI-WORKFLOW.vasm.md) | AI 编辑器如何执行 build report actions。 |
-| [协议参考](docs/REFERENCE.vasm.md) | Manifest、import、build config、report actions 和 policy diagnostics。 |
+| [协议参考](docs/REFERENCE.vasm.md) | Manifest、import、build config、report actions、policy diagnostics 和 content signals。 |
 | [CLI 帮助](HELP.vasm.md) | `vasmc` 与 `vasm-console` 命令参考。 |
 | [设计文档](DESIGN.vasm.md) | 设计哲学与编译器模型。 |
 

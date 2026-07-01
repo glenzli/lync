@@ -8,7 +8,7 @@
 
 ## 🌍 English
 
-`@vasm/core` is the deterministic compiler core for VASMC. It implements VASM frontmatter parsing, manifest validation, dependency graph traversal, `@import` expansion, language-block filtering, workspace builds, merged doc output, policy diagnostics, and project-review context generation.
+`@vasm/core` is the deterministic compiler core for VASMC. It implements VASM frontmatter parsing, manifest validation, dependency graph traversal, `@import` expansion, language-block filtering, workspace builds, merged doc output, policy diagnostics, content signals, and project-review context generation.
 
 This package does not include external model SDKs, does not read `llm` configuration, and does not run semantic linting or automatic translation. Use `@vasm/console` for human-facing optional LLM tools, and use `@vasm/cli` when an AI editor needs `vasmc build` report actions.
 
@@ -27,7 +27,7 @@ npm install @vasm/core
 * `@import:link` and `@import:inline` expansion.
 * `<!-- lang:xx -->` block filtering and multi-language doc merging.
 * Workspace build routing through `vasmc-build.yaml`.
-* Manifest validation, policy diagnostics, format-boundary checks, and project-review context indexing.
+* Manifest validation, policy diagnostics, content signals, format-boundary checks, and project-review context indexing.
 
 It intentionally does not own command-line UX, npm publishing flow, or optional external-model tools.
 
@@ -60,11 +60,13 @@ When a target language is selected, the compiler keeps the matching block and re
 
 ### Manifest And Policy
 
-VASM frontmatter is intentionally small: `alias`, `version`, `intent`, `compile`, and `dependencies`. `@vasm/core` evaluates deterministic policy signals and emits structured diagnostics:
+VASM frontmatter is intentionally small: `alias`, `version`, `intent`, `compile`, and `dependencies`. `@vasm/core` evaluates deterministic policy diagnostics and emits content signals for AI review:
 
 * `pass`: no deterministic policy risk.
 * `review`: output is allowed, but an AI or human should inspect the diagnostics.
 * `blocked`: a deterministic blocking risk exists, such as a manifest structure error, lockfile hash mismatch, or an informational output importing active AI guidance.
+
+Content signals are not deterministic gates. They point to text that may need semantic review, such as prompt override wording or remote execution wording, and include stance/confidence metadata for the active AI reviewer.
 
 `compile.format` accepts `informational`, `executable`, and `integrative`. Deprecated `doc` and `prompt` values are normalized with warnings.
 
