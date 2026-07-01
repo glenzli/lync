@@ -1,6 +1,7 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -148,6 +149,46 @@ describe('Contract: Workspace build compiles all matched files', () => {
             fs.rmSync(outDir, { recursive: true, force: true });
         } finally {
             fs.unlinkSync(buildYaml);
+        }
+    });
+});
+
+describe('Contract: routing treats dest "." as a directory', () => {
+    it('routes to the source basename even when cwd basename contains a dot', async () => {
+        const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'vasmc.routing.'));
+
+        try {
+            fs.writeFileSync(path.join(workspace, 'README.vasm.md'), [
+                '---',
+                'vasm:',
+                '  alias: routed-readme',
+                '  compile:',
+                '    format: informational',
+                '    targetLangs: ["en"]',
+                '---',
+                '# Routed README',
+                '',
+                'Body.',
+                ''
+            ].join('\n'), 'utf8');
+
+            fs.writeFileSync(path.join(workspace, 'vasmc-build.yaml'), [
+                'includes:',
+                '  - "README.vasm.md"',
+                'routing:',
+                '  - match: "README.vasm.md"',
+                '    dest: "."',
+                ''
+            ].join('\n'), 'utf8');
+
+            run('build', workspace);
+
+            assert.ok(fs.existsSync(path.join(workspace, 'README.md')), 'dest "." must write README.md in workspace root');
+            const report = fs.readFileSync(path.join(workspace, '.vasmc', 'build-report.yaml'), 'utf8');
+            assert.ok(report.includes('output: README.md'), 'report output must be README.md, not an empty relative path');
+            assert.ok(!report.includes('output: ""'), 'report output must not be empty');
+        } finally {
+            fs.rmSync(workspace, { recursive: true, force: true });
         }
     });
 });

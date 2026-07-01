@@ -35,7 +35,7 @@ entries:
       - en
       - zh-CN
   docs-src/docs/REFERENCE.vasm.md|merged:
-    inputSignature: a309d72115c02f6f0c1e6bb0b5373e9875a9d37575a3c84493252039deeae8b3
+    inputSignature: e602fcf6fabe1373cd9f99890e7f8518461a65b4619adb9e6cde2fa62a44d204
     outputFile: docs/REFERENCE.md
     targetLang: merged
     targetLangs:

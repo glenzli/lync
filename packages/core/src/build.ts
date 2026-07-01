@@ -394,6 +394,17 @@ function resolveTargetLangs(
     return extracted.length > 0 ? extracted : [undefined] as any;
 }
 
+function isRoutingDirectoryDest(dest: string): boolean {
+    const normalizedDest = dest.trim();
+    if (!normalizedDest) return true;
+    if (normalizedDest === '.' || normalizedDest === './' || normalizedDest === '.\\') return true;
+    if (/[\\/]$/.test(normalizedDest)) return true;
+
+    const basename = path.basename(normalizedDest);
+    if (basename === '.' || basename === '..') return true;
+    return path.extname(basename) === '';
+}
+
 function applyRouting(cwd: string, buildConfig: VasmBuild, relativeFile: string, defaultDest: string): string {
     if (!buildConfig.routing || buildConfig.routing.length === 0) {
         return defaultDest;
@@ -402,7 +413,7 @@ function applyRouting(cwd: string, buildConfig: VasmBuild, relativeFile: string,
     for (const rule of buildConfig.routing) {
         if (minimatch(relativeFile, rule.match, { matchBase: true })) {
             const destBase = path.resolve(cwd, rule.dest);
-            if (!path.extname(destBase)) {
+            if (isRoutingDirectoryDest(rule.dest)) {
                 const basename = path.basename(relativeFile).replace(/\.vasm\.md$/, '.md');
                 return path.join(destBase, basename);
             }

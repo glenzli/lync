@@ -191,6 +191,13 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 
 如果命中 `routing`，则 `routing.dest` 覆盖默认目录。
 
+`routing.dest` 的解释规则：
+
+- `.`、`./`、结尾带 `/` 的路径、无扩展名路径按目录处理，输出文件名来自 source basename。
+- `./README.md` 这类带扩展名路径按精确文件目标处理。
+
+例如 `match: "README.vasm.md"` + `dest: "."` 会输出 `README.md`；如果要明确写根目录 README，也可以写 `dest: "./README.md"`。
+
 ### Build flags
 
 | flag | 行为 |

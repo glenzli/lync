@@ -186,7 +186,14 @@ Default output path:
 output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 ```
 
-If `routing` matches, `routing.dest` overrides the default destination directory.
+If `routing` matches, `routing.dest` overrides the default destination.
+
+`routing.dest` is interpreted as follows:
+
+- `.`, `./`, paths ending in `/`, and paths without a file extension are directory targets. The output filename comes from the source basename.
+- Paths with a file extension, such as `./README.md`, are exact file targets.
+
+For example, `match: "README.vasm.md"` with `dest: "."` writes `README.md`. To make the root README target explicit, use `dest: "./README.md"`.
 
 ### Build Flags
 
@@ -505,6 +512,13 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 ```
 
 如果命中 `routing`，则 `routing.dest` 覆盖默认目录。
+
+`routing.dest` 的解释规则：
+
+- `.`、`./`、结尾带 `/` 的路径、无扩展名路径按目录处理，输出文件名来自 source basename。
+- `./README.md` 这类带扩展名路径按精确文件目标处理。
+
+例如 `match: "README.vasm.md"` + `dest: "."` 会输出 `README.md`；如果要明确写根目录 README，也可以写 `dest: "./README.md"`。
 
 ### Build flags
 
