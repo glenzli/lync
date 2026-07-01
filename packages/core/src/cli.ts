@@ -3,6 +3,7 @@ import { glob } from 'glob';
 import { syncDependencies } from './sync';
 import { loadConfig, saveConfig, loadLockfile, saveLockfile } from './config';
 import { compileEntry, resolveSingleWorkspaceEntry, runWorkspaceBuild, runAIBuild, runAIBuildEntry } from './build';
+import { compileFile } from './compiler';
 import { detectLanguage } from './utils';
 import { fetchMarkdown } from './network';
 import * as path from 'path';
@@ -358,6 +359,49 @@ baseDir: "."
             await syncDependencies();
         });
 
+    program
+        .command('expand <entry>')
+        .description('Expand a VASM source without workspace routing, build-state, or build report')
+        .option('--target-lang <lang>', 'Filter language blocks to one target language')
+        .option('--stdout', 'Write expanded Markdown to stdout (default)')
+        .option('-o, --output <file>', 'Write expanded Markdown to a file')
+        .action(async (entry: string, options?: { targetLang?: string; stdout?: boolean; output?: string }) => {
+            if (options?.stdout && options.output) {
+                console.error('Use either --stdout or --output, not both.');
+                process.exit(1);
+            }
+
+            const absoluteFile = path.resolve(process.cwd(), entry);
+            if (!fs.existsSync(absoluteFile)) {
+                console.error(t('BUILD_ERR_ENTRY_NOT_FOUND', absoluteFile));
+                process.exit(1);
+            }
+
+            const outputPath = options?.output ? path.resolve(process.cwd(), options.output) : undefined;
+            const toStdout = options?.stdout || !outputPath;
+            const originalLog = console.log;
+            if (toStdout) {
+                console.log = (...args: unknown[]) => console.error(...args);
+            }
+
+            try {
+                const expanded = await compileFile(absoluteFile, outputPath, new Set(), options?.targetLang, true);
+                if (outputPath) {
+                    const dir = path.dirname(outputPath);
+                    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(outputPath, expanded, 'utf8');
+                    console.log(`[EXPAND] Wrote ${path.relative(process.cwd(), outputPath)}`);
+                } else {
+                    process.stdout.write(expanded);
+                }
+            } catch (e: any) {
+                console.error(t('BUILD_ERR_SINGLE', entry, e.message));
+                process.exit(1);
+            } finally {
+                console.log = originalLog;
+            }
+        });
+
     if (buildMode === 'deterministic') {
         program
             .command('build [entry]')
@@ -365,15 +409,26 @@ baseDir: "."
             .option('-o, --out-dir <dir>', 'Specify output directory (works for both single file and workspace)')
             .option('--base-dir <dir>', 'Specify base directory for workspace compilation (strips this path when outputting)')
             .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
-            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
+            .option('--force', 'Ignore build-state and rebuild unchanged entries')
+            .option('--dry-run', 'Plan the build without writing outputs or build-state')
+            .option('--plan', 'Alias for --dry-run')
+            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; force?: boolean; dryRun?: boolean; plan?: boolean }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
+            const dryRun = options?.dryRun || options?.plan;
             if (entry) {
                 try {
                     const workspaceEntry = await resolveSingleWorkspaceEntry(process.cwd(), entry, {
                         baseDir: options?.baseDir,
                         outDir: options?.outDir,
                         targetLangs: targetLangsArray,
+                        force: options?.force,
+                        dryRun,
                     });
+                    if (dryRun) {
+                        const plannedTarget = path.relative(process.cwd(), workspaceEntry.finalDest);
+                        console.log(`[BUILD] 🧪 Planned: ${workspaceEntry.relativeFile} -> ${plannedTarget}`);
+                        return;
+                    }
                     await compileEntry(workspaceEntry, process.cwd(), false);
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
@@ -381,7 +436,7 @@ baseDir: "."
                 }
             } else {
                 // Run workspace build
-                await runWorkspaceBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                await runWorkspaceBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray, force: options?.force, dryRun });
             }
             });
     }
@@ -399,18 +454,30 @@ baseDir: "."
             .option('-o, --out-dir <dir>', 'Specify output directory')
             .option('--base-dir <dir>', 'Specify base directory for workspace compilation')
             .option('--target-langs <langs>', 'Comma-separated list of target languages for cross-compilation')
-            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string }) => {
+            .option('--force', 'Ignore build-state and rebuild unchanged entries')
+            .option('--dry-run', 'Plan the build without writing outputs, build-state, or the default report')
+            .option('--plan', 'Alias for --dry-run')
+            .option('--report-out <file>', 'Write build report to this path instead of the default report path')
+            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; force?: boolean; dryRun?: boolean; plan?: boolean; reportOut?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
+            const buildOptions = {
+                baseDir: options?.baseDir,
+                outDir: options?.outDir,
+                targetLangs: targetLangsArray,
+                force: options?.force,
+                dryRun: options?.dryRun || options?.plan,
+                reportOut: options?.reportOut,
+            };
             if (entry) {
                 try {
-                    await runAIBuildEntry(process.cwd(), entry, { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                    await runAIBuildEntry(process.cwd(), entry, buildOptions);
                 } catch (e: any) {
                     console.error(t('BUILD_ERR_SINGLE', entry, e.message));
                     process.exit(1);
                 }
             } else {
                 // Run workspace build in AI build mode
-                await runAIBuild(process.cwd(), { baseDir: options?.baseDir, outDir: options?.outDir, targetLangs: targetLangsArray });
+                await runAIBuild(process.cwd(), buildOptions);
             }
             });
     }

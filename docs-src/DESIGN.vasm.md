@@ -126,6 +126,9 @@ dependencies:
 ```yaml
 version: 2
 mode: ai-build
+runId: 20260702013627-a1b2c3
+generatedAt: 2026-07-02T01:36:27.000Z
+reportPath: .vasmc/build-report.yaml
 entries:
   - source: src/skill.vasm.md
     status: built
@@ -140,6 +143,12 @@ entries:
 actions:
   - type: project_review
 ```
+
+`vasmc build --dry-run` 生成同样结构的 report plan，但默认输出到 stdout，不写产物、默认 report、project-review context、history cache 或 build-state。dry-run entry 会使用 `status: planned`。如果传 `--report-out <file>`，VASMC 会原子写入指定 report 文件。
+
+`--force` 会忽略 build-state，重新生成未变化 entry。`--out-dir` 只是默认输出目录，不是 dry-run；命中 `routing` 时，`routing.dest` 仍然覆盖最终输出路径。
+
+`vasmc expand <entry> --target-lang <lang> --stdout` 是纯展开命令，只做 import 展开和语言块筛选，不走 workspace routing、build-state 或 build report。它用于给 AI 准备临时展开稿，不承担翻译能力。
 
 常见 action：
 

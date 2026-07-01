@@ -137,5 +137,8 @@ export function mergeCompiledLangs(compiledMap: Map<string, string>): string {
     }
 
     // Serialize back to markdown string
-    return toMarkdown(mergedAst);
+    return toMarkdown(mergedAst, {
+        bullet: '-',
+        rule: '-',
+    });
 }

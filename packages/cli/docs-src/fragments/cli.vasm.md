@@ -68,6 +68,25 @@ vasmc build
 
 `vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
 
+常用控制参数：
+
+```bash
+vasmc build --dry-run
+vasmc build main.vasm.md --dry-run --force
+vasmc build --dry-run --report-out .vasmc/plan.yaml
+vasmc build --force
+```
+
+`--dry-run` 会把 YAML report plan 输出到 stdout，不写编译产物、默认 `.vasmc/build-report.yaml`、project-review context、history cache 或 build-state。`--report-out` 表示显式把这份 plan 写入指定文件。`--force` 会忽略 build-state，强制重新生成未变化的 entry。
+
+如果只需要一份展开稿，不想走 workspace routing 或 report actions：
+
+```bash
+vasmc expand main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` 只做确定性的 import 展开和语言块筛选。除非显式传 `--output`，否则它不会写产物、build-state 或 build report。
+
 ### 4. 构建报告
 
 ```bash
@@ -118,3 +137,5 @@ routing:
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
 ```
+
+注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。

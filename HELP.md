@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -91,6 +91,17 @@ vasmc build
 
 `vasmc build` is the AI-side compile entrypoint. It performs deterministic import resolution, AST assembly, language filtering, output writing, and build-report generation. It does not call an external model.
 
+Common build controls:
+
+```bash
+vasmc build --dry-run
+vasmc build main.vasm.md --dry-run --force
+vasmc build --dry-run --report-out .vasmc/plan.yaml
+vasmc build --force
+```
+
+`--dry-run` emits a YAML report plan to stdout and does not write compiled outputs, the default `.vasmc/build-report.yaml`, project-review context, history cache, or build-state. `--report-out` explicitly writes the report plan to a chosen file. `--force` ignores build-state and rebuilds unchanged entries.
+
 After every build, the current AI editor should read:
 
 ```bash
@@ -102,10 +113,13 @@ The report records compiled entries, output files, manifest summaries, policy st
 Other deterministic commands:
 
 ```bash
+vasmc expand main.vasm.md --target-lang zh-CN --stdout
 vasmc graph main.vasm.md
 vasmc seal my-prompt.md --alias my-custom-name
 vasmc seal "prompts/**/*.md" --format executable
 ```
+
+`expand` performs deterministic import expansion and language-block filtering without workspace routing, build-state, or build reports. It writes stdout by default and only writes a file when `--output` is explicit.
 
 `seal` injects VASM frontmatter into ordinary Markdown and renames files to `.vasm.md`. Use `--format informational` for README, HELP, DESIGN, and guides; `--format executable` for prompts and skills; `--format integrative` for composition guidance.
 
@@ -138,6 +152,8 @@ CLI overrides are also available:
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
 ```
+
+`--out-dir` is not dry-run. When a source matches `routing`, `routing.dest` still controls the final output path.
 
 ## AI Build Workflow
 
@@ -205,7 +221,7 @@ VASM_LLM_MODEL=...
 
 The deterministic compiler does not require these model settings. They are only used by optional `@vasm/console` commands.
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -219,14 +235,14 @@ The deterministic compiler does not require these model settings. They are only 
 
 `[链接文本](vasm:alias "@vasm-directive")`
 
-* **链接重写模式 (`@import:link`)**:
+- **链接重写模式 (`@import:link`)**:
   编译器将 `vasm:alias` 替换为目标文件的本地相对物理路径，保留超链接结构。
   ```markdown
   请参阅下方的 [代码审查辅助技能](vasm:coder-skill "@import:link")。
   ```
   *构建输出*: `请参阅下方的 [代码审查辅助技能](./skills/coder.md)。`
 
-* **内联展开模式 (`@import:inline`)**:
+- **内联展开模式 (`@import:inline`)**:
   编译器读取目标文件的纯文本内容，并直接替换该引用链接。主要用于组装大型 Prompt 上下文。
   ```markdown
   根据本组织的 [公司开发规范](vasm:company-rules "@import:inline")：
@@ -252,7 +268,7 @@ Please explain the code step by step.
 
 生成时，使用 `--target-langs` 参数指定你需要生成的语言。VASMC 会自动过滤 AST 树，分别输出纯净的各语言产物。
 
-***
+---
 
 <a name="publish"></a>
 
@@ -284,9 +300,9 @@ vasm:
 >
 > **`compile.format`**：
 >
-> * `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
-> * `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
-> * `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
+> - `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
+> - `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
+> - `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
 >
 > 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
 
@@ -294,9 +310,9 @@ vasm:
 
 AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
 
-* `pass`：未发现确定性 policy 风险。
-* `review`：存在需要 AI 或人类阅读的风险信号，例如疑似 prompt override、隐藏行为、密钥外传、integrative/executable 边界不清。
-* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
+- `pass`：未发现确定性 policy 风险。
+- `review`：存在需要 AI 或人类阅读的风险信号，例如疑似 prompt override、隐藏行为、密钥外传、integrative/executable 边界不清。
+- `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
 
 默认情况下，VASMC 只报告风险，不阻断输出：
 
@@ -403,6 +419,25 @@ vasmc build
 
 `vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
 
+常用控制参数：
+
+```bash
+vasmc build --dry-run
+vasmc build main.vasm.md --dry-run --force
+vasmc build --dry-run --report-out .vasmc/plan.yaml
+vasmc build --force
+```
+
+`--dry-run` 会把 YAML report plan 输出到 stdout，不写编译产物、默认 `.vasmc/build-report.yaml`、project-review context、history cache 或 build-state。`--report-out` 表示显式把这份 plan 写入指定文件。`--force` 会忽略 build-state，强制重新生成未变化的 entry。
+
+如果只需要一份展开稿，不想走 workspace routing 或 report actions：
+
+```bash
+vasmc expand main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` 只做确定性的 import 展开和语言块筛选。除非显式传 `--output`，否则它不会写产物、build-state 或 build report。
+
 ### 4. 构建报告
 
 ```bash
@@ -421,7 +456,7 @@ vasmc seal "prompts/**/*.md" --format executable
 
 `seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于整合指导文件，请使用 `--format integrative`。
 
-***
+---
 
 <a name="workspace"></a>
 
@@ -454,6 +489,8 @@ routing:
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
 ```
+
+注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。
 
 <a name="cli-ai-build"></a>
 
@@ -493,9 +530,9 @@ VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、�
 
 `.vasmc/build-report.yaml` 中每个 entry 都包含 `policy.status`：
 
-* `pass`：无确定性风险信号。
-* `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
-* `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 和 `integrative` 输出被更新。
+- `pass`：无确定性风险信号。
+- `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
+- `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 和 `integrative` 输出被更新。
 
 `policy.contentSignals` 不改变 `policy.status`，也不会触发 enforce 阻断。AI 应判断 signal evidence 是 active instruction、prohibition、example 还是 documentation。
 

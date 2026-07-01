@@ -385,6 +385,12 @@ describe('Compiler', () => {
             'utf8'
         );
 
+        fs.writeFileSync(
+            path.join(compilerDir, 'list.vasm.md'),
+            '# List\n\n- alpha\n- beta\n',
+            'utf8'
+        );
+
         fs.mkdirSync(path.join(compilerDir, 'src', 'fragments'), { recursive: true });
         fs.writeFileSync(
             path.join(compilerDir, 'src', 'local-link.vasm.md'),
@@ -443,6 +449,21 @@ describe('Compiler', () => {
             assert.ok(!result.includes('vasm:greet'), 'vasm:greet should be expanded');
             assert.ok(result.includes('Hello'), 'Should contain the inlined "Hello"');
             assert.ok(result.includes('World!'), 'Should contain the inlined "World!"');
+        } finally {
+            process.chdir(cwd);
+        }
+    });
+
+    it('serializes list bullets with hyphen style', async () => {
+        const { compileFile } = load('compiler');
+        const cwd = process.cwd();
+        process.chdir(compilerDir);
+        try {
+            const srcPath = path.join(compilerDir, 'list.vasm.md');
+            const outPath = path.join(compilerDir, 'dist', 'list.md');
+            const result = await compileFile(srcPath, outPath);
+            assert.ok(result.includes('- alpha'), 'Hyphen list bullet should be preserved');
+            assert.ok(!result.includes('* alpha'), 'Asterisk list bullet should not be emitted');
         } finally {
             process.chdir(cwd);
         }

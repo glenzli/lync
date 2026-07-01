@@ -81,6 +81,9 @@ vasm:
 | 命令 | 说明 |
 |------|------|
 | `vasmc build <file>` | AI 编辑器的唯一编译入口，输出产物和 `.vasmc/build-report.yaml` |
+| `vasmc build --dry-run` | 生成 report plan，不写产物、默认 report 或 build-state |
+| `vasmc build --force` | 忽略 build-state，强制重新构建未变化 entry |
+| `vasmc expand <file> --target-lang <lang> --stdout` | 纯展开 source，不走 workspace routing、build-state 或 build report |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
 | `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |

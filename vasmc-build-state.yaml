@@ -1,9 +1,11 @@
 version: 1
 entries:
   skill-src/vasm-expert/vasmc-expert.vasm.md|zh-CN:
-    inputSignature: 26b9059eefc09f6aaa200516175f7f6b5670e955361eab6b67967f07aeda989d
+    inputSignature: 5e5d69e12b358f2ae0a6d8d9368f0aae6c8d761b9b18724dfaf8dcb87977f72d
     outputFile: skills/vasm-expert/SKILL.md
     targetLang: zh-CN
+    targetLangs:
+      - zh-CN
   docs-src/README.vasm.md|merged:
     inputSignature: 81237701304dcc47853d136b3849dc4cc536d1168e9dc7d0ae1dc5f5e253908a
     outputFile: README.md
@@ -12,14 +14,14 @@ entries:
       - en
       - zh-CN
   docs-src/HELP.vasm.md|merged:
-    inputSignature: c1122b66db140ff1301504da245d0b157f3dc7b601ee2e48e3a5b54e44ccb793
+    inputSignature: e27ba3c12be6a69bf409a3991ab6588078341203eff1f257087ed398ecb54745
     outputFile: HELP.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/DESIGN.vasm.md|merged:
-    inputSignature: e313ef7215359e8ccd7f1d2dbec1b323ed7d6590354c65faa52907112e3833bb
+    inputSignature: f00661e43ab1cb86b5bb46fa02d2e34e57c24cc081df4d8dfe0cb0c31a58db52
     outputFile: DESIGN.md
     targetLang: merged
     targetLangs:
@@ -33,7 +35,7 @@ entries:
       - en
       - zh-CN
   docs-src/docs/REFERENCE.vasm.md|merged:
-    inputSignature: c323e4d4c967af685c4990d95980b432da4b590c4858310744b160732283918f
+    inputSignature: d8850e49a29539d9b29c24647be41c440bde11e34d9e93f9486931db6669b1b2
     outputFile: docs/REFERENCE.md
     targetLang: merged
     targetLangs:
@@ -47,14 +49,14 @@ entries:
       - en
       - zh-CN
   docs-src/docs/HELP.vasm.md|merged:
-    inputSignature: 769bd0c3a3f347401ca8a2b4711e05fe9a9107b34b3adb4a8694b56d701305b7
+    inputSignature: 79243fb2014f52b02c7872007095c76c48ad9d1ed65f47c47b02518f54dd3a70
     outputFile: docs/HELP.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/docs/DESIGN.vasm.md|merged:
-    inputSignature: a10bd7a19d8f68662d9b5e7117332121cc56b2fbbce85c045f5607dc546983f4
+    inputSignature: 0278df016ce31ac71f5784297d28a66e891d2c10526155306a4f87428a79eaeb
     outputFile: docs/DESIGN.md
     targetLang: merged
     targetLangs:
@@ -68,7 +70,7 @@ entries:
       - en
       - zh-CN
   packages/core/docs-src/README.vasm.md|merged:
-    inputSignature: dda690a2778619b6716fbef77c68e891d289ebeb9a5313cc0180fc145d9c5009
+    inputSignature: 1ba5663204a9bd382b61bc20a8d9c75a9ab14042e85756d3029566ed5e6c5957
     outputFile: packages/core/README.md
     targetLang: merged
     targetLangs:
@@ -82,7 +84,7 @@ entries:
       - en
       - zh-CN
   packages/cli/docs-src/README.vasm.md|merged:
-    inputSignature: 7a099c8104915a8f8973886c5aa34b1303ca69dcf85531599d7060665974d393
+    inputSignature: a91908b8674597694f81673426393d94fb704680ff5d101f731802f98461acf3
     outputFile: packages/cli/README.md
     targetLang: merged
     targetLangs:

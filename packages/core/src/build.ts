@@ -31,6 +31,9 @@ export interface BuildRunOptions {
     baseDir?: string;
     outDir?: string;
     targetLangs?: string[];
+    force?: boolean;
+    dryRun?: boolean;
+    reportOut?: string;
 }
 
 interface EntryMetadata {
@@ -97,10 +100,12 @@ export interface BuildReportDependency {
     diagnostics?: BuildReportDiagnostic[];
 }
 
+export type BuildReportEntryStatus = 'built' | 'skipped' | 'blocked' | 'planned';
+
 export interface BuildReportEntry {
     source: string;
     output: string;
-    status: 'built' | 'skipped' | 'blocked';
+    status: BuildReportEntryStatus;
     format: CompileFormat;
     targetLangs: string[];
     compiledFiles?: string[];
@@ -115,10 +120,27 @@ export interface BuildReportEntry {
 export interface BuildReport {
     version: 2;
     mode: 'ai-build';
+    runId: string;
     generatedAt: string;
+    dryRun?: boolean;
+    reportPath?: string;
     projectReview?: ProjectReviewReport;
     actions?: BuildReportAction[];
     entries: BuildReportEntry[];
+}
+
+function createRunId(generatedAt: Date): string {
+    const timestamp = generatedAt.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+    const suffix = Math.random().toString(36).slice(2, 8);
+    return `${timestamp}-${suffix}`;
+}
+
+function writeFileAtomic(filePath: string, content: string) {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const tmpPath = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
+    fs.writeFileSync(tmpPath, content, 'utf8');
+    fs.renameSync(tmpPath, filePath);
 }
 
 function collectManifestDiagnostics(filePath: string, cwd: string): BuildReportDiagnostic[] {
@@ -145,7 +167,7 @@ function collectDependencyManifestReports(filePath: string, cwd: string): BuildR
         });
 }
 
-export function createBuildReportEntry(entry: WorkspaceEntry, cwd: string, status: 'built' | 'skipped' | 'blocked'): BuildReportEntry {
+export function createBuildReportEntry(entry: WorkspaceEntry, cwd: string, status: BuildReportEntryStatus): BuildReportEntry {
     const manifest = readVasmManifest(entry.absoluteFile);
     const diagnostics = collectManifestDiagnostics(entry.absoluteFile, cwd);
     const dependencies = collectDependencyManifestReports(entry.absoluteFile, cwd);
@@ -186,7 +208,7 @@ export function getPolicyContentSignals(entryReport: BuildReportEntry): BuildRep
     return entryReport.policy.contentSignals || [];
 }
 
-export function createPolicyReportAction(entryReport: BuildReportEntry): BuildReportAction | undefined {
+export function createPolicyReportAction(entryReport: BuildReportEntry, reportTarget: string = '.vasmc/build-report.yaml'): BuildReportAction | undefined {
     const diagnostics = getPolicyDiagnostics(entryReport);
     const contentSignals = getPolicyContentSignals(entryReport);
     if (entryReport.policy.status === 'pass' && contentSignals.length === 0) return undefined;
@@ -196,7 +218,7 @@ export function createPolicyReportAction(entryReport: BuildReportEntry): BuildRe
         type: blocked ? 'policy_gate' : 'policy_review',
         status: 'pending',
         title: blocked ? 'Policy Gate' : 'Policy Review',
-        target: '.vasmc/build-report.yaml',
+        target: reportTarget,
         ...(diagnostics.length > 0 ? { diagnostics } : {}),
         ...(contentSignals.length > 0 ? { contentSignals } : {}),
         notes: blocked
@@ -211,12 +233,12 @@ export function createPolicyReportAction(entryReport: BuildReportEntry): BuildRe
     };
 }
 
-export function createProjectReviewReportAction(contextFile: string, mode: 'suggest' | 'patch'): BuildReportAction {
+export function createProjectReviewReportAction(contextFile: string, mode: 'suggest' | 'patch', reportTarget: string = '.vasmc/build-report.yaml'): BuildReportAction {
     return {
         type: 'project_review',
         status: 'pending',
         title: 'Project Review',
-        target: '.vasmc/build-report.yaml',
+        target: reportTarget,
         contextFile,
         mode,
         notes: [
@@ -493,6 +515,145 @@ export async function resolveSingleWorkspaceEntry(cwd: string, entry: string, cl
     };
 }
 
+function outputPathForLang(entry: WorkspaceEntry, targetLang?: string): string {
+    const isInformationalFormat = entry.compileFormat === 'informational';
+    if (!isInformationalFormat && targetLang && targetLang !== 'auto' && entry.targetLangs.length > 1) {
+        return entry.finalDest.replace(/\.md$/, `.${targetLang}.md`);
+    }
+    return entry.finalDest;
+}
+
+function resolveLangsToCompile(entry: WorkspaceEntry, cwd: string, agentMode: boolean): string[] {
+    const isInformationalFormat = entry.compileFormat === 'informational';
+    if (agentMode && entry.targetLangs.length > 1) {
+        const sourceLangs = resolveAgentSourceTargetLangs(entry.absoluteFile, cwd, entry.targetLangs);
+        if (sourceLangs.length > 0) {
+            return isInformationalFormat ? sourceLangs : [sourceLangs[0]];
+        }
+        console.warn(t('LANG_DETECT_AGENT_FALLBACK', entry.relativeFile, entry.targetLangs[0] || 'auto'));
+    }
+    return entry.targetLangs;
+}
+
+function targetLangsMatch(cachedLangs: string[] | undefined, targetLangs: string[]): boolean {
+    if (!cachedLangs) return false;
+    return [...cachedLangs].sort().join(',') === [...targetLangs].sort().join(',');
+}
+
+function shouldSkipEntry(entry: WorkspaceEntry, cwd: string, buildState: ReturnType<typeof loadBuildState>, force?: boolean, agentMode?: boolean): boolean {
+    if (force) return false;
+    const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
+    const isInformationalFormat = entry.compileFormat === 'informational';
+
+    if (isInformationalFormat) {
+        const key = buildStateKey(relativeFile, 'merged');
+        const cached = buildState.entries[key];
+        if (!cached || !fs.existsSync(finalDest)) return false;
+
+        const deps = collectDependencies(absoluteFile, cwd);
+        const sig = computeInputSignature(deps);
+        return cached.inputSignature === sig && targetLangsMatch(cached.targetLangs, targetLangs);
+    }
+
+    const langsToCheck = agentMode ? resolveLangsToCompile(entry, cwd, true) : targetLangs;
+    for (const targetLang of langsToCheck) {
+        const actualDest = outputPathForLang(entry, targetLang);
+        const key = buildStateKey(relativeFile, targetLang || 'auto');
+        const cached = buildState.entries[key];
+        if (!cached || !fs.existsSync(actualDest)) return false;
+
+        const deps = collectDependencies(absoluteFile, cwd);
+        const sig = computeInputSignature(deps);
+        if (cached.inputSignature !== sig) return false;
+        if (!targetLangsMatch(cached.targetLangs, targetLangs)) return false;
+    }
+
+    return true;
+}
+
+function createEntryFollowupActions(
+    entry: WorkspaceEntry,
+    minVariantPath: string,
+    compiledLangs: Set<string>,
+    historyPaths: { lang: string; backupPath: string }[],
+    cwd: string,
+    reportTarget: string,
+    intent?: string
+): BuildReportAction[] {
+    const isInformationalFormat = entry.compileFormat === 'informational';
+    const isExecutableFormat = entry.compileFormat === 'executable';
+    const isIntegrativeFormat = entry.compileFormat === 'integrative';
+    const langsNeedingTranslation = entry.targetLangs.filter(l => l !== 'auto' && !compiledLangs.has(l));
+
+    const actionItems: BuildReportAction[] = [];
+
+    if (isExecutableFormat) {
+        actionItems.push({
+            type: 'verify',
+            status: 'pending',
+            title: 'Verify',
+            target: minVariantPath,
+            format: entry.compileFormat,
+            intent,
+            notes: ['Check against the skill-defined verify criteria. If issues are found, output suggested edits.'],
+        });
+    } else if (isIntegrativeFormat) {
+        actionItems.push({
+            type: 'integration_review',
+            status: 'pending',
+            title: 'Integration Review',
+            target: minVariantPath,
+            format: entry.compileFormat,
+            intent,
+            notes: ['Use this output as composition guidance only, not as a final executable prompt.'],
+        });
+    }
+
+    if (langsNeedingTranslation.length > 0) {
+        actionItems.push({
+            type: 'translate',
+            status: 'pending',
+            title: 'Translate',
+            target: minVariantPath,
+            targets: isInformationalFormat
+                ? [path.relative(cwd, entry.finalDest)]
+                : langsNeedingTranslation.map(l => path.relative(cwd, outputPathForLang(entry, l))),
+            notes: isInformationalFormat
+                ? [
+                    `Missing target languages: ${langsNeedingTranslation.join(', ')}.`,
+                    'This informational output is merged; add missing language sections to the same Markdown file.',
+                    'Preserve Markdown structure, internal links, anchors, code fences, and VASM examples.',
+                ]
+                : ['Preserve Markdown structure, XML tags, and VASM syntax. Translate only human-readable text.'],
+        });
+    }
+
+    if (historyPaths.length > 0) {
+        actionItems.push({
+            type: 'diff',
+            status: 'pending',
+            title: 'Diff',
+            target: minVariantPath,
+            history: historyPaths.map(h => ({ lang: h.lang, backupPath: path.relative(cwd, h.backupPath) })),
+            notes: ['Run after verify or integration review if either action is present. Summarize semantic impact briefly.'],
+        });
+    }
+
+    if (isExecutableFormat) {
+        actionItems.push({
+            type: 'tree_shake',
+            status: 'conditional',
+            title: 'Tree-Shake',
+            target: minVariantPath,
+            condition: 'Only run when the user explicitly requests prompt optimization or slimming.',
+        });
+    }
+
+    const policyAction = createPolicyReportAction(createBuildReportEntry(entry, cwd, 'planned'), reportTarget);
+    if (policyAction) actionItems.push(policyAction);
+    return actionItems;
+}
+
 // ========== Layer 2: Per-Entry Compilation ==========
 
 export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode: boolean = false): Promise<CompiledResult> {
@@ -503,21 +664,10 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
     // In AI build mode with multiple langs, only compile languages that are actually present in source.
     // Missing languages are recorded as report actions for the active AI skill to translate.
     // Compiling missing languages here would write wrong placeholder content and make token comparison meaningless.
-    let langsToCompile = targetLangs;
-    if (agentMode && targetLangs.length > 1) {
-        const sourceLangs = resolveAgentSourceTargetLangs(absoluteFile, cwd, targetLangs);
-        if (sourceLangs.length > 0) {
-            langsToCompile = isInformationalFormat ? sourceLangs : [sourceLangs[0]];
-        } else {
-            console.warn(t('LANG_DETECT_AGENT_FALLBACK', relativeFile, targetLangs[0] || 'auto'));
-        }
-    }
+    const langsToCompile = resolveLangsToCompile(entry, cwd, agentMode);
 
     for (const targetLang of langsToCompile) {
-        let actualDest = finalDest;
-        if (!isInformationalFormat && targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-            actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-        }
+        const actualDest = outputPathForLang(entry, targetLang);
 
         console.log(t('BUILD_COMPILING', relativeFile, targetLang ? `[${targetLang}]` : '', path.relative(cwd, actualDest)));
 
@@ -564,7 +714,7 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
 // ========== Layer 3: Command Composers ==========
 
 /** Pure deterministic build — used by non-AI tooling and core API consumers. */
-export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: string; outDir?: string; targetLangs?: string[] }) {
+export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOptions) {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
     const buildState = loadBuildState(cwd);
     let stateChanged = false;
@@ -572,49 +722,16 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isInformationalFormat = entry.compileFormat === 'informational';
-        const outputFile = isInformationalFormat ? finalDest : finalDest; // both point to finalDest for cache key
 
-        // Check incremental cache for each lang
-        let allSkipped = true;
-        if (isInformationalFormat) {
-            // Informational format: single merged key, but must also check targetLangs set hasn't changed
-            const key = buildStateKey(relativeFile, 'merged');
-            const cached = buildState.entries[key];
-            if (cached && fs.existsSync(finalDest)) {
-                const deps = collectDependencies(absoluteFile, cwd);
-                const sig = computeInputSignature(deps);
-                const cachedLangs = [...(cached.targetLangs || [])].sort().join(',');
-                const currentLangs = [...targetLangs].sort().join(',');
-                if (cached.inputSignature === sig && cachedLangs === currentLangs) {
-                    // truly unchanged: same source AND same target languages
-                } else {
-                    allSkipped = false;
-                }
-            } else {
-                allSkipped = false;
-            }
-        } else {
-            for (const targetLang of targetLangs) {
-                let actualDest = finalDest;
-                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                }
-                const key = buildStateKey(relativeFile, targetLang || 'auto');
-                const cached = buildState.entries[key];
-                if (cached && fs.existsSync(actualDest)) {
-                    const deps = collectDependencies(absoluteFile, cwd);
-                    const sig = computeInputSignature(deps);
-                    if (cached.inputSignature === sig) {
-                        continue;
-                    }
-                }
-                allSkipped = false;
-                break;
-            }
+        if (shouldSkipEntry(entry, cwd, buildState, cliOptions?.force, false)) {
+            console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
+            continue;
         }
 
-        if (allSkipped) {
-            console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
+        if (cliOptions?.dryRun) {
+            const plannedFiles = (isInformationalFormat ? [finalDest] : targetLangs.map(targetLang => outputPathForLang(entry, targetLang)))
+                .map(filePath => path.relative(cwd, filePath));
+            console.log(`[BUILD] 🧪 Planned: ${relativeFile} -> ${plannedFiles.join(', ')}`);
             continue;
         }
 
@@ -635,14 +752,12 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
         } else {
             for (const targetLang of targetLangs) {
                 const key = buildStateKey(relativeFile, targetLang || 'auto');
-                let actualDest = finalDest;
-                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                }
+                const actualDest = outputPathForLang(entry, targetLang);
                 buildState.entries[key] = {
                     inputSignature: sig,
                     outputFile: path.relative(cwd, actualDest),
                     targetLang: targetLang || 'auto',
+                    targetLangs: [...targetLangs].sort(),
                 };
             }
         }
@@ -655,29 +770,41 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: { baseDir?: st
 }
 
 /** Shared AI build runner for pre-resolved entries. */
-export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]): Promise<BuildReport> {
+export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], cliOptions?: BuildRunOptions): Promise<BuildReport> {
     const buildConfig = loadBuildConfig(cwd);
     const securityMode = buildConfig.security?.mode || 'review';
     const buildState = loadBuildState(cwd);
+    const dryRun = cliOptions?.dryRun || false;
+    const generatedAt = new Date();
+    const reportPath = cliOptions?.reportOut
+        ? path.resolve(cwd, cliOptions.reportOut)
+        : path.resolve(cwd, '.vasmc', 'build-report.yaml');
+    const reportTarget = dryRun && !cliOptions?.reportOut
+        ? '<stdout>'
+        : path.relative(cwd, reportPath);
     let stateChanged = false;
 
-    const reportPath = path.resolve(cwd, '.vasmc', 'build-report.yaml');
     const projectReviewContextPath = path.resolve(cwd, '.vasmc', 'project-review-context.yaml');
-    const reportDir = path.dirname(reportPath);
-    if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
-    const legacyInstructionsPath = path.resolve(cwd, '.vasmc', 'build-instructions.md');
-    if (fs.existsSync(legacyInstructionsPath)) fs.unlinkSync(legacyInstructionsPath);
+    if (!dryRun) {
+        const reportDir = path.dirname(reportPath);
+        if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
+        const legacyInstructionsPath = path.resolve(cwd, '.vasmc', 'build-instructions.md');
+        if (fs.existsSync(legacyInstructionsPath)) fs.unlinkSync(legacyInstructionsPath);
+    }
     const projectReviewContext = await createProjectReviewContext(cwd, buildConfig.ai?.projectReview);
     const projectReviewContextFile = path.relative(cwd, projectReviewContextPath);
-    if (projectReviewContext) {
-        fs.writeFileSync(projectReviewContextPath, yaml.stringify(projectReviewContext), 'utf8');
+    if (projectReviewContext && !dryRun) {
+        writeFileAtomic(projectReviewContextPath, yaml.stringify(projectReviewContext));
     }
     const buildReport: BuildReport = {
         version: 2,
         mode: 'ai-build',
-        generatedAt: new Date().toISOString(),
+        runId: createRunId(generatedAt),
+        generatedAt: generatedAt.toISOString(),
+        reportPath: reportTarget,
         entries: [],
     };
+    if (dryRun) buildReport.dryRun = true;
     if (projectReviewContext) {
         buildReport.projectReview = {
             mode: projectReviewContext.mode,
@@ -689,16 +816,14 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isInformationalFormat = entry.compileFormat === 'informational';
-        const isExecutableFormat = entry.compileFormat === 'executable';
-        const isIntegrativeFormat = entry.compileFormat === 'integrative';
         const skippedReport = createBuildReportEntry(entry, cwd, 'skipped');
 
         if (shouldBlockPolicyOutput(skippedReport, securityMode)) {
             const blockedReport = createBuildReportEntry(entry, cwd, 'blocked');
-            const action = createPolicyReportAction(blockedReport);
+            const action = createPolicyReportAction(blockedReport, reportTarget);
             if (action) blockedReport.actions = [action];
             buildReport.entries.push(blockedReport);
-            console.warn(`[BUILD] ⛔ Blocked by policy gate: ${relativeFile}`);
+            if (!dryRun) console.warn(`[BUILD] ⛔ Blocked by policy gate: ${relativeFile}`);
             continue;
         }
 
@@ -715,44 +840,24 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
             }
         }
 
-        // Incremental skip check for AI build mode
-        let allSkipped = true;
-        if (isInformationalFormat) {
-            const key = buildStateKey(relativeFile, 'merged');
-            const cached = buildState.entries[key];
-            if (cached && fs.existsSync(finalDest)) {
-                const deps = collectDependencies(absoluteFile, cwd);
-                const sig = computeInputSignature(deps);
-                const cachedLangs = [...(cached.targetLangs || [])].sort().join(',');
-                const currentLangs = [...targetLangs].sort().join(',');
-                if (!(cached.inputSignature === sig && cachedLangs === currentLangs)) {
-                    allSkipped = false;
-                }
-            } else {
-                allSkipped = false;
-            }
-        } else {
-            for (const targetLang of targetLangs) {
-                let actualDest = finalDest;
-                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                }
-                const key = buildStateKey(relativeFile, targetLang || 'auto');
-                const cached = buildState.entries[key];
-                if (cached && fs.existsSync(actualDest)) {
-                    const deps = collectDependencies(absoluteFile, cwd);
-                    const sig = computeInputSignature(deps);
-                    if (cached.inputSignature === sig) continue;
-                }
-                allSkipped = false;
-                break;
-            }
-        }
-        if (allSkipped) {
-            console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
-            const action = createPolicyReportAction(skippedReport);
+        if (shouldSkipEntry(entry, cwd, buildState, cliOptions?.force, true)) {
+            if (!dryRun) console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
+            const action = createPolicyReportAction(skippedReport, reportTarget);
             if (action) skippedReport.actions = [action];
             buildReport.entries.push(skippedReport);
+            continue;
+        }
+
+        if (dryRun) {
+            const plannedLangs = resolveLangsToCompile(entry, cwd, true);
+            const plannedLangSet = new Set(plannedLangs.map(lang => lang || 'auto'));
+            const plannedFiles = [...new Set(plannedLangs.map(lang => path.relative(cwd, outputPathForLang(entry, lang))))];
+            const plannedReport = createBuildReportEntry(entry, cwd, 'planned');
+            plannedReport.compiledFiles = plannedFiles;
+            const targetForActions = plannedFiles[0] || path.relative(cwd, finalDest);
+            const actions = createEntryFollowupActions(entry, targetForActions, plannedLangSet, [], cwd, reportTarget, intent);
+            if (actions.length > 0) plannedReport.actions = actions;
+            buildReport.entries.push(plannedReport);
             continue;
         }
 
@@ -760,10 +865,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
         const historyPaths: { lang: string; backupPath: string }[] = [];
         if (!isInformationalFormat) {
             for (const targetLang of targetLangs) {
-                let actualDest = finalDest;
-                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                }
+                const actualDest = outputPathForLang(entry, targetLang);
                 if (fs.existsSync(actualDest)) {
                     const oldContent = fs.readFileSync(actualDest, 'utf8');
                     const cacheDir = path.resolve(cwd, '.vasmc', 'cache');
@@ -790,89 +892,13 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
             }
         }
 
-        const outputPathForLang = (lang?: string) => {
-            if (!isInformationalFormat && lang && lang !== 'auto' && targetLangs.length > 1) {
-                return finalDest.replace(/\.md$/, `.${lang}.md`);
-            }
-            return finalDest;
-        };
-        const minVariantPath = path.relative(cwd, outputPathForLang(bestLang));
+        const minVariantPath = path.relative(cwd, outputPathForLang(entry, bestLang));
         const compiledLangs = new Set(result.compiledMap.keys());
-        const langsNeedingTranslation = targetLangs.filter(l => l !== 'auto' && !compiledLangs.has(l));
-
-        const actionItems: BuildReportAction[] = [];
-
-        // 1. Review instructions for AI-facing formats.
-        if (isExecutableFormat) {
-            actionItems.push({
-                type: 'verify',
-                status: 'pending',
-                title: 'Verify',
-                target: minVariantPath,
-                format: entry.compileFormat,
-                intent,
-                notes: ['Check against the skill-defined verify criteria. If issues are found, output suggested edits.'],
-            });
-        } else if (isIntegrativeFormat) {
-            actionItems.push({
-                type: 'integration_review',
-                status: 'pending',
-                title: 'Integration Review',
-                target: minVariantPath,
-                format: entry.compileFormat,
-                intent,
-                notes: ['Use this output as composition guidance only, not as a final executable prompt.'],
-            });
-        }
-
-        // 2. Translation (only if other langs needed)
-        if (langsNeedingTranslation.length > 0) {
-            actionItems.push({
-                type: 'translate',
-                status: 'pending',
-                title: 'Translate',
-                target: minVariantPath,
-                targets: isInformationalFormat
-                    ? [path.relative(cwd, finalDest)]
-                    : langsNeedingTranslation.map(l => path.relative(cwd, outputPathForLang(l))),
-                notes: isInformationalFormat
-                    ? [
-                        `Missing target languages: ${langsNeedingTranslation.join(', ')}.`,
-                        'This informational output is merged; add missing language sections to the same Markdown file.',
-                        'Preserve Markdown structure, internal links, anchors, code fences, and VASM examples.',
-                    ]
-                    : ['Preserve Markdown structure, XML tags, and VASM syntax. Translate only human-readable text.'],
-            });
-        }
-
-        // 3. Diff (only if history backup exists)
-        if (historyPaths.length > 0) {
-            actionItems.push({
-                type: 'diff',
-                status: 'pending',
-                title: 'Diff',
-                target: minVariantPath,
-                history: historyPaths.map(h => ({ lang: h.lang, backupPath: path.relative(cwd, h.backupPath) })),
-                notes: ['Run after verify or integration review if either action is present. Summarize semantic impact briefly.'],
-            });
-        }
-
-        // 4. Tree-Shake (conditional, executable only)
-        if (isExecutableFormat) {
-            actionItems.push({
-                type: 'tree_shake',
-                status: 'conditional',
-                title: 'Tree-Shake',
-                target: minVariantPath,
-                condition: 'Only run when the user explicitly requests prompt optimization or slimming.',
-            });
-        }
+        const actionItems = createEntryFollowupActions(entry, minVariantPath, compiledLangs, historyPaths, cwd, reportTarget, intent);
 
         // Update incremental build cache after successful AI build
         const builtReport = createBuildReportEntry(entry, cwd, 'built');
-        const action = createPolicyReportAction(builtReport);
-        if (action) actionItems.push(action);
-        builtReport.compiledFiles = [...new Set([...result.compiledMap.keys()].map(lang => path.relative(cwd, outputPathForLang(lang))))];
+        builtReport.compiledFiles = [...new Set([...result.compiledMap.keys()].map(lang => path.relative(cwd, outputPathForLang(entry, lang))))];
         if (!isInformationalFormat) {
             builtReport.minimalTokenVariant = {
                 path: minVariantPath,
@@ -893,47 +919,50 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[]):
                 targetLangs: [...targetLangs].sort(),
             };
         } else {
-            for (const targetLang of targetLangs) {
+            for (const targetLang of result.compiledMap.keys()) {
                 const key = buildStateKey(relativeFile, targetLang || 'auto');
-                let actualDest = finalDest;
-                if (targetLang && targetLang !== 'auto' && targetLangs.length > 1) {
-                    actualDest = finalDest.replace(/\.md$/, `.${targetLang}.md`);
-                }
+                const actualDest = outputPathForLang(entry, targetLang);
                 buildState.entries[key] = {
                     inputSignature: sig,
                     outputFile: path.relative(cwd, actualDest),
                     targetLang: targetLang || 'auto',
+                    targetLangs: [...targetLangs].sort(),
                 };
             }
         }
         stateChanged = true;
     }
 
-    if (stateChanged) {
+    if (stateChanged && !dryRun) {
         saveBuildState(buildState, cwd);
     }
 
     if (projectReviewContext) {
         buildReport.actions = [
             ...(buildReport.actions || []),
-            createProjectReviewReportAction(projectReviewContextFile, projectReviewContext.mode),
+            createProjectReviewReportAction(projectReviewContextFile, projectReviewContext.mode, reportTarget),
         ];
-        console.log(`[BUILD] 🧭 Project review context: ${projectReviewContextFile}`);
+        if (!dryRun) console.log(`[BUILD] 🧭 Project review context: ${projectReviewContextFile}`);
     }
 
-    fs.writeFileSync(reportPath, yaml.stringify(buildReport), 'utf8');
-    console.log(`[BUILD] 📋 Build report: ${path.relative(cwd, reportPath)}`);
+    const reportYaml = yaml.stringify(buildReport);
+    if (dryRun && !cliOptions?.reportOut) {
+        process.stdout.write(reportYaml);
+    } else {
+        writeFileAtomic(reportPath, reportYaml);
+        console.log(`[BUILD] 📋 Build report: ${path.relative(cwd, reportPath)}`);
+    }
     return buildReport;
 }
 
 /** AI build — used by the AI-facing `vasmc build` workspace mode. */
 export async function runAIBuild(cwd: string, cliOptions?: BuildRunOptions): Promise<BuildReport> {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
-    return runAIBuildEntries(cwd, entries);
+    return runAIBuildEntries(cwd, entries, cliOptions);
 }
 
 /** AI build for one explicit entry, using the same report flow as workspace build. */
 export async function runAIBuildEntry(cwd: string, entry: string, cliOptions?: BuildRunOptions): Promise<BuildReport> {
     const workspaceEntry = await resolveSingleWorkspaceEntry(cwd, entry, cliOptions);
-    return runAIBuildEntries(cwd, [workspaceEntry]);
+    return runAIBuildEntries(cwd, [workspaceEntry], cliOptions);
 }

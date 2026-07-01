@@ -77,6 +77,25 @@ vasmc build
 
 `vasmc build` is the AI-side compiler entrypoint. It writes deterministic Markdown outputs and `.vasmc/build-report.yaml`. If a target language is missing, `vasmc` does not call an external model; instead, it records actions for the current AI to handle Verify, Translate, Diff, Policy Review, Policy Gate, Project Review, and Tree-Shake tasks as needed.
 
+Useful build controls:
+
+```bash
+vasmc build --dry-run
+vasmc build main.vasm.md --dry-run --force
+vasmc build --dry-run --report-out .vasmc/plan.yaml
+vasmc build --force
+```
+
+`--dry-run` emits a YAML report plan to stdout and does not write compiled outputs, `.vasmc/build-report.yaml`, project-review context, history cache, or build-state. `--report-out` explicitly writes that report plan to a chosen file. `--force` ignores build-state and rebuilds unchanged entries.
+
+For a pure expanded draft without workspace routing or report actions:
+
+```bash
+vasmc expand main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` performs deterministic import expansion and language-block filtering only. It does not update outputs, build-state, or build reports unless `--output` is explicitly provided.
+
 ### 4. Read The Build Report
 
 ```bash

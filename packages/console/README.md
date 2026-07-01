@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -59,7 +59,7 @@ VASM_LLM_MODEL=...
 
 `lang` also affects VASMC interactive log language. `llm` is only read by the optional external-model tools in `@vasm/console`.
 
-***
+---
 
 <a name="zh-cn"></a>
 

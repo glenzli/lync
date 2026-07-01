@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -127,6 +127,9 @@ dependencies:
 ```yaml
 version: 2
 mode: ai-build
+runId: 20260702013627-a1b2c3
+generatedAt: 2026-07-02T01:36:27.000Z
+reportPath: .vasmc/build-report.yaml
 entries:
   - source: src/skill.vasm.md
     status: built
@@ -141,6 +144,12 @@ entries:
 actions:
   - type: project_review
 ```
+
+`vasmc build --dry-run` produces the same report shape as a plan, but writes it to stdout by default and does not write compiled outputs, the default report, project-review context, history cache, or build-state. Dry-run entries use `status: planned`. With `--report-out <file>`, VASMC atomically writes the report to the chosen path.
+
+`--force` ignores build-state and rebuilds unchanged entries. `--out-dir` is only a default output directory; it is not dry-run. When a source matches `routing`, `routing.dest` still controls the final output path.
+
+`vasmc expand <entry> --target-lang <lang> --stdout` is the pure expansion command. It only expands imports and filters language blocks. It does not use workspace routing, build-state, or build reports, and it does not translate text.
 
 Common actions:
 
@@ -244,7 +253,7 @@ VASMC currently does not:
 
 It provides a clearer input maintenance surface: what content is declared, how it is composed, where it is written, and which AI follow-up actions remain are all recorded in files and reports.
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -321,10 +330,10 @@ vasm:
 
 在 AI build 模式下：
 
-* 如果源文件已有目标语种块，VASMC 确定性过滤对应语言块。
-* 如果源文件只有中文，但 `targetLangs` 包含 `en` 和 `zh-CN`，VASMC 会先生成已有中文产物，并在 `.vasmc/build-report.yaml` 中加入 `translate` action。
-* `informational` 的缺失语种翻译会写回同一个合并文档。
-* `executable` 的缺失语种翻译会写入独立目标文件。
+- 如果源文件已有目标语种块，VASMC 确定性过滤对应语言块。
+- 如果源文件只有中文，但 `targetLangs` 包含 `en` 和 `zh-CN`，VASMC 会先生成已有中文产物，并在 `.vasmc/build-report.yaml` 中加入 `translate` action。
+- `informational` 的缺失语种翻译会写回同一个合并文档。
+- `executable` 的缺失语种翻译会写入独立目标文件。
 
 编译器本身不调用模型。翻译由当前 AI 编辑器按 report action 完成。这样可以保持 source 维护面简洁，同时保留双语 README/docs 这类发布产物。
 
@@ -369,6 +378,9 @@ dependencies:
 ```yaml
 version: 2
 mode: ai-build
+runId: 20260702013627-a1b2c3
+generatedAt: 2026-07-02T01:36:27.000Z
+reportPath: .vasmc/build-report.yaml
 entries:
   - source: src/skill.vasm.md
     status: built
@@ -383,6 +395,12 @@ entries:
 actions:
   - type: project_review
 ```
+
+`vasmc build --dry-run` 生成同样结构的 report plan，但默认输出到 stdout，不写产物、默认 report、project-review context、history cache 或 build-state。dry-run entry 会使用 `status: planned`。如果传 `--report-out <file>`，VASMC 会原子写入指定 report 文件。
+
+`--force` 会忽略 build-state，重新生成未变化 entry。`--out-dir` 只是默认输出目录，不是 dry-run；命中 `routing` 时，`routing.dest` 仍然覆盖最终输出路径。
+
+`vasmc expand <entry> --target-lang <lang> --stdout` 是纯展开命令，只做 import 展开和语言块筛选，不走 workspace routing、build-state 或 build report。它用于给 AI 准备临时展开稿，不承担翻译能力。
 
 常见 action：
 
@@ -403,10 +421,10 @@ actions:
 
 VASMC 的 policy gate 是确定性检查，不是运行时安全边界。它当前覆盖：
 
-* manifest 结构错误和已移除字段。
-* `compile.format` 非法值。
-* lockfile 缺失或 hash 不一致。
-* `informational` 导入 `executable` / `integrative` 的格式边界错误。
+- manifest 结构错误和已移除字段。
+- `compile.format` 非法值。
+- lockfile 缺失或 hash 不一致。
+- `informational` 导入 `executable` / `integrative` 的格式边界错误。
 
 内容文本中的 prompt override、隐藏行为、密钥外传、下载执行远程代码等词面风险不会作为阻断级 diagnostics。VASMC 只把它们写入 `contentSignals`，由 AI 结合上下文判断它是在发出指令、禁止风险、举例，还是普通说明。
 
@@ -456,13 +474,13 @@ ai:
 
 `eval-src/` 是仓库本地的自评估集合，不是公开 CLI contract。它用于测试 VASMC 自身的编译能力：
 
-* prompt/doc 样本 case。
-* hard boundary checks。
-* 预期失败 case，例如缺失 import、循环 import、非法 format。
-* policy gate 行为检查。
-* 链接目标存在性检查。
-* AI judge 使用的中文评审流程。
-* 单份带时间戳的报告输出到 `self-eval-reports/`。
+- prompt/doc 样本 case。
+- hard boundary checks。
+- 预期失败 case，例如缺失 import、循环 import、非法 format。
+- policy gate 行为检查。
+- 链接目标存在性检查。
+- AI judge 使用的中文评审流程。
+- 单份带时间戳的报告输出到 `self-eval-reports/`。
 
 这个流程体现当前设计取向：先用确定性检查建立边界，再把语义判断交给 AI，并留下可审计报告。
 
@@ -478,10 +496,10 @@ skipped entry 仍会进入 build report，但不会重复生成 verify/translate
 
 VASMC 当前不做这些事：
 
-* 不在 compiler core 内调用模型。
-* 不保证 prompt 在运行时不会被用户输入或工具输出越狱。
-* 不替代宿主应用的权限隔离。
-* 不把自然语言的 trust/license/activation 声明当成可靠安全机制。
-* 不保证远程内容本身可信，只保证锁定后的内容可复现。
+- 不在 compiler core 内调用模型。
+- 不保证 prompt 在运行时不会被用户输入或工具输出越狱。
+- 不替代宿主应用的权限隔离。
+- 不把自然语言的 trust/license/activation 声明当成可靠安全机制。
+- 不保证远程内容本身可信，只保证锁定后的内容可复现。
 
 它提供的是一个更清晰的输入维护面：哪些内容被声明、如何组合、输出到哪里、还需要 AI 做哪些后续动作，都以文件和 report 的形式留下来。

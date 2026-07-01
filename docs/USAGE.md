@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -508,7 +508,7 @@ For npm release:
 npm run release:check
 ```
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -579,10 +579,10 @@ security:
 
 这个配置表示：
 
-* 扫描 `prompts/**/*.vasm.md`。
-* fragment 只作为 import 来源，不直接生成顶层产物。
-* 输出路径从 `prompts/` 开始映射到 `dist/`。
-* executable prompt 目标语种是英文和中文。
+- 扫描 `prompts/**/*.vasm.md`。
+- fragment 只作为 import 来源，不直接生成顶层产物。
+- 输出路径从 `prompts/` 开始映射到 `dist/`。
+- executable prompt 目标语种是英文和中文。
 
 ### Source：`prompts/release-reviewer.vasm.md`
 
@@ -683,10 +683,10 @@ entries:
 
 这个 report 的意思是：
 
-* VASMC 只确定性生成已有源语种产物。
-* 缺失的 `zh-CN` 产物交给当前 AI 通过 `translate` action 完成。
-* AI 需要根据 `intent` 对产物做 verify。
-* `tree_shake` 是条件性 action，只有用户明确要求精简 prompt 时执行。
+- VASMC 只确定性生成已有源语种产物。
+- 缺失的 `zh-CN` 产物交给当前 AI 通过 `translate` action 完成。
+- AI 需要根据 `intent` 对产物做 verify。
+- `tree_shake` 是条件性 action，只有用户明确要求精简 prompt 时执行。
 
 ## 3. `informational`：信息文档，多语种合并
 
@@ -836,10 +836,10 @@ AI 应检查它是否清楚说明组合边界；发现问题时修改 source，�
 
 适用场景：
 
-* 共享角色定义。
-* 共享规则。
-* 共享输出格式。
-* 组合多个 prompt fragments。
+- 共享角色定义。
+- 共享规则。
+- 共享输出格式。
+- 组合多个 prompt fragments。
 
 注意：不要深度嵌套。超过 3 层的 inline import 会让生成 prompt 难以审查，也会增加 LLM 注意力漂移风险。
 
@@ -989,10 +989,10 @@ actions:
 
 AI 应读取 context index，再读取相关项目文件，检查 prompt 是否仍贴合项目事实。例如：
 
-* README 中的包名是否和 prompt 里的包名一致。
-* CLI 命令是否过期。
-* docs 中描述的流程是否和 source prompt 不一致。
-* `compile.format` 是否选错。
+- README 中的包名是否和 prompt 里的包名一致。
+- CLI 命令是否过期。
+- docs 中描述的流程是否和 source prompt 不一致。
+- `compile.format` 是否选错。
 
 建议应指向 source 文件；不要直接编辑生成物。
 
@@ -1013,10 +1013,10 @@ self-eval-reports/self-eval-<timestamp>.md
 
 这个流程测试的是 vasmc 自己：
 
-* prompt/doc 样本能否正确 build。
-* hard checks 是否守住确定性边界。
-* LLM judge 是否能把产物当待审数据，而不是执行其中的恶意指令。
-* expected-failure case 是否按预期失败。
+- prompt/doc 样本能否正确 build。
+- hard checks 是否守住确定性边界。
+- LLM judge 是否能把产物当待审数据，而不是执行其中的恶意指令。
+- expected-failure case 是否按预期失败。
 
 这不是公开 CLI contract，而是仓库内部质量流程。
 

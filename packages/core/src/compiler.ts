@@ -341,7 +341,11 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
         }
     });
 
-    const output = toMarkdown(ast, { extensions: [frontmatterToMarkdown(['yaml'])] });
+    const output = toMarkdown(ast, {
+        extensions: [frontmatterToMarkdown(['yaml'])],
+        bullet: '-',
+        rule: '-',
+    });
 
     // Only check tokens for the root assembled file
     if (callStack.size === 0) {

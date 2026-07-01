@@ -188,6 +188,8 @@ describe('Compilation capability matrix', () => {
         const report = readReport();
         assert.strictEqual(report.version, 2);
         assert.strictEqual(report.mode, 'ai-build');
+        assert.ok(report.runId, 'workspace report must include runId');
+        assert.strictEqual(report.reportPath, '.vasmc/build-report.yaml');
         assert.ok(report.projectReview, 'workspace report must include project review context');
         assert.ok((report.actions || []).some(action => action.type === 'project_review'), 'workspace report must include project_review action');
 
@@ -244,6 +246,58 @@ describe('Compilation capability matrix', () => {
 
         const translate = entry.actions.find(action => action.type === 'translate');
         assert.deepStrictEqual(translate.targets, ['single-out/skill.zh-CN.md']);
+    });
+
+    it('dry-run emits a report plan without writing outputs or the default report', () => {
+        const beforeReport = read('.vasmc/build-report.yaml');
+        const dryRunYaml = run(['build', 'src/skill.vasm.md', '-o', 'dry-run-out', '--dry-run', '--force']);
+        const dryRunReport = yaml.parse(dryRunYaml);
+
+        assert.strictEqual(dryRunReport.version, 2);
+        assert.strictEqual(dryRunReport.dryRun, true);
+        assert.strictEqual(dryRunReport.reportPath, '<stdout>');
+        assert.ok(dryRunReport.runId, 'dry-run report must include runId');
+        assert.ok(!fs.existsSync(path.join(workspace, 'dry-run-out')), 'dry-run must not write output files');
+        assert.strictEqual(read('.vasmc/build-report.yaml'), beforeReport, 'dry-run must not update the default report');
+
+        const entry = entryBySource(dryRunReport, 'src/skill.vasm.md');
+        assert.strictEqual(entry.status, 'planned');
+        assert.deepStrictEqual(entry.compiledFiles, ['dry-run-out/skill.en.md']);
+        assert.ok(actionTypes(entry).includes('verify'), 'dry-run plan must include verify action');
+        assert.ok(actionTypes(entry).includes('translate'), 'dry-run plan must include translate action');
+    });
+
+    it('dry-run can write an explicit report-out file without writing outputs', () => {
+        const reportOut = path.join(workspace, '.vasmc', 'custom-plan.yaml');
+        run(['build', 'src/skill.vasm.md', '-o', 'report-out-dry-run', '--dry-run', '--force', '--report-out', '.vasmc/custom-plan.yaml']);
+
+        assert.ok(fs.existsSync(reportOut), 'explicit dry-run report must be written');
+        assert.ok(!fs.existsSync(path.join(workspace, 'report-out-dry-run')), 'dry-run report-out must not write compiled outputs');
+        const report = yaml.parse(fs.readFileSync(reportOut, 'utf8'));
+        assert.strictEqual(report.dryRun, true);
+        assert.strictEqual(report.reportPath, '.vasmc/custom-plan.yaml');
+        assert.strictEqual(entryBySource(report, 'src/skill.vasm.md').status, 'planned');
+    });
+
+    it('--force rebuilds entries that would otherwise be skipped by build-state', () => {
+        run(['build', 'src/skill.vasm.md', '-o', 'force-out']);
+        assert.strictEqual(entryBySource(readReport(), 'src/skill.vasm.md').status, 'built');
+
+        run(['build', 'src/skill.vasm.md', '-o', 'force-out']);
+        assert.strictEqual(entryBySource(readReport(), 'src/skill.vasm.md').status, 'skipped');
+
+        run(['build', 'src/skill.vasm.md', '-o', 'force-out', '--force']);
+        assert.strictEqual(entryBySource(readReport(), 'src/skill.vasm.md').status, 'built');
+    });
+
+    it('expand stdout performs deterministic expansion without workspace routing or report writes', () => {
+        const beforeReport = read('.vasmc/build-report.yaml');
+        const expanded = run(['expand', 'src/docs.vasm.md', '--target-lang', 'zh-CN', '--stdout']);
+
+        assert.ok(expanded.includes('中文文档正文。'), 'expand must keep requested language block');
+        assert.ok(expanded.includes('Shared fragment content.'), 'expand must inline fragments');
+        assert.ok(!expanded.includes('English docs body.'), 'expand must drop other language blocks');
+        assert.strictEqual(read('.vasmc/build-report.yaml'), beforeReport, 'expand must not update build report');
     });
 
     it('deterministic single-entry profile compiles all configured language variants', () => {

@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -77,6 +77,25 @@ vasmc build
 
 `vasmc build` is the AI-side compiler entrypoint. It writes deterministic Markdown outputs and `.vasmc/build-report.yaml`. If a target language is missing, `vasmc` does not call an external model; instead, it records actions for the current AI to handle Verify, Translate, Diff, Policy Review, Policy Gate, Project Review, and Tree-Shake tasks as needed.
 
+Useful build controls:
+
+```bash
+vasmc build --dry-run
+vasmc build main.vasm.md --dry-run --force
+vasmc build --dry-run --report-out .vasmc/plan.yaml
+vasmc build --force
+```
+
+`--dry-run` emits a YAML report plan to stdout and does not write compiled outputs, `.vasmc/build-report.yaml`, project-review context, history cache, or build-state. `--report-out` explicitly writes that report plan to a chosen file. `--force` ignores build-state and rebuilds unchanged entries.
+
+For a pure expanded draft without workspace routing or report actions:
+
+```bash
+vasmc expand main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` performs deterministic import expansion and language-block filtering only. It does not update outputs, build-state, or build reports unless `--output` is explicitly provided.
+
 ### 4. Read The Build Report
 
 ```bash
@@ -125,7 +144,7 @@ CLI overrides are also supported:
 vasmc build --out-dir ./doc --base-dir ./src
 ```
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -202,6 +221,25 @@ vasmc build
 
 `vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
 
+常用控制参数：
+
+```bash
+vasmc build --dry-run
+vasmc build main.vasm.md --dry-run --force
+vasmc build --dry-run --report-out .vasmc/plan.yaml
+vasmc build --force
+```
+
+`--dry-run` 会把 YAML report plan 输出到 stdout，不写编译产物、默认 `.vasmc/build-report.yaml`、project-review context、history cache 或 build-state。`--report-out` 表示显式把这份 plan 写入指定文件。`--force` 会忽略 build-state，强制重新生成未变化的 entry。
+
+如果只需要一份展开稿，不想走 workspace routing 或 report actions：
+
+```bash
+vasmc expand main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` 只做确定性的 import 展开和语言块筛选。除非显式传 `--output`，否则它不会写产物、build-state 或 build report。
+
 ### 4. 构建报告
 
 ```bash
@@ -220,7 +258,7 @@ vasmc seal "prompts/**/*.md" --format executable
 
 `seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于整合指导文件，请使用 `--format integrative`。
 
-***
+---
 
 <a name="workspace-zh-cn"></a>
 
@@ -253,6 +291,8 @@ routing:
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
 ```
+
+注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。
 
 <a name="cli-ai-build-zh-cn"></a>
 
@@ -292,9 +332,9 @@ VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、�
 
 `.vasmc/build-report.yaml` 中每个 entry 都包含 `policy.status`：
 
-* `pass`：无确定性风险信号。
-* `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
-* `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 和 `integrative` 输出被更新。
+- `pass`：无确定性风险信号。
+- `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
+- `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 和 `integrative` 输出被更新。
 
 `policy.contentSignals` 不改变 `policy.status`，也不会触发 enforce 阻断。AI 应判断 signal evidence 是 active instruction、prohibition、example 还是 documentation。
 

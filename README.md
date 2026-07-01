@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -67,7 +67,7 @@ Build result:
 
 This repository uses Changesets. Run `npm run release:check` before publishing; use `npm run release:publish` for npm release and `npm run release:github` for GitHub tag/release automation.
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -106,9 +106,9 @@ vasm:
 
 构建后得到：
 
-* 给目标 AI 直接读取的纯净 Markdown 产物。
-* `.vasmc/build-report.yaml`，包含 `verify`、`translate`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
-* 源文件优先：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
+- 给目标 AI 直接读取的纯净 Markdown 产物。
+- `.vasmc/build-report.yaml`，包含 `verify`、`translate`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
+- 源文件优先：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
 
 ## 文档入口
 

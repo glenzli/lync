@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -188,6 +188,24 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 
 If `routing` matches, `routing.dest` overrides the default destination directory.
 
+### Build Flags
+
+| Flag | Behavior |
+| --- | --- |
+| `--force` | Ignore build-state and rebuild unchanged entries. |
+| `--dry-run` / `--plan` | Emit a report plan without writing outputs, the default report, project-review context, history cache, or build-state. The default destination is stdout. |
+| `--report-out <file>` | Explicitly write the build report to a chosen path; can be combined with `--dry-run`. |
+
+`--out-dir` is not dry-run. Single-entry and workspace builds both resolve workspace config first; if a source matches `routing`, the final path is controlled by `routing.dest`.
+
+### `expand`
+
+```bash
+vasmc expand src/main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` only performs deterministic import expansion and language-block filtering. It does not use workspace routing, build-state, or build reports. It writes stdout by default and only writes a file when `--output <file>` is explicitly provided.
+
 ### `security.mode`
 
 | Mode | Behavior |
@@ -202,7 +220,9 @@ Core shape:
 ```yaml
 version: 2
 mode: ai-build
+runId: 20260702013627-a1b2c3
 generatedAt: 2026-07-01T00:00:00.000Z
+reportPath: .vasmc/build-report.yaml
 projectReview:
   mode: suggest
   contextFile: .vasmc/project-review-context.yaml
@@ -236,6 +256,7 @@ actions:
 | `built` | Output was compiled and written. |
 | `skipped` | Incremental cache considered the source unchanged. |
 | `blocked` | Policy gate blocked output update. |
+| `planned` | Dry-run planned the output but did not write files. |
 
 ### Policy status
 
@@ -296,7 +317,7 @@ Common codes:
 
 `@vasm/cli` and `@vasm/console` both bundle core. The current release model uses a fixed version group.
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -484,6 +505,24 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 
 如果命中 `routing`，则 `routing.dest` 覆盖默认目录。
 
+### Build flags
+
+| flag | 行为 |
+| --- | --- |
+| `--force` | 忽略 build-state，重新构建未变化 entry。 |
+| `--dry-run` / `--plan` | 只生成 report plan，不写产物、默认 report、project-review context、history cache 或 build-state。默认输出到 stdout。 |
+| `--report-out <file>` | 显式把 build report 写到指定路径；可与 `--dry-run` 组合。 |
+
+`--out-dir` 不是 dry-run。单文件 build 和 workspace build 都会先解析 workspace 配置；如果命中 `routing`，最终路径由 `routing.dest` 决定。
+
+### `expand`
+
+```bash
+vasmc expand src/main.vasm.md --target-lang zh-CN --stdout
+```
+
+`expand` 只做确定性的 import 展开和语言块筛选，不走 workspace routing、build-state 或 build report。默认写 stdout；只有显式传 `--output <file>` 时才写文件。
+
 ### `security.mode`
 
 | mode | 行为 |
@@ -498,7 +537,9 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 ```yaml
 version: 2
 mode: ai-build
+runId: 20260702013627-a1b2c3
 generatedAt: 2026-07-01T00:00:00.000Z
+reportPath: .vasmc/build-report.yaml
 projectReview:
   mode: suggest
   contextFile: .vasmc/project-review-context.yaml
@@ -532,6 +573,7 @@ actions:
 | `built` | 已编译并写入输出。 |
 | `skipped` | 增量缓存判断 source 未变化，跳过写入。 |
 | `blocked` | policy gate 阻断输出。 |
+| `planned` | dry-run 计划写入，但没有实际写文件。 |
 
 ### Policy status
 

@@ -2,7 +2,7 @@
 
 [🌍 English](#en) | [🇨🇳 中文](#zh-cn)
 
-***
+---
 
 <a name="en"></a>
 
@@ -25,7 +25,7 @@ This directory contains generated documentation. Maintain the source files in `d
 * Review generated `docs/**/*.md` and `.vasmc/build-report.yaml`.
 * Do not directly edit generated `docs/**/*.md`.
 
-***
+---
 
 <a name="zh-cn"></a>
 
@@ -43,7 +43,7 @@ This directory contains generated documentation. Maintain the source files in `d
 
 ## 源文件优先
 
-* 编辑 `docs-src/**/*.vasm.md`。
-* 运行 `node packages/cli/dist/index.js build` 或 `vasmc build`。
-* 检查生成的 `docs/**/*.md` 和 `.vasmc/build-report.yaml`。
-* 不要直接修改生成的 `docs/**/*.md`。
+- 编辑 `docs-src/**/*.vasm.md`。
+- 运行 `node packages/cli/dist/index.js build` 或 `vasmc build`。
+- 检查生成的 `docs/**/*.md` 和 `.vasmc/build-report.yaml`。
+- 不要直接修改生成的 `docs/**/*.md`。
