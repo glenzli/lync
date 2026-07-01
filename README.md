@@ -8,6 +8,8 @@
 
 ## 🌍 English
 
+![VASMC prompt compiler pipeline](docs/assets/vasmc-banner.png)
+
 Decentralized Markdown prompt compiler for LLM skills and AI-facing documents.
 
 VASMC treats Markdown prompts, skills, and documentation as source code. You maintain `.vasm.md` files, declare imports and output intent, then run `vasmc build` to produce clean `.md` outputs plus a structured `.vasmc/build-report.yaml` for the current AI editor to review, translate, trim, or block.
@@ -70,6 +72,8 @@ This repository uses Changesets. Run `npm run release:check` before publishing; 
 <a name="zh-cn"></a>
 
 ## 🇨🇳 中文
+
+![VASMC 编译流程示意图](docs/assets/vasmc-banner.png)
 
 面向 LLM skill、prompt 和 AI 文档的去中心化 Markdown prompt 编译器。
 

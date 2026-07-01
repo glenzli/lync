@@ -7,6 +7,8 @@ vasm:
 
 # VASMC
 
+![VASMC 编译流程示意图](docs/assets/vasmc-banner.png)
+
 面向 LLM skill、prompt 和 AI 文档的去中心化 Markdown prompt 编译器。
 
 VASMC 把 Markdown prompt、skill 和文档当作 source code 维护。你编辑 `.vasm.md`，声明 import 和输出用途，然后运行 `vasmc build` 生成纯净 `.md` 产物，并生成 `.vasmc/build-report.yaml`，交给当前 AI 编辑器继续校验、翻译、精简或阻断。
