@@ -7,7 +7,7 @@ import { compileFile, extractTargetLangs, collectDependencies } from './compiler
 import { t } from './i18n';
 import { VasmFrontmatter } from './types';
 import * as yaml from 'yaml';
-import { mergeCompiledLangs } from './merge';
+import { extractMergedLangSections, mergeCompiledLangs } from './merge';
 import { detectLanguage, estimateTokens } from './utils';
 import { loadBuildState, saveBuildState, computeInputSignature, buildStateKey } from './buildstate';
 import { readVasmManifest, summarizeVasmManifest, validateVasmManifest, ManifestDiagnostic, VasmManifestSummary } from './manifest';
@@ -45,6 +45,7 @@ interface EntryMetadata {
 export interface CompiledResult {
     entry: WorkspaceEntry;
     compiledMap: Map<string, string>;  // lang -> content
+    preservedLangs: string[];
 }
 
 export interface BuildReportDiagnostic extends ManifestDiagnostic {
@@ -65,6 +66,7 @@ export type BuildReportActionType =
     | 'verify'
     | 'integration_review'
     | 'translate'
+    | 'refresh_translation'
     | 'diff'
     | 'tree_shake'
     | 'policy_review'
@@ -575,6 +577,7 @@ function createEntryFollowupActions(
     entry: WorkspaceEntry,
     minVariantPath: string,
     compiledLangs: Set<string>,
+    preservedLangs: string[],
     historyPaths: { lang: string; backupPath: string }[],
     cwd: string,
     reportTarget: string,
@@ -584,6 +587,7 @@ function createEntryFollowupActions(
     const isExecutableFormat = entry.compileFormat === 'executable';
     const isIntegrativeFormat = entry.compileFormat === 'integrative';
     const langsNeedingTranslation = entry.targetLangs.filter(l => l !== 'auto' && !compiledLangs.has(l));
+    const preservedTargetLangs = preservedLangs.filter(l => l !== 'auto' && entry.targetLangs.includes(l));
 
     const actionItems: BuildReportAction[] = [];
 
@@ -628,6 +632,21 @@ function createEntryFollowupActions(
         });
     }
 
+    if (isInformationalFormat && preservedTargetLangs.length > 0) {
+        actionItems.push({
+            type: 'refresh_translation',
+            status: 'pending',
+            title: 'Refresh Preserved Translation',
+            target: minVariantPath,
+            targets: [path.relative(cwd, entry.finalDest)],
+            notes: [
+                `Preserved existing target language sections: ${preservedTargetLangs.join(', ')}.`,
+                'Compare preserved sections against the updated source-language section and revise stale translated prose if needed.',
+                'Only update preserved target-language sections in the generated Markdown output; source-language changes belong in .vasm.md files.',
+            ],
+        });
+    }
+
     if (historyPaths.length > 0) {
         actionItems.push({
             type: 'diff',
@@ -656,10 +675,44 @@ function createEntryFollowupActions(
 
 // ========== Layer 2: Per-Entry Compilation ==========
 
+function orderCompiledMap(compiledMap: Map<string, string>, targetLangs: string[]): Map<string, string> {
+    const ordered = new Map<string, string>();
+    for (const targetLang of targetLangs) {
+        const key = targetLang || 'auto';
+        const content = compiledMap.get(key);
+        if (content !== undefined) ordered.set(key, content);
+    }
+    for (const [lang, content] of compiledMap.entries()) {
+        if (!ordered.has(lang)) ordered.set(lang, content);
+    }
+    return ordered;
+}
+
+function preserveExistingInformationalLangs(entry: WorkspaceEntry, compiledMap: Map<string, string>): string[] {
+    if (!fs.existsSync(entry.finalDest)) return [];
+
+    const existingContent = fs.readFileSync(entry.finalDest, 'utf8');
+    const existingSections = extractMergedLangSections(existingContent, entry.targetLangs);
+    const preservedLangs: string[] = [];
+
+    for (const targetLang of entry.targetLangs) {
+        if (targetLang === 'auto' || compiledMap.has(targetLang)) continue;
+
+        const existingSection = existingSections.get(targetLang);
+        if (!existingSection) continue;
+
+        compiledMap.set(targetLang, existingSection);
+        preservedLangs.push(targetLang);
+    }
+
+    return preservedLangs;
+}
+
 export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode: boolean = false): Promise<CompiledResult> {
     const { relativeFile, absoluteFile, finalDest, compileFormat, targetLangs } = entry;
     const isInformationalFormat = compileFormat === 'informational';
-    const compiledMap = new Map<string, string>();
+    let compiledMap = new Map<string, string>();
+    let preservedLangs: string[] = [];
 
     // In AI build mode with multiple langs, only compile languages that are actually present in source.
     // Missing languages are recorded as report actions for the active AI skill to translate.
@@ -691,6 +744,14 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
         }
     }
 
+    if (isInformationalFormat && agentMode) {
+        preservedLangs = preserveExistingInformationalLangs(entry, compiledMap);
+        if (preservedLangs.length > 0) {
+            compiledMap = orderCompiledMap(compiledMap, targetLangs);
+            console.log(`[MERGE] Preserved existing language sections: ${preservedLangs.join(', ')}`);
+        }
+    }
+
     // Handle informational format merging
     if (isInformationalFormat && compiledMap.size > 0) {
         try {
@@ -707,7 +768,7 @@ export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode
         }
     }
 
-    return { entry, compiledMap };
+    return { entry, compiledMap, preservedLangs };
 }
 
 
@@ -855,7 +916,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
             const plannedReport = createBuildReportEntry(entry, cwd, 'planned');
             plannedReport.compiledFiles = plannedFiles;
             const targetForActions = plannedFiles[0] || path.relative(cwd, finalDest);
-            const actions = createEntryFollowupActions(entry, targetForActions, plannedLangSet, [], cwd, reportTarget, intent);
+            const actions = createEntryFollowupActions(entry, targetForActions, plannedLangSet, [], [], cwd, reportTarget, intent);
             if (actions.length > 0) plannedReport.actions = actions;
             buildReport.entries.push(plannedReport);
             continue;
@@ -894,7 +955,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
 
         const minVariantPath = path.relative(cwd, outputPathForLang(entry, bestLang));
         const compiledLangs = new Set(result.compiledMap.keys());
-        const actionItems = createEntryFollowupActions(entry, minVariantPath, compiledLangs, historyPaths, cwd, reportTarget, intent);
+        const actionItems = createEntryFollowupActions(entry, minVariantPath, compiledLangs, result.preservedLangs, historyPaths, cwd, reportTarget, intent);
 
         // Update incremental build cache after successful AI build
         const builtReport = createBuildReportEntry(entry, cwd, 'built');

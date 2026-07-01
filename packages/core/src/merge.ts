@@ -1,7 +1,7 @@
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { toMarkdown } from 'mdast-util-to-markdown';
-import type { Root, Heading, Content, HTML, Link } from 'mdast';
+import type { Root, Heading, Content, HTML, Link, RootContent } from 'mdast';
 import { visit } from 'unist-util-visit';
 
 const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
@@ -17,6 +17,117 @@ const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
 
 function getDisplayName(lang: string): string {
     return LANGUAGE_DISPLAY_NAMES[lang] || lang.toUpperCase();
+}
+
+function anchorIdForLang(lang: string): string {
+    return lang.toLowerCase().replace(/[^a-z0-9]/g, '-');
+}
+
+function getAnchorValue(value: string): string | undefined {
+    const match = /<a\b[^>]*(?:name|id)\s*=\s*(['"])(.*?)\1/i.exec(value);
+    return match?.[2];
+}
+
+function getAnchorValueFromNode(node: RootContent): string | undefined {
+    if (node.type === 'html') return getAnchorValue(node.value);
+    if (node.type !== 'paragraph') return undefined;
+
+    for (const child of node.children) {
+        if (child.type !== 'html') continue;
+        const anchorValue = getAnchorValue(child.value);
+        if (anchorValue) return anchorValue;
+    }
+
+    return undefined;
+}
+
+function cloneNode<T>(node: T): T {
+    return JSON.parse(JSON.stringify(node)) as T;
+}
+
+function restoreLanguageScopedAnchors(root: Root, anchorId: string) {
+    const suffix = `-${anchorId}`;
+
+    visit(root, 'html', (node: HTML) => {
+        node.value = node.value.replace(
+            /(<a\b[^>]*?(?:name|id)\s*=\s*)(['"])(.*?)\2/gi,
+            (match, prefix, quote, id) => {
+                if (!id.endsWith(suffix)) return match;
+                return `${prefix}${quote}${id.slice(0, -suffix.length)}${quote}`;
+            }
+        );
+    });
+
+    visit(root, 'link', (node: Link) => {
+        if (!node.url || !node.url.startsWith('#')) return;
+        const targetAnchor = node.url.substring(1);
+        if (targetAnchor.endsWith(suffix)) {
+            node.url = `#${targetAnchor.slice(0, -suffix.length)}`;
+        }
+    });
+}
+
+/**
+ * Extracts language sections from an existing VASMC merged informational document.
+ * The returned strings are normalized back into per-language Markdown variants so
+ * they can be fed into mergeCompiledLangs again without duplicating scoped anchors.
+ */
+export function extractMergedLangSections(markdown: string, targetLangs: string[]): Map<string, string> {
+    const processor = unified().use(remarkParse);
+    const ast = processor.parse(markdown) as Root;
+    const children = ast.children;
+    const langByAnchorId = new Map<string, string>();
+    for (const lang of targetLangs) {
+        if (lang === 'auto') continue;
+        langByAnchorId.set(anchorIdForLang(lang), lang);
+    }
+
+    const firstH1 = children.find((node: RootContent) => node.type === 'heading' && node.depth === 1) as Heading | undefined;
+    const sections = new Map<string, string>();
+
+    for (let i = 0; i < children.length; i++) {
+        const node = children[i];
+
+        const anchorValue = getAnchorValueFromNode(node);
+        if (!anchorValue) continue;
+
+        const lang = langByAnchorId.get(anchorValue);
+        if (!lang) continue;
+
+        let start = i + 1;
+        const maybeSectionHeading = children[start];
+        if (maybeSectionHeading?.type === 'heading' && maybeSectionHeading.depth === 2) {
+            start += 1;
+        }
+
+        let end = children.length;
+        for (let j = start; j < children.length; j++) {
+            const candidate = children[j];
+            const candidateAnchor = getAnchorValueFromNode(candidate);
+            if (candidateAnchor && langByAnchorId.has(candidateAnchor)) {
+                end = j;
+                break;
+            }
+        }
+
+        if (children[end - 1]?.type === 'thematicBreak') {
+            end -= 1;
+        }
+
+        const sectionChildren = children.slice(start, end).map(cloneNode) as RootContent[];
+        const sectionRoot: Root = { type: 'root', children: [] };
+        if (firstH1) sectionRoot.children.push(cloneNode(firstH1));
+        sectionRoot.children.push(...sectionChildren);
+
+        restoreLanguageScopedAnchors(sectionRoot, anchorIdForLang(lang));
+        const content = toMarkdown(sectionRoot, {
+            bullet: '-',
+            rule: '-',
+        }).trim();
+        if (content) sections.set(lang, `${content}\n`);
+    }
+
+    return sections;
 }
 
 /**
@@ -56,7 +167,7 @@ export function mergeCompiledLangs(compiledMap: Map<string, string>): string {
     for (let i = 0; i < langs.length; i++) {
         const lang = langs[i];
         const displayName = getDisplayName(lang);
-        const anchorId = lang.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        const anchorId = anchorIdForLang(lang);
 
         tocParagraph.children.push({
             type: 'link',
@@ -80,7 +191,7 @@ export function mergeCompiledLangs(compiledMap: Map<string, string>): string {
         const lang = langs[i];
         const ast = astMap.get(lang)!;
         const displayName = getDisplayName(lang);
-        const anchorId = lang.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        const anchorId = anchorIdForLang(lang);
 
         // Append explicit HTML anchor for universal compatibility
         mergedAst.children.push({
@@ -118,7 +229,7 @@ export function mergeCompiledLangs(compiledMap: Map<string, string>): string {
             if (node.url && node.url.startsWith('#')) {
                 // Check if it's already an existing language jump anchor (we don't want to scope those)
                 const targetAnchor = node.url.substring(1);
-                const isLangNav = langs.some(l => l.toLowerCase().replace(/[^a-z0-9]/g, '-') === targetAnchor);
+                const isLangNav = langs.some(l => anchorIdForLang(l) === targetAnchor);
 
                 if (!isLangNav && !targetAnchor.endsWith(`-${anchorId}`)) {
                     node.url = `${node.url}-${anchorId}`;

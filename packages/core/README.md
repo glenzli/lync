@@ -56,7 +56,7 @@ Explain the code step by step.
 <!-- /lang -->
 ```
 
-When a target language is selected, the compiler keeps the matching block and removes the others. For `informational` outputs with multiple `targetLangs`, VASMC merges the compiled language variants into one Markdown document with language navigation.
+When a target language is selected, the compiler keeps the matching block and removes the others. For `informational` outputs with multiple `targetLangs`, VASMC merges the compiled language variants into one Markdown document with language navigation. In AI build mode, if an existing merged informational output already contains target-language sections that are missing from the current source, VASMC preserves those sections and reports `refresh_translation` for AI review.
 
 ### Manifest And Policy
 

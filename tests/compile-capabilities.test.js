@@ -300,6 +300,67 @@ describe('Compilation capability matrix', () => {
         assert.strictEqual(read('.vasmc/build-report.yaml'), beforeReport, 'expand must not update build report');
     });
 
+    it('AI informational build preserves existing target-language sections for review', () => {
+        write('src/preserved-docs.vasm.md', [
+            '---',
+            'vasm:',
+            '  alias: preserved-docs',
+            '  compile:',
+            '    format: informational',
+            '---',
+            '# Preserved Docs',
+            '',
+            '<!-- lang:zh-CN -->',
+            '新的中文正文。',
+            '',
+            '<a name="internal"></a>',
+            '',
+            '[内部链接](#internal)',
+            '<!-- /lang -->',
+            ''
+        ].join('\n'));
+
+        write('out/preserved-docs.md', [
+            '# Preserved Docs',
+            '',
+            '[🌍 English](#en) | [🇨🇳 中文](#zh-cn)',
+            '',
+            '---',
+            '',
+            '<a name="en"></a>',
+            '',
+            '## 🌍 English',
+            '',
+            'Old English translation to preserve.',
+            '',
+            '<a name="internal-en"></a>',
+            '',
+            '[Internal link](#internal-en)',
+            '',
+            '---',
+            '',
+            '<a name="zh-cn"></a>',
+            '',
+            '## 🇨🇳 中文',
+            '',
+            '旧中文正文。',
+            ''
+        ].join('\n'));
+
+        run(['build', 'src/preserved-docs.vasm.md', '-o', 'out', '--force']);
+
+        const output = read('out/preserved-docs.md');
+        assert.ok(output.includes('Old English translation to preserve.'), 'existing English section must be preserved');
+        assert.ok(output.includes('新的中文正文。'), 'source-language section must be regenerated');
+        assert.ok(!output.includes('旧中文正文。'), 'old source-language section must not be preserved');
+        assert.ok(output.includes('#internal-en'), 'preserved links must keep one language suffix after re-merge');
+        assert.ok(!output.includes('#internal-en-en'), 'preserved links must not receive duplicate language suffixes');
+
+        const entry = entryBySource(readReport(), 'src/preserved-docs.vasm.md');
+        assert.ok(actionTypes(entry).includes('refresh_translation'), 'preserved translations must request refresh review');
+        assert.ok(!actionTypes(entry).includes('translate'), 'preserved target languages must not be reported as missing');
+    });
+
     it('deterministic single-entry profile compiles all configured language variants', () => {
         runConsole(['build', 'src/skill.vasm.md', '-o', 'deterministic-out']);
 

@@ -52,7 +52,7 @@ vasm:
     targetLangs: ["zh-CN"]  # ← 确认语种，必要时添加 "en" 等目标语种
 ```
 
-* `informational` 格式：多语种内容合并到**单一文件**（如 `README.md` 中文英文都有）
+* `informational` 格式：多语种内容合并到**单一文件**（如 `README.md` 中文英文都有）；如果旧输出已有目标语种段，AI build 会保留它们并生成 `refresh_translation` action
 * `executable` 格式：每种语种输出**独立文件**（如 `skill.zh-CN.md`, `skill.en.md`）
 * `integrative` 格式：每种语种输出**独立文件**，AI 只把它当组合指导
 

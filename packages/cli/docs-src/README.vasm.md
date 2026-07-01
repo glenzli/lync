@@ -75,7 +75,7 @@ Compile the workspace through `vasmc-build.yaml`:
 vasmc build
 ```
 
-`vasmc build` is the AI-side compiler entrypoint. It writes deterministic Markdown outputs and `.vasmc/build-report.yaml`. If a target language is missing, `vasmc` does not call an external model; instead, it records actions for the current AI to handle Verify, Translate, Diff, Policy Review, Policy Gate, Project Review, and Tree-Shake tasks as needed.
+`vasmc build` is the AI-side compiler entrypoint. It writes deterministic Markdown outputs and `.vasmc/build-report.yaml`. If a target language is missing, `vasmc` does not call an external model; instead, it records actions for the current AI to handle Verify, Translate, Refresh Translation, Diff, Policy Review, Policy Gate, Project Review, and Tree-Shake tasks as needed. For `informational` outputs, existing target-language sections can be preserved and marked for refresh review instead of being dropped.
 
 Useful build controls:
 

@@ -19,7 +19,7 @@ VASMC focuses on four problems:
 1. **Separate source from output**: `.vasm.md` is the maintenance surface, and `.md` is the compiled result. Fixes should go back to source files, fragments, manifests, or `vasmc-build.yaml`.
 2. **Modularize prompts**: `@import:inline` and `@import:link` compose local or remote Markdown modules without copy-paste.
 3. **Classify output use**: `compile.format` distinguishes informational documents, executable prompts/skills, and integration guidance.
-4. **Coordinate AI build work**: the deterministic compiler produces a structured report, and the current AI executes translation, verification, policy review, project review, and related actions.
+4. **Coordinate AI build work**: the deterministic compiler produces a structured report, and the current AI executes translation, preserved-translation refresh, verification, policy review, project review, and related actions.
 
 VASMC is not a general sandbox and not an automatic prompt optimizer. It is a source-to-output build layer that gives AI editors a traceable input path and explicit follow-up tasks.
 
@@ -79,10 +79,11 @@ A source file may maintain only one language. `targetLangs` declares output requ
 
 In AI build mode:
 
-* If source blocks already exist for target languages, VASMC filters them deterministically.
-* If the source is Chinese-only and `targetLangs` contains `en` and `zh-CN`, VASMC writes the Chinese output first and adds a `translate` action for the missing English target.
-* Missing languages for `informational` outputs are added to the same merged document.
-* Missing languages for `executable` outputs are written to separate target files.
+- If source blocks already exist for target languages, VASMC filters them deterministically.
+- If the source is Chinese-only and `targetLangs` contains `en` and `zh-CN`, VASMC writes the Chinese output first and adds a `translate` action for the missing English target.
+- Missing languages for `informational` outputs are added to the same merged document.
+- If an existing `informational` output already contains target-language sections, VASMC preserves those sections and adds a `refresh_translation` action so the AI can check whether old translations still match the updated source.
+- Missing languages for `executable` outputs are written to separate target files.
 
 The compiler itself does not call a model. The current AI editor performs translation from the report action. This keeps the source maintenance surface compact while still allowing bilingual README/docs outputs.
 
@@ -158,22 +159,23 @@ Common actions:
 | `verify` | Check executable output against `intent`. |
 | `integration_review` | Check integrative composition boundaries. |
 | `translate` | Fill missing target languages. |
+| `refresh_translation` | Review preserved target-language sections and update stale translations. |
 | `diff` | Compare historical outputs and summarize semantic impact. |
 | `tree_shake` | Analyze removable content when the user asks for slimming. |
 | `policy_review` | Review non-blocking policy diagnostics and content signals. |
 | `policy_gate` | Explain blocked diagnostics and suggest source changes. |
 | `project_review` | Use project context to find stale or missing project facts. |
 
-Generated `.md` files are review evidence by default, not the maintenance surface. The exception is a `translate` action that explicitly asks the AI to write target output.
+Generated `.md` files are review evidence by default, not the maintenance surface. The exceptions are `translate` actions that explicitly ask the AI to write target output and `refresh_translation` actions that ask the AI to update preserved target-language sections.
 
 ## 8. Policy Gate
 
 VASMC's policy gate is deterministic checking, not a runtime security boundary. It currently covers:
 
-* manifest shape errors and removed fields
-* invalid `compile.format` values
-* missing lockfile entries or hash mismatches
-* format-boundary errors, such as `informational` importing `executable` or `integrative`
+- manifest shape errors and removed fields
+- invalid `compile.format` values
+- missing lockfile entries or hash mismatches
+- format-boundary errors, such as `informational` importing `executable` or `integrative`
 
 Text that looks like prompt override, concealment, secret exfiltration, or remote-code execution is not treated as a blocking diagnostic. VASMC records it under `contentSignals`; the AI reviewer decides whether the evidence is an instruction, a prohibition, an example, or ordinary documentation.
 
@@ -223,13 +225,13 @@ The maintenance surface remains `skill-src/` and `docs-src/`. The generated skil
 
 `eval-src/` is a repository-local self-evaluation suite, not a public CLI contract. It tests VASMC's own compile capabilities:
 
-* prompt/doc sample cases
-* hard boundary checks
-* expected-failure cases such as missing imports, circular imports, and invalid formats
-* policy gate behavior
-* link target existence
-* Chinese AI-judge workflow
-* one timestamped report under `self-eval-reports/`
+- prompt/doc sample cases
+- hard boundary checks
+- expected-failure cases such as missing imports, circular imports, and invalid formats
+- policy gate behavior
+- link target existence
+- Chinese AI-judge workflow
+- one timestamped report under `self-eval-reports/`
 
 The pattern is deterministic checks first, AI judgment second, with one auditable report.
 
@@ -237,7 +239,7 @@ The pattern is deterministic checks first, AI judgment second, with one auditabl
 
 VASMC records entry and transitive dependency signatures in `vasmc-build-state.yaml`. If source, dependencies, target language set, and output files are unchanged, later builds mark the entry as skipped.
 
-Skipped entries still appear in the build report, but product-level actions such as `verify`, `translate`, and `diff` are not repeated. This avoids asking AI to reprocess unchanged outputs.
+Skipped entries still appear in the build report, but product-level actions such as `verify`, `translate`, `refresh_translation`, and `diff` are not repeated. This avoids asking AI to reprocess unchanged outputs.
 
 `vasmc-build-state.yaml` is content-hash based and can be committed.
 
@@ -245,11 +247,11 @@ Skipped entries still appear in the build report, but product-level actions such
 
 VASMC currently does not:
 
-* call models from compiler core
-* guarantee runtime resistance to user-input or tool-output prompt injection
-* replace host application permission isolation
-* treat natural-language trust/license/activation declarations as reliable security controls
-* prove remote content trustworthy beyond making locked content reproducible
+- call models from compiler core
+- guarantee runtime resistance to user-input or tool-output prompt injection
+- replace host application permission isolation
+- treat natural-language trust/license/activation declarations as reliable security controls
+- prove remote content trustworthy beyond making locked content reproducible
 
 It provides a clearer input maintenance surface: what content is declared, how it is composed, where it is written, and which AI follow-up actions remain are all recorded in files and reports.
 
@@ -333,6 +335,7 @@ vasm:
 - 如果源文件已有目标语种块，VASMC 确定性过滤对应语言块。
 - 如果源文件只有中文，但 `targetLangs` 包含 `en` 和 `zh-CN`，VASMC 会先生成已有中文产物，并在 `.vasmc/build-report.yaml` 中加入 `translate` action。
 - `informational` 的缺失语种翻译会写回同一个合并文档。
+- 如果 `informational` 目标文件已经存在且包含旧目标语种段，VASMC 会保留这些段，并加入 `refresh_translation` action，要求 AI 检查旧译文是否仍然匹配新 source。
 - `executable` 的缺失语种翻译会写入独立目标文件。
 
 编译器本身不调用模型。翻译由当前 AI 编辑器按 report action 完成。这样可以保持 source 维护面简洁，同时保留双语 README/docs 这类发布产物。
@@ -409,13 +412,14 @@ actions:
 | `verify` | 检查 executable 产物是否符合 `intent`。 |
 | `integration_review` | 检查 integrative 产物的组合边界是否清楚。 |
 | `translate` | 补齐缺失目标语种。 |
+| `refresh_translation` | 检查被保留的旧目标语种段是否需要更新。 |
 | `diff` | 对比历史产物并说明语义影响。 |
 | `tree_shake` | 在用户明确要求优化/压缩时分析可裁剪内容。 |
 | `policy_review` | 审查 review 级 policy diagnostics 和 content signals。 |
 | `policy_gate` | 解释 blocked diagnostics，并建议修改源文件。 |
 | `project_review` | 结合项目上下文审查 prompt/docs 是否过期或缺项。 |
 
-生成态 `.md` 默认是审查证据，不是维护对象。例外是 `translate` action 明确要求补齐目标产物时，AI 可以写对应生成文件。
+生成态 `.md` 默认是审查证据，不是维护对象。例外是 `translate` action 明确要求补齐目标产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段。
 
 ## 8. Policy Gate
 
@@ -488,7 +492,7 @@ ai:
 
 VASMC 使用 `vasmc-build-state.yaml` 记录 entry 和传递依赖的内容签名。若 source、依赖、目标语种集合和产物文件都未变化，后续 build 会标记为 skipped。
 
-skipped entry 仍会进入 build report，但不会重复生成 verify/translate/diff 等产物级 action。这样可以避免 AI 在无变化产物上重复工作。
+skipped entry 仍会进入 build report，但不会重复生成 verify/translate/refresh\_translation/diff 等产物级 action。这样可以避免 AI 在无变化产物上重复工作。
 
 `vasmc-build-state.yaml` 基于内容 hash，适合提交到版本控制。
 

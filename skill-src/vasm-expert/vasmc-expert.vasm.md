@@ -21,7 +21,7 @@ VASMC 是面向 AI prompt/source 管理的静态编译器：`.vasm.md` 是 sourc
    - 执行 `vasmc build <entry_file>`，完成后立即读取 `.vasmc/build-report.yaml` 并按其中 `actions` 执行。
    - 如需检查依赖树完整性，执行 `vasmc graph <entry_file>`。
    - `@vasm/cli` 中的 `build` 会同时生成确定性产物和结构化 report actions。
-3. **只把生成物当审查证据**。除 `translate` action 明确要求写目标语言产物外，不要直接修改生成的 `.md`；verify、tree-shake、policy、project review 的结论都应落到 `.vasm.md` source、fragment、manifest 或 build config。
+3. **只把生成物当审查证据**。除 `translate` action 明确要求写目标语言产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段外，不要直接修改生成的 `.md`；verify、tree-shake、policy、project review 的结论都应落到 `.vasm.md` source、fragment、manifest 或 build config。
 4. **保持上下文扁平化**。如果用户试图深度嵌套 `@import:inline` 层级（超过 3 层深），请警告他们这会导致主流 LLM 发生严重的注意力缺失（幻觉）。建议他们将架构扁平化。
 
 ### VASMC 知识手册

@@ -11,7 +11,7 @@
 
 编译过程是**纯确定性的 AST 组装**：解析 `@import` 依赖、交叉编译语种，无任何非确定性操作。
 
-**AI 编辑器的角色**：运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并处理后续语义任务（校验、按 intent 检查、翻译、Diff）。除 `translate` action 明确要求写目标语言产物外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
+**AI 编辑器的角色**：运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并处理后续语义任务（校验、按 intent 检查、翻译、刷新旧译文、Diff）。除 `translate` action 明确要求写目标语言产物，或 `refresh_translation` action 要求检查并更新已保留目标语种段外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
 
 ***
 
@@ -42,6 +42,8 @@ project-root/
 | `integrative` | 指导一组 VASM 模块如何组合 | 供 AI 做整合决策，不直接当最终可执行 prompt |
 
 ***
+
+`informational` 输出在 AI build 模式下会复用既有合并文档中的旧目标语种段。比如 source 只维护中文、输出已有人维护过英文时，VASMC 会保留英文段并生成 `refresh_translation` action，要求 AI 检查旧英文是否仍然匹配新的中文 source。
 
 ## 第三章：语法速查（含示例）
 

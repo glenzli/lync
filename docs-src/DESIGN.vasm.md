@@ -81,6 +81,7 @@ vasm:
 * 如果源文件已有目标语种块，VASMC 确定性过滤对应语言块。
 * 如果源文件只有中文，但 `targetLangs` 包含 `en` 和 `zh-CN`，VASMC 会先生成已有中文产物，并在 `.vasmc/build-report.yaml` 中加入 `translate` action。
 * `informational` 的缺失语种翻译会写回同一个合并文档。
+* 如果 `informational` 目标文件已经存在且包含旧目标语种段，VASMC 会保留这些段，并加入 `refresh_translation` action，要求 AI 检查旧译文是否仍然匹配新 source。
 * `executable` 的缺失语种翻译会写入独立目标文件。
 
 编译器本身不调用模型。翻译由当前 AI 编辑器按 report action 完成。这样可以保持 source 维护面简洁，同时保留双语 README/docs 这类发布产物。
@@ -157,13 +158,14 @@ actions:
 | `verify` | 检查 executable 产物是否符合 `intent`。 |
 | `integration_review` | 检查 integrative 产物的组合边界是否清楚。 |
 | `translate` | 补齐缺失目标语种。 |
+| `refresh_translation` | 检查被保留的旧目标语种段是否需要更新。 |
 | `diff` | 对比历史产物并说明语义影响。 |
 | `tree_shake` | 在用户明确要求优化/压缩时分析可裁剪内容。 |
 | `policy_review` | 审查 review 级 policy diagnostics 和 content signals。 |
 | `policy_gate` | 解释 blocked diagnostics，并建议修改源文件。 |
 | `project_review` | 结合项目上下文审查 prompt/docs 是否过期或缺项。 |
 
-生成态 `.md` 默认是审查证据，不是维护对象。例外是 `translate` action 明确要求补齐目标产物时，AI 可以写对应生成文件。
+生成态 `.md` 默认是审查证据，不是维护对象。例外是 `translate` action 明确要求补齐目标产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段。
 
 ## 8. Policy Gate
 
@@ -236,7 +238,7 @@ ai:
 
 VASMC 使用 `vasmc-build-state.yaml` 记录 entry 和传递依赖的内容签名。若 source、依赖、目标语种集合和产物文件都未变化，后续 build 会标记为 skipped。
 
-skipped entry 仍会进入 build report，但不会重复生成 verify/translate/diff 等产物级 action。这样可以避免 AI 在无变化产物上重复工作。
+skipped entry 仍会进入 build report，但不会重复生成 verify/translate/refresh_translation/diff 等产物级 action。这样可以避免 AI 在无变化产物上重复工作。
 
 `vasmc-build-state.yaml` 基于内容 hash，适合提交到版本控制。
 

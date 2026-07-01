@@ -31,12 +31,12 @@ VASMC 的基本边界是：
         ↓
 生成 .md output + .vasmc/build-report.yaml
         ↓
-AI 按 report actions 做 verify / translate / policy / project review
+AI 按 report actions 做 verify / translate / refresh_translation / policy / project review
         ↓
 需要修复时回到 source，再重新 build
 ```
 
-生成的 `.md` 是审查证据，不是维护对象。除 `translate` action 明确要求写目标语言产物外，AI 不应直接修改生成物。
+生成的 `.md` 是审查证据，不是维护对象。除 `translate` action 明确要求写目标语言产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段外，AI 不应直接修改生成物。
 
 ## 2. 最小项目
 
@@ -207,7 +207,7 @@ vasm:
 
 ### AI build 行为
 
-`vasmc build` 会先生成已有中文内容，并在 report 中要求当前 AI 把缺失的英文段补进同一个合并文档：
+首次 `vasmc build` 会先生成已有中文内容，并在 report 中要求当前 AI 把缺失的英文段补进同一个合并文档：
 
 ```yaml
 actions:
@@ -228,6 +228,19 @@ actions:
 [English](#en) | [中文](#zh-cn)
 
 ...
+```
+
+后续如果 source 仍然只维护中文，而既有输出已经包含英文段，VASMC 会保留旧英文段并要求 AI 检查它是否过期：
+
+```yaml
+actions:
+  - type: refresh_translation
+    target: dist/product-readme.md
+    targets:
+      - dist/product-readme.md
+    notes:
+      - "Preserved existing target language sections: en."
+      - "Compare preserved sections against the updated source-language section and revise stale translated prose if needed."
 ```
 
 这意味着维护面仍然可以是中文 source，发布面则可以是双语 README/docs。生成态双语内容属于 build report 驱动的翻译产物，不应反向手工同步到 source，除非项目决定以后直接维护多语种 source。
@@ -524,7 +537,7 @@ self-eval-reports/self-eval-<timestamp>.md
 3. 把共享规则拆进 fragments。
 4. 运行 `vasmc build <entry>` 或 `vasmc build`。
 5. 读取 `.vasmc/build-report.yaml`。
-6. 按 actions 处理 verify、translate、policy、project review。
+6. 按 actions 处理 verify、translate、refresh_translation、policy、project review。
 7. 有问题时修改 source，重新 build。
 
 ### 把普通 Markdown 纳入 VASM

@@ -66,7 +66,7 @@ vasmc build main.vasm.md -o ./dist
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Refresh Translation、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。对于 `informational` 输出，如果既有合并文档中已有旧目标语种段，VASMC 会保留它们并要求 AI 检查是否需要刷新。
 
 常用控制参数：
 

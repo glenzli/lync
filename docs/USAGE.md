@@ -30,12 +30,12 @@ run vasmc build
         ↓
 produce .md output + .vasmc/build-report.yaml
         ↓
-AI follows report actions: verify / translate / policy / project review
+AI follows report actions: verify / translate / refresh_translation / policy / project review
         ↓
 if changes are needed, edit source and build again
 ```
 
-Generated `.md` files are review evidence, not the maintenance surface. Except when a `translate` action explicitly asks for a target-language output, an AI editor should modify source files, fragments, manifests, or build config instead of generated Markdown.
+Generated `.md` files are review evidence, not the maintenance surface. Except when a `translate` action explicitly asks for a target-language output or a `refresh_translation` action explicitly asks for preserved target-language sections to be updated, an AI editor should modify source files, fragments, manifests, or build config instead of generated Markdown.
 
 ## 2. Minimal Project
 
@@ -73,10 +73,10 @@ security:
 
 This means:
 
-* Scan `prompts/**/*.vasm.md`.
-* Treat fragments as import sources instead of top-level outputs.
-* Map paths from `prompts/` into `dist/`.
-* Build executable prompts for English and Chinese.
+- Scan `prompts/**/*.vasm.md`.
+- Treat fragments as import sources instead of top-level outputs.
+- Map paths from `prompts/` into `dist/`.
+- Build executable prompts for English and Chinese.
 
 ### Source: `prompts/release-reviewer.vasm.md`
 
@@ -177,10 +177,10 @@ entries:
 
 Interpretation:
 
-* VASMC deterministically builds the available source-language output.
-* Missing target languages are handed to the current AI through `translate`.
-* `verify` asks the AI to check the output against `intent`.
-* `tree_shake` is conditional and only runs when the user asks to optimize or slim the prompt.
+- VASMC deterministically builds the available source-language output.
+- Missing target languages are handed to the current AI through `translate`.
+- `verify` asks the AI to check the output against `intent`.
+- `tree_shake` is conditional and only runs when the user asks to optimize or slim the prompt.
 
 ## 3. `informational`: Documents And Knowledge
 
@@ -204,7 +204,7 @@ vasm:
 
 AI build behavior:
 
-`vasmc build` writes the available Chinese content first and records a report action asking the current AI to add the missing English section to the same merged document:
+The first `vasmc build` writes the available Chinese content and records a report action asking the current AI to add the missing English section to the same merged document:
 
 ```yaml
 actions:
@@ -225,6 +225,19 @@ After the `translate` action, the generated output can be a bilingual merged doc
 [English](#en) | [中文](#zh-cn)
 
 ...
+```
+
+On later builds, if the source still maintains only Chinese and the existing output already contains an English section, VASMC preserves that old English section and asks the AI to check whether it is stale:
+
+```yaml
+actions:
+  - type: refresh_translation
+    target: dist/product-readme.md
+    targets:
+      - dist/product-readme.md
+    notes:
+      - "Preserved existing target language sections: en."
+      - "Compare preserved sections against the updated source-language section and revise stale translated prose if needed."
 ```
 
 This keeps the maintenance surface in one source language while allowing bilingual README/docs outputs. The generated bilingual text is translation output requested by the build report; do not copy it back into source unless the project decides to maintain multilingual source directly.
@@ -484,7 +497,7 @@ Create a new prompt:
 3. Move shared rules into fragments.
 4. Run `vasmc build <entry>` or `vasmc build`.
 5. Read `.vasmc/build-report.yaml`.
-6. Execute verify, translate, policy, and project review actions.
+6. Execute verify, translate, refresh\_translation, policy, and project review actions.
 7. Fix source and build again.
 
 Seal existing Markdown:
@@ -536,12 +549,12 @@ VASMC 的基本边界是：
         ↓
 生成 .md output + .vasmc/build-report.yaml
         ↓
-AI 按 report actions 做 verify / translate / policy / project review
+AI 按 report actions 做 verify / translate / refresh_translation / policy / project review
         ↓
 需要修复时回到 source，再重新 build
 ```
 
-生成的 `.md` 是审查证据，不是维护对象。除 `translate` action 明确要求写目标语言产物外，AI 不应直接修改生成物。
+生成的 `.md` 是审查证据，不是维护对象。除 `translate` action 明确要求写目标语言产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段外，AI 不应直接修改生成物。
 
 ## 2. 最小项目
 
@@ -712,7 +725,7 @@ vasm:
 
 ### AI build 行为
 
-`vasmc build` 会先生成已有中文内容，并在 report 中要求当前 AI 把缺失的英文段补进同一个合并文档：
+首次 `vasmc build` 会先生成已有中文内容，并在 report 中要求当前 AI 把缺失的英文段补进同一个合并文档：
 
 ```yaml
 actions:
@@ -733,6 +746,19 @@ actions:
 [English](#en) | [中文](#zh-cn)
 
 ...
+```
+
+后续如果 source 仍然只维护中文，而既有输出已经包含英文段，VASMC 会保留旧英文段并要求 AI 检查它是否过期：
+
+```yaml
+actions:
+  - type: refresh_translation
+    target: dist/product-readme.md
+    targets:
+      - dist/product-readme.md
+    notes:
+      - "Preserved existing target language sections: en."
+      - "Compare preserved sections against the updated source-language section and revise stale translated prose if needed."
 ```
 
 这意味着维护面仍然可以是中文 source，发布面则可以是双语 README/docs。生成态双语内容属于 build report 驱动的翻译产物，不应反向手工同步到 source，除非项目决定以后直接维护多语种 source。
@@ -1029,7 +1055,7 @@ self-eval-reports/self-eval-<timestamp>.md
 3. 把共享规则拆进 fragments。
 4. 运行 `vasmc build <entry>` 或 `vasmc build`。
 5. 读取 `.vasmc/build-report.yaml`。
-6. 按 actions 处理 verify、translate、policy、project review。
+6. 按 actions 处理 verify、translate、refresh\_translation、policy、project review。
 7. 有问题时修改 source，重新 build。
 
 ### 把普通 Markdown 纳入 VASM

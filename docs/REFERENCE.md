@@ -273,6 +273,7 @@ actions:
 | `verify` | entry | AI checks output against intent and basic quality criteria. |
 | `integration_review` | entry | AI checks whether integrative output clearly describes composition boundaries. |
 | `translate` | entry | AI writes target-language outputs listed in `targets`. |
+| `refresh_translation` | entry | AI reviews preserved target-language sections in informational output and updates stale translations. |
 | `diff` | entry | AI compares history backup with the new output and summarizes semantic change. |
 | `tree_shake` | entry | Conditional; only when the user asks to optimize or slim the prompt. |
 | `policy_review` | entry | AI reviews diagnostics and content signals. |
@@ -590,6 +591,7 @@ actions:
 | `verify` | entry | AI 检查产物是否符合 intent 和基础质量标准。 |
 | `integration_review` | entry | AI 检查 integrative 输出是否清楚表达组合边界。 |
 | `translate` | entry | AI 按 `targets` 写目标语种产物。 |
+| `refresh_translation` | entry | informational 输出复用旧目标语种段后，AI 检查并更新过期译文。 |
 | `diff` | entry | AI 对比历史备份和新产物，总结语义变化。 |
 | `tree_shake` | entry | 条件性 action；用户明确要求精简时才执行。 |
 | `policy_review` | entry | AI 审查 review 级 diagnostics 和 content signals。 |

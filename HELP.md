@@ -43,9 +43,9 @@ vasm:
 
 `compile.format` accepts three current values:
 
-* `informational`: documentation or knowledge, not an instruction file. Multiple target languages are merged into one file.
-* `executable`: prompts, skills, or instructions read by the model. Multiple languages produce separate files.
-* `integrative`: guidance for composing multiple VASM modules. AI should read it as composition guidance, not as a final prompt.
+- `informational`: documentation or knowledge, not an instruction file. Multiple target languages are merged into one file.
+- `executable`: prompts, skills, or instructions read by the model. Multiple languages produce separate files.
+- `integrative`: guidance for composing multiple VASM modules. AI should read it as composition guidance, not as a final prompt.
 
 Deprecated compatibility values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`. Other values are invalid.
 
@@ -108,7 +108,7 @@ After every build, the current AI editor should read:
 cat .vasmc/build-report.yaml
 ```
 
-The report records compiled entries, output files, manifest summaries, policy status, diagnostics, content signals, and semantic actions such as `verify`, `translate`, `diff`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
+The report records compiled entries, output files, manifest summaries, policy status, diagnostics, content signals, and semantic actions such as `verify`, `translate`, `refresh_translation`, `diff`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
 
 Other deterministic commands:
 
@@ -172,9 +172,9 @@ If `ai.projectReview` is enabled, VASMC also writes `.vasmc/project-review-conte
 
 Every build report entry includes `policy.status`:
 
-* `pass`: no deterministic risk signal.
-* `review`: output is allowed, but AI or human review should inspect diagnostics.
-* `blocked`: a deterministic blocking risk exists, such as invalid manifest shape, format-boundary violation, or lockfile hash mismatch.
+- `pass`: no deterministic risk signal.
+- `review`: output is allowed, but AI or human review should inspect diagnostics.
+- `blocked`: a deterministic blocking risk exists, such as invalid manifest shape, format-boundary violation, or lockfile hash mismatch.
 
 `security.mode: review` reports risk without blocking. `security.mode: enforce` prevents blocked `executable` and `integrative` outputs from being updated.
 
@@ -227,7 +227,7 @@ The deterministic compiler does not require these model settings. They are only 
 
 ## 🇨🇳 中文
 
-<a name="syntax"></a>
+<a name="syntax-zh-cn"></a>
 
 ## 🔮 核心语法与引入协议 (Core Syntax)
 
@@ -270,7 +270,7 @@ Please explain the code step by step.
 
 ---
 
-<a name="publish"></a>
+<a name="publish-zh-cn"></a>
 
 ## 📦 发布模块 (Frontmatter 注入)
 
@@ -348,7 +348,7 @@ ai:
 
 开启后，`vasmc build` 会生成 `.vasmc/project-review-context.yaml`，并在 `.vasmc/build-report.yaml` 顶层 `actions` 中写入 `project_review`。该 pass 不调用模型，也不自动改文件；它只告诉当前 AI 应读取哪些项目文件，并要求 AI 输出源文件级建议。`patch` 模式表示可以给出聚焦的源文件 patch 建议，但仍不得直接编辑生成物。
 
-<a name="cli"></a>
+<a name="cli-zh-cn"></a>
 
 ## 🛠️ @vasm/cli：AI 编译与报告
 
@@ -417,7 +417,7 @@ vasmc build main.vasm.md -o ./dist
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Refresh Translation、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。对于 `informational` 输出，如果既有合并文档中已有旧目标语种段，VASMC 会保留它们并要求 AI 检查是否需要刷新。
 
 常用控制参数：
 
@@ -458,7 +458,7 @@ vasmc seal "prompts/**/*.md" --format executable
 
 ---
 
-<a name="workspace"></a>
+<a name="workspace-zh-cn"></a>
 
 ### 🗂️ 工作区批量编译
 
@@ -492,7 +492,7 @@ vasmc build --out-dir ./doc --base-dir ./src
 
 注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。
 
-<a name="cli-ai-build"></a>
+<a name="cli-ai-build-zh-cn"></a>
 
 ## 🤖 AI Build 工作流
 
@@ -518,11 +518,12 @@ vasmc build [file]
 1. **Semantic Verify**：当 action 为 `verify` 时，读取 `minimalTokenVariant.path`，检查语义冲突、人格分裂、逻辑冗余和系统破坏风险四类问题。
 2. **Integration Review**：当 action 为 `integration_review` 时，把目标文件当作组合指导，而不是最终可执行 prompt，检查组合边界是否清楚。
 3. **Translation**：当 action 为 `translate` 时，将 `target` 文件翻译到 `targets` 指定的其他语种，**严格保留** Markdown AST 结构。
-4. **Semantic Diff**：当 action 为 `diff` 时，读取 `history` 中的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
-5. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界 diagnostics，以及 `policy.contentSignals` 中需要语义判断的词面线索。
-6. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 或 `integrative` 输出。
-7. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
-8. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
+4. **Refresh Translation**：当 action 为 `refresh_translation` 时，检查 informational 输出中被保留的旧目标语种段是否仍匹配新 source，只更新过期译文。
+5. **Semantic Diff**：当 action 为 `diff` 时，读取 `history` 中的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
+6. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界 diagnostics，以及 `policy.contentSignals` 中需要语义判断的词面线索。
+7. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 或 `integrative` 输出。
+8. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
+9. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
 VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、翻译和冲突处理。
 
@@ -552,7 +553,7 @@ ai:
 
 这是 AI pass，不是编译器自动重写。VASMC 只生成上下文索引和 report action；当前 AI 根据索引读取项目文件，检查 prompt/skill 是否缺少项目实际命令、目录、术语、约束，`intent` 或 `compile.format` 是否准确，以及是否存在重复 fragment。
 
-<a name="console"></a>
+<a name="console-zh-cn"></a>
 
 ## 🧭 @vasm/console：人用控制台与可选外部模型工具
 
