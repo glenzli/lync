@@ -17,7 +17,7 @@ VASMC 主要解决四类问题：
 
 1. **源与产物分离**：`.vasm.md` 是维护对象，`.md` 是编译结果。修复应回到源文件、fragment、manifest 或 `vasmc-build.yaml`。
 2. **Prompt 模块化**：通过 `@import:inline` 和 `@import:link` 组合本地或远程 Markdown 模块，减少复制粘贴。
-3. **执行面分类**：通过 `compile.format` 区分信息文档、可执行 prompt/skill，以及组合指导。
+3. **输出用途分类**：通过 `compile.format` 区分信息文档、可执行 prompt/skill，以及组合指导。
 4. **AI build 协作**：确定性编译器生成结构化 report，当前 AI 按 report actions 完成翻译、校验、policy review、project review 等后续任务。
 
 这不是通用安全沙箱，也不是自动 prompt 优化器。VASMC 更接近一个 source-to-output 的构建层，为 AI 编辑器提供可追踪的输入路径和明确的后续任务。
@@ -65,12 +65,12 @@ vasm:
 | 格式 | 含义 | 输出行为 |
 | --- | --- | --- |
 | `informational` | 文档、知识、说明材料，不作为直接执行指令 | 多语种合并到同一个 `.md`。 |
-| `executable` | prompt、skill、system instruction 等会进入 AI 执行面的内容 | 多语种输出为独立文件，例如 `skill.en.md`。 |
+| `executable` | prompt、skill、system instruction 等会作为 AI 指令读取的内容 | 多语种输出为独立文件，例如 `skill.en.md`。 |
 | `integrative` | 指导一组 VASM 模块如何组合 | 作为组合指导审查，不直接当作最终 prompt。 |
 
 旧值 `doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated diagnostics。其他格式值非法。
 
-早期尝试过的 `kind`、`scope`、`capabilities`、`activation`、`trust`、`vision`、`fix` 等字段已经移除。这些自然语言治理字段很难稳定定义，容易占用 AI 注意力，却不能提供可靠校验。
+早期尝试过的 `kind`、`scope`、`capabilities`、`activation`、`trust`、`vision`、`fix` 等字段已经移除。这些自然语言说明字段很难稳定定义，容易占用 AI 注意力，却不能提供可靠校验。
 
 ## 4. 多语种策略
 

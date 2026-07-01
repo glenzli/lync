@@ -1,7 +1,7 @@
 <a name="console"></a>
 ## 🧭 @vasm/console：人用控制台与可选外部模型工具
 
-`@vasm/console` 提供 `vasm-console` 命令，面向人类开发者使用。它复用确定性编译能力，但额外提供需要外部模型的语义辅助命令。
+`@vasm/console` 提供 `vasm-console` 命令，面向人类开发者使用。它复用确定性编译代码，但额外提供需要外部模型的语义检查命令。
 
 ### 安装
 
@@ -11,7 +11,7 @@ npm install -g @vasm/console
 
 ### 语义校验
 
-编译完成后，可以对产物执行 LLM 驱动的语义冲突检测：
+编译完成后，可以用 LLM 检查产物中的语义冲突：
 
 ```bash
 vasmc build main.vasm.md

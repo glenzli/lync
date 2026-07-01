@@ -7,7 +7,7 @@ vasm:
 
 # VASMC
 
-![VASMC 编译流程示意图](docs/assets/vasmc-banner.png)
+![VASMC 编译流程图](docs/assets/vasmc-banner.png)
 
 面向 LLM skill、prompt 和 AI 文档的去中心化 Markdown prompt 编译器。
 
@@ -42,7 +42,7 @@ vasm:
 
 - 给目标 AI 直接读取的纯净 Markdown 产物。
 - `.vasmc/build-report.yaml`，包含 `verify`、`translate`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
-- source-first 工作流：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
+- 源文件优先：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
 
 ## 文档入口
 

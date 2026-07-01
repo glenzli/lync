@@ -100,9 +100,9 @@ VASM frontmatter is intentionally small: `alias`, `version`, `intent`, `compile`
   ```
   *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
 
-### 原生多语种交叉编译 (Cross-Compilation)
+### 多语种输出 (Cross-Compilation)
 
-VASMC 支持使用 AST 指令对 Prompt 进行原生多语言支持：
+VASMC 支持用语言块为 Prompt 声明不同语种内容：
 
 ```markdown
 # 通用系统规则
@@ -145,14 +145,14 @@ vasm:
 # 你的 Prompt 正文内容...
 ```
 
-*当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会自动解析这些内容并完美还原环境。*
+*当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会解析这些内容并还原依赖配置。*
 
 > **`intent`**：声明源文件希望产物达成的用途。`vasmc build` 不调用模型执行它，只把它写入 AI report actions，供当前 AI 做 Verify 或 Integration Review。
 >
 > **`compile.format`**：
 >
 > * `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
-> * `executable`：进入 AI 执行面的 prompt/skill 产物，多语种时每种语言输出独立文件。
+> * `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
 > * `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
 >
 > 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
@@ -183,7 +183,7 @@ security:
 
 ### Project Review Pass
 
-VASMC 可以在编译完成后生成一个项目上下文索引，让当前 AI 主动结合仓库内容审查编译产物是否贴合项目，而不是只做传统的语法编译：
+VASMC 可以在编译完成后生成一个项目上下文索引，让当前 AI 结合仓库内容审查编译产物是否贴合项目，而不是只做语法编译：
 
 ```yaml
 ai:

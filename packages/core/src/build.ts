@@ -916,7 +916,7 @@ export async function runAIBuild(cwd: string, cliOptions?: BuildRunOptions): Pro
     return runAIBuildEntries(cwd, entries);
 }
 
-/** AI build for one explicit entry, using the same report pipeline as workspace build. */
+/** AI build for one explicit entry, using the same report flow as workspace build. */
 export async function runAIBuildEntry(cwd: string, entry: string, cliOptions?: BuildRunOptions): Promise<BuildReport> {
     const workspaceEntry = await resolveSingleWorkspaceEntry(cwd, entry, cliOptions);
     return runAIBuildEntries(cwd, [workspaceEntry]);

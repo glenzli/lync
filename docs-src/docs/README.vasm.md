@@ -17,7 +17,7 @@ vasm:
 4. [帮助文档](../HELP.vasm.md)：CLI 命令速查。
 5. [设计文档](../DESIGN.vasm.md)：当前架构、format 边界、AI build report、policy gate 和自评估流程。
 
-## Source-first 约束
+## 源文件优先
 
 - 编辑 `docs-src/**/*.vasm.md`。
 - 运行 `node packages/cli/dist/index.js build` 或 `vasmc build`。

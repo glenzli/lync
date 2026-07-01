@@ -143,7 +143,7 @@ describe('Manifest Governance', () => {
         assert.strictEqual(summary.deprecatedCompileFormat, 'doc');
     });
 
-    it('rejects removed governance fields and invalid compile formats', () => {
+    it('rejects removed manifest fields and invalid compile formats', () => {
         const { validateVasmManifest } = load('manifest');
         const diagnostics = validateVasmManifest({
             kind: 'skill',

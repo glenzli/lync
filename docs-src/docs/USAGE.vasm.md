@@ -11,7 +11,7 @@ vasm:
 
 这是一份面向实际使用的手册。它不只解释概念，还展示 source、配置、命令、产物和 build report 的关系。
 
-## 1. 心智模型
+## 1. 文件关系
 
 VASMC 的基本边界是：
 
@@ -232,9 +232,9 @@ actions:
 
 这意味着维护面仍然可以是中文 source，发布面则可以是双语 README/docs。生成态双语内容属于 build report 驱动的翻译产物，不应反向手工同步到 source，除非项目决定以后直接维护多语种 source。
 
-## 4. `executable`：进入 AI 执行面的 prompt / skill
+## 4. `executable`：AI 读取的指令文件
 
-`executable` 用于 system prompt、skill、agent instruction、workflow instruction。它的特点是多语种时每种语种独立输出，避免一个执行面里混入多语种重复信息。
+`executable` 用于 system prompt、skill、agent instruction、workflow instruction。它的特点是多语种时每种语种独立输出，避免一个指令文件里混入多语种重复信息。
 
 ### Source
 

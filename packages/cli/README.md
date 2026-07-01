@@ -258,7 +258,7 @@ vasmc build --out-dir ./doc --base-dir ./src
 
 ## 🤖 AI Build 工作流
 
-大模型辅助编程时代，VASMC 只负责确定性组装；语义校验、翻译、Diff 和裁剪应由当前 AI 接管。作为统管全局的 AI 助手，你应该使用 AI 侧 build 驱动编译：
+使用 AI 编辑器处理 VASM 项目时，VASMC 只负责确定性组装；语义校验、翻译、Diff 和裁剪由当前 AI 完成。当前 AI 助手应使用 AI 侧 build 执行编译：
 
 ```bash
 vasmc build [file]

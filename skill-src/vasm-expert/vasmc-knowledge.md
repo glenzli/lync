@@ -3,7 +3,7 @@
 
 ***
 
-## 第一章：VASMC 是什么（心智模型）
+## 第一章：VASMC 是什么
 
 **VASMC 是专为 LLM Prompt 工程设计的静态编译器/链接器。**
 
@@ -11,7 +11,7 @@
 
 编译过程是**纯确定性的 AST 组装**：解析 `@import` 依赖、交叉编译语种，无任何非确定性操作。
 
-**AI 编辑器的角色**：运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并接管后续语义任务（校验、意图对齐验证、翻译、Diff）。除 `translate` action 明确要求写目标语言产物外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
+**AI 编辑器的角色**：运行 `vasmc build` 后，VASMC 完成 AST 组装、写入确定性产物并生成 `.vasmc/build-report.yaml`，你负责读取其中的 `actions` 并处理后续语义任务（校验、按 intent 检查、翻译、Diff）。除 `translate` action 明确要求写目标语言产物外，语义修复和精简都应回到 `.vasm.md` source、fragment、manifest 或 build config。
 
 ***
 
@@ -38,7 +38,7 @@ project-root/
 | 格式 | 用途 | 特点 |
 |------|------|------|
 | `informational` | README、HELP、DESIGN 等信息/文档 | 多语种合并输出 |
-| `executable` | System Prompt、技能文件等 AI 执行面内容 | 多语种时每种语种独立输出，产物纯净无元数据 |
+| `executable` | System Prompt、技能文件等 AI 指令内容 | 多语种时每种语种独立输出，产物纯净无元数据 |
 | `integrative` | 指导一组 VASM 模块如何组合 | 供 AI 做整合决策，不直接当最终可执行 prompt |
 
 ***

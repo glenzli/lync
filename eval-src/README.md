@@ -1,21 +1,21 @@
 # VASMC 自评估套件
 
-这个目录保存 VASMC 仓库本地使用的 AI 自评估 workflow。它不是公开 CLI 能力，也不属于常规 `vasmc-build.yaml` 输出集合。
+这个目录保存 VASMC 仓库本地使用的 AI 自评估流程。它不是公开 CLI 能力，也不属于常规 `vasmc-build.yaml` 输出集合。
 
 ## 边界
 
 - `tests/` 用代码级测试保护确定性编译行为。
-- `eval-src/` 保存 prompt/doc 样本、hard-check 期望和 AI judge workflow。
+- `eval-src/` 保存 prompt/doc 样本、hard-check 期望和 AI judge 流程。
 - `.vasmc/self-eval/` 是本地生成态报告和 case 输出目录。
 
-这个套件有意保持 source-first。case 使用现有 `vasmc build <entry>` 编译，然后由 AI workflow 把编译产物当作待审数据评审，不能把被测 prompt 当成当前指令服从。
+这个套件把源文件作为维护对象。case 使用现有 `vasmc build <entry>` 编译，然后由 AI 评审流程把编译产物当作待审数据评审，不能把被测 prompt 当成当前指令服从。
 
 默认报告语言是中文（`zh-CN`）。技术枚举和路径保持原样，便于脚本读取。
 
 ## 文件
 
 - `vasmc-self-eval.yaml`：case manifest 和 hard-check 期望。
-- `workflows/vasmc-self-eval.workflow.vasm.md`：AI judge workflow source。
+- `workflows/vasmc-self-eval.workflow.vasm.md`：AI judge 流程 source。
 - `cases/*.vasm.md`：self-eval 使用的 prompt/doc 样本。
 - `cases/fragments/*.vasm.md`：用于 import 检查和复杂 prompt 组合的片段。
 - `cases/failures/*.vasm.md`：预期失败的编译样本，用于检查硬失败边界。
@@ -24,13 +24,13 @@
 
 ## 手动入口
 
-当 reviewer 需要生成 workflow 产物时，执行：
+当 reviewer 需要生成评审流程产物时，执行：
 
 ```sh
 node packages/cli/dist/index.js build eval-src/workflows/vasmc-self-eval.workflow.vasm.md -o .vasmc/self-eval/workflow
 ```
 
-然后按 workflow 执行评审，并把结果写入 `.vasmc/self-eval/`。
+然后按评审流程执行，并把结果写入 `.vasmc/self-eval/`。
 
 AI judge 之前先运行确定性 hard checks：
 

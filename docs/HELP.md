@@ -43,8 +43,8 @@ vasm:
 
 `compile.format` accepts three current values:
 
-* `informational`: documentation or knowledge, not an execution surface. Multiple target languages are merged into one file.
-* `executable`: prompt, skill, or instruction content that enters the model execution surface. Multiple languages produce separate files.
+* `informational`: documentation or knowledge, not an instruction file. Multiple target languages are merged into one file.
+* `executable`: prompts, skills, or instructions read by the model. Multiple languages produce separate files.
 * `integrative`: guidance for composing multiple VASM modules. AI should read it as composition guidance, not as a final prompt.
 
 Deprecated compatibility values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`. Other values are invalid.
@@ -231,9 +231,9 @@ The deterministic compiler does not require these model settings. They are only 
   ```
   *构建输出*: 原始链接被移除，并在原位置插入 `guidelines.md` 的完整文本内容。
 
-### 原生多语种交叉编译 (Cross-Compilation)
+### 多语种输出 (Cross-Compilation)
 
-VASMC 支持使用 AST 指令对 Prompt 进行原生多语言支持：
+VASMC 支持用语言块为 Prompt 声明不同语种内容：
 
 ```markdown
 # 通用系统规则
@@ -276,14 +276,14 @@ vasm:
 # 你的 Prompt 正文内容...
 ```
 
-*当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会自动解析这些内容并完美还原环境。*
+*当其他人通过 `vasmc add <your-url>` 安装时，VASMC 会解析这些内容并还原依赖配置。*
 
 > **`intent`**：声明源文件希望产物达成的用途。`vasmc build` 不调用模型执行它，只把它写入 AI report actions，供当前 AI 做 Verify 或 Integration Review。
 >
 > **`compile.format`**：
 >
 > * `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
-> * `executable`：进入 AI 执行面的 prompt/skill 产物，多语种时每种语言输出独立文件。
+> * `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
 > * `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
 >
 > 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
@@ -314,7 +314,7 @@ security:
 
 ### Project Review Pass
 
-VASMC 可以在编译完成后生成一个项目上下文索引，让当前 AI 主动结合仓库内容审查编译产物是否贴合项目，而不是只做传统的语法编译：
+VASMC 可以在编译完成后生成一个项目上下文索引，让当前 AI 结合仓库内容审查编译产物是否贴合项目，而不是只做语法编译：
 
 ```yaml
 ai:
@@ -457,7 +457,7 @@ vasmc build --out-dir ./doc --base-dir ./src
 
 ## 🤖 AI Build 工作流
 
-大模型辅助编程时代，VASMC 只负责确定性组装；语义校验、翻译、Diff 和裁剪应由当前 AI 接管。作为统管全局的 AI 助手，你应该使用 AI 侧 build 驱动编译：
+使用 AI 编辑器处理 VASM 项目时，VASMC 只负责确定性组装；语义校验、翻译、Diff 和裁剪由当前 AI 完成。当前 AI 助手应使用 AI 侧 build 执行编译：
 
 ```bash
 vasmc build [file]
@@ -515,7 +515,7 @@ ai:
 
 ## 🧭 @vasm/console：人用控制台与可选外部模型工具
 
-`@vasm/console` 提供 `vasm-console` 命令，面向人类开发者使用。它复用确定性编译能力，但额外提供需要外部模型的语义辅助命令。
+`@vasm/console` 提供 `vasm-console` 命令，面向人类开发者使用。它复用确定性编译代码，但额外提供需要外部模型的语义检查命令。
 
 ### 安装
 
@@ -525,7 +525,7 @@ npm install -g @vasm/console
 
 ### 语义校验
 
-编译完成后，可以对产物执行 LLM 驱动的语义冲突检测：
+编译完成后，可以用 LLM 检查产物中的语义冲突：
 
 ```bash
 vasmc build main.vasm.md

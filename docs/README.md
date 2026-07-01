@@ -18,7 +18,7 @@ This directory contains generated documentation. Maintain the source files in `d
 4. [Help](../HELP.md): CLI command reference.
 5. [Design](../DESIGN.md): current architecture, format boundaries, AI build report, policy gate, and self-evaluation flow.
 
-## Source-First Rule
+## Source File Rule
 
 * Edit `docs-src/**/*.vasm.md`.
 * Run `node packages/cli/dist/index.js build` or `vasmc build`.
@@ -41,7 +41,7 @@ This directory contains generated documentation. Maintain the source files in `d
 4. [帮助文档](../HELP.md)：CLI 命令速查。
 5. [设计文档](../DESIGN.md)：当前架构、format 边界、AI build report、policy gate 和自评估流程。
 
-## Source-first 约束
+## 源文件优先
 
 * 编辑 `docs-src/**/*.vasm.md`。
 * 运行 `node packages/cli/dist/index.js build` 或 `vasmc build`。

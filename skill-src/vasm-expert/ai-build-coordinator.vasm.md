@@ -39,7 +39,7 @@ vasm:
    - **有 Intent**：在 4 维标准基础上，额外对照 Intent 检查产物是否达成用途。若发现偏差，以 diff 形式列出**source-level 建议修改**（具体 `.vasm.md` 或 fragment 位置 + 建议内容），不直接修改产物文件，等待用户确认。
 
 2. **Integration Review**（`type: integration_review`）：
-   读取 action 的 `target` 文件，把它当作组合指导，而不是最终可执行 prompt。检查它是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终执行面；若存在歧义，给出源文件级建议。
+   读取 action 的 `target` 文件，把它当作组合指导，而不是最终可执行 prompt。检查它是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
 
 3. **Translate**（`type: translate`）：
    将 action 的 `target` 文件翻译到 `targets` 指定的目标语言文件。

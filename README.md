@@ -8,9 +8,9 @@
 
 ## 🌍 English
 
-![VASMC prompt compiler pipeline](docs/assets/vasmc-banner.png)
+![VASMC compile flow](docs/assets/vasmc-banner.png)
 
-Decentralized Markdown prompt compiler for LLM skills and AI-facing documents.
+Decentralized Markdown prompt compiler for LLM skills and documents for AI tools.
 
 VASMC treats Markdown prompts, skills, and documentation as source code. You maintain `.vasm.md` files, declare imports and output intent, then run `vasmc build` to produce clean `.md` outputs plus a structured `.vasmc/build-report.yaml` for the current AI editor to review, translate, trim, or block.
 
@@ -43,7 +43,7 @@ Build result:
 
 * Clean Markdown output for the target AI.
 * `.vasmc/build-report.yaml` with deterministic report actions such as `verify`, `translate`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
-* Source-first workflow: generated `.md` files are review evidence, while fixes normally go back to `.vasm.md` source files.
+* Source file rule: generated `.md` files are review evidence, while fixes normally go back to `.vasm.md` source files.
 
 ## Documentation
 
@@ -60,7 +60,7 @@ Build result:
 | Package | Command | Role |
 | --- | --- | --- |
 | `@vasm/core` | none | Shared deterministic compiler core. |
-| `@vasm/cli` | `vasmc` | AI-facing build, dependency management, and structured report actions. |
+| `@vasm/cli` | `vasmc` | AI build, dependency management, and structured report actions. |
 | `@vasm/console` | `vasm-console` | Human-facing optional external-model console tools. |
 
 ## Release
@@ -73,7 +73,7 @@ This repository uses Changesets. Run `npm run release:check` before publishing; 
 
 ## 🇨🇳 中文
 
-![VASMC 编译流程示意图](docs/assets/vasmc-banner.png)
+![VASMC 编译流程图](docs/assets/vasmc-banner.png)
 
 面向 LLM skill、prompt 和 AI 文档的去中心化 Markdown prompt 编译器。
 
@@ -108,7 +108,7 @@ vasm:
 
 * 给目标 AI 直接读取的纯净 Markdown 产物。
 * `.vasmc/build-report.yaml`，包含 `verify`、`translate`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
-* source-first 工作流：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
+* 源文件优先：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
 
 ## 文档入口
 

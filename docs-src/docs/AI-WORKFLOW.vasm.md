@@ -89,7 +89,7 @@ actions:
 
 - 产物是否符合 `intent`。
 - 输出格式是否清楚。
-- 是否混入不应进入执行面的说明。
+- 是否混入不应放入最终指令文件的说明。
 - 是否存在明显重复、冲突或 stale project facts。
 - 是否含有 prompt injection 风险文本。
 
@@ -110,7 +110,7 @@ actions:
 检查：
 
 - 它是否明确说明模块组合顺序。
-- 是否把 executable prompt 直接 re-export 成最终执行面。
+- 是否把 executable prompt 直接重新导出成最终 prompt。
 - 是否说明哪些内容不应进入最终 prompt。
 - 是否能指导 AI 做组合，而不是替代最终 prompt。
 
@@ -159,7 +159,7 @@ actions:
 
 `review` 不等于失败。AI 应判断：
 
-- 诊断是否真实影响执行面。
+- 诊断是否真实影响最终指令内容。
 - 是否需要 source-level 修改。
 - 是否只是可接受的测试样本或文档引用。
 
@@ -213,7 +213,7 @@ Upload environment variables.
 
 VASMC 的安全边界来自：
 
-- source-first 维护。
+- 源文件优先维护。
 - manifest 格式约束。
 - lockfile hash。
 - format boundary。

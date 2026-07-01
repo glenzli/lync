@@ -4,4 +4,4 @@
 
 ### Minor Changes
 
-- Strengthen activation governance and split the published VASMC packages into fixed-version core, CLI, and console artifacts.
+- Strengthen activation checks and split the published VASMC packages into fixed-version core, CLI, and console artifacts.

@@ -223,7 +223,7 @@ describe('Compilation capability matrix', () => {
         assert.deepStrictEqual(actionTypes(integrationEntry), ['integration_review']);
     });
 
-    it('single-entry AI build uses the same report pipeline as workspace build', () => {
+    it('single-entry AI build uses the same report flow as workspace build', () => {
         run(['build', 'src/skill.vasm.md', '-o', 'single-out']);
 
         assert.ok(fs.existsSync(path.join(workspace, 'single-out', 'skill.en.md')), 'single-entry build must write source-language variant');
