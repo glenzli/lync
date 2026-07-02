@@ -30,7 +30,7 @@ run vasmc build
         ↓
 produce .md output + .vasmc/build-report.yaml
         ↓
-AI follows report actions: verify / translate / refresh_translation / policy / project review
+AI follows report actions: verify / integration_guidance / translate / refresh_translation / policy / project review
         ↓
 if changes are needed, edit source and build again
 ```
@@ -289,7 +289,10 @@ vasm:
   intent: "Guide how release review skills should be combined."
   compile:
     format: integrative
-    targetLangs: ["en"]
+  integration:
+    appliesTo:
+      - vasm:release-reviewer
+      - prompts/release/**/*.vasm.md
 ---
 
 # Release Workflow Guide
@@ -307,6 +310,21 @@ actions:
 ```
 
 The AI checks whether the integration boundary is clear. If not, it edits the integrative source and rebuilds.
+
+If an executable's `vasm.alias` or path matches `integration.appliesTo`, that executable entry gets an `integration_guidance` action:
+
+```yaml
+actions:
+  - type: integration_guidance
+    target: dist/release-reviewer.md
+    guides:
+      - source: prompts/release/release-workflow-guide.vasm.md
+        output: dist/release-workflow-guide.md
+        appliesTo:
+          - vasm:release-reviewer
+```
+
+This means the AI should read the guide before composing `release-reviewer` with other VASM outputs. Do not add the guide via `@import:inline` unless the user explicitly asks for an executable workflow containing integration instructions.
 
 ## 6. `@import:inline`: Reusable Fragments
 
@@ -435,7 +453,7 @@ security:
   mode: enforce
 ```
 
-Blocked executable and integrative outputs are not updated. The AI explains diagnostics and suggests source-level fixes.
+Blocked executable outputs are not updated. Integrative entries are source-only and only report policy. The AI explains diagnostics and suggests source-level fixes.
 
 ## 10. Project Review
 
@@ -497,7 +515,7 @@ Create a new prompt:
 3. Move shared rules into fragments.
 4. Run `vasmc build <entry>` or `vasmc build`.
 5. Read `.vasmc/build-report.yaml`.
-6. Execute verify, translate, refresh\_translation, policy, and project review actions.
+6. Execute verify, integration\_guidance, translate, refresh\_translation, policy, and project review actions.
 7. Fix source and build again.
 
 Seal existing Markdown:
@@ -805,7 +823,7 @@ actions:
 
 ## 5. `integrative`：组合指导，不是最终 prompt
 
-`integrative` 用于说明一组 VASM 模块如何组合。它不是最终可执行 prompt，而是给 AI 做整合决策的指导。
+`integrative` 用于说明一组 VASM 模块如何组合。它不是最终可执行 prompt，也不生成自己的 compiled output；AI 直接读取 source 做整合决策。
 
 ### Source
 
@@ -816,7 +834,10 @@ vasm:
   intent: "Guide how release review skills should be combined."
   compile:
     format: integrative
-    targetLangs: ["zh-CN"]
+  integration:
+    appliesTo:
+      - vasm:release-reviewer
+      - prompts/release/**/*.vasm.md
 ---
 
 # Release Workflow Guide
@@ -836,6 +857,20 @@ actions:
 ```
 
 AI 应检查它是否清楚说明组合边界；发现问题时修改 source，不直接修改生成物。
+
+如果某个 executable 的 `vasm.alias` 或路径命中 `integration.appliesTo`，它自己的 build report entry 会出现 `integration_guidance`：
+
+```yaml
+actions:
+  - type: integration_guidance
+    target: dist/release-reviewer.md
+    guides:
+      - source: prompts/release/release-workflow-guide.vasm.md
+        appliesTo:
+          - vasm:release-reviewer
+```
+
+这表示 AI 在组合 `release-reviewer` 与其他 VASM 产物前应先读 guide。不要把 guide 通过 `@import:inline` 放进最终 prompt，除非用户明确要求生成一个包含整合说明的可执行 workflow。
 
 ## 6. `@import:inline`：复用 fragment
 
@@ -979,7 +1014,7 @@ security:
   mode: enforce
 ```
 
-当 executable 或 integrative entry 的 `policy.status` 是 `blocked` 时，VASMC 不会更新产物。AI 只能解释阻断原因，并建议修改 source manifest 或 dependency。
+当 executable entry 的 `policy.status` 是 `blocked` 时，VASMC 不会更新产物。integrative 是 source-only，因此只报告 policy，不阻断产物。AI 只能解释阻断原因，并建议修改 source manifest 或 dependency。
 
 ## 10. Project review
 

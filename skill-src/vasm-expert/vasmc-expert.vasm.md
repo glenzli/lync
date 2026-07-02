@@ -23,6 +23,7 @@ VASMC 是面向 AI prompt/source 管理的静态编译器：`.vasm.md` 是 sourc
    - `@vasm/cli` 中的 `build` 会同时生成确定性产物和结构化 report actions。
 3. **只把生成物当审查证据**。除 `translate` action 明确要求写目标语言产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段外，不要直接修改生成的 `.md`；verify、tree-shake、policy、project review 的结论都应落到 `.vasm.md` source、fragment、manifest 或 build config。
 4. **保持上下文扁平化**。如果用户试图深度嵌套 `@import:inline` 层级（超过 3 层深），请警告他们这会导致主流 LLM 发生严重的注意力缺失（幻觉）。建议他们将架构扁平化。
+5. **整合指导用关系声明，不用 inline 注入**。创建 `integrative` source 时，用 `vasm.integration.appliesTo` 声明它服务的 prompt/skill；执行 `integration_guidance` action 时先读 guide，再做组合决策。
 
 ### VASMC 知识手册
 以下是 VASMC 的完整背景知识、项目结构指南、语法规范与 AI 专用 CLI 参考。请仔细研读。

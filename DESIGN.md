@@ -59,6 +59,7 @@ Stable fields:
 | `version` | Human compatibility metadata; deterministic locking still uses content hash. |
 | `intent` | Describes what the output should accomplish and is copied into the AI build report. |
 | `compile` | Declares output format and target languages. |
+| `integration` | Only for integrative guides; declares which targets should read the guide before composition. |
 | `dependencies` | Declares remote dependencies for `vasmc add/sync`. |
 
 `compile.format` accepts three current values:
@@ -67,9 +68,24 @@ Stable fields:
 | --- | --- | --- |
 | `informational` | Documentation, knowledge, or explanatory material, not direct instructions | Multiple languages are merged into one `.md`. |
 | `executable` | Prompt, skill, system instruction, or similar AI execution-surface content | Multiple languages become separate files, such as `skill.en.md`. |
-| `integrative` | Guidance for composing multiple VASM modules | Reviewed as composition guidance, not used as the final prompt. |
+| `integrative` | Guidance for composing multiple VASM modules | Source-only; indexed into the build report without compiled output. |
 
 Deprecated values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`, with diagnostics. Other format values are invalid.
+
+Integrative files can declare their target scope:
+
+```yaml
+vasm:
+  alias: reviewer-integration-guide
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:security-reviewer
+      - skill-src/reviewer/**/*.vasm.md
+```
+
+`integration.appliesTo` is an AI composition relationship, not a content dependency. It supports `vasm:<alias>` and source/output path globs. When it matches an executable entry, the build report adds an `integration_guidance` action so the AI reads the guide before composing that output.
 
 Earlier descriptive fields such as `kind`, `scope`, `capabilities`, `activation`, `trust`, `vision`, and `fix` have been removed. Those natural-language fields were hard to define consistently and did not provide reliable validation.
 
@@ -139,6 +155,11 @@ entries:
     compiledFiles:
       - dist/skill.en.md
     actions:
+      - type: integration_guidance
+        guides:
+          - source: skill-src/reviewer/integration.vasm.md
+            appliesTo:
+              - vasm:security-reviewer
       - type: verify
       - type: translate
       - type: tree_shake
@@ -158,6 +179,7 @@ Common actions:
 | --- | --- |
 | `verify` | Check executable output against `intent`. |
 | `integration_review` | Check integrative composition boundaries. |
+| `integration_guidance` | Tell AI which integrative source guides to read before composing an executable output. |
 | `translate` | Fill missing target languages. |
 | `refresh_translation` | Review preserved target-language sections and update stale translations. |
 | `diff` | Compare historical outputs and summarize semantic impact. |
@@ -191,7 +213,7 @@ policy:
       confidence: low
 ```
 
-`security.mode: review` reports risk without blocking. `security.mode: enforce` only uses deterministic blocked diagnostics to prevent `executable` and `integrative` outputs from being updated; `contentSignals` never trigger enforce blocking by themselves.
+`security.mode: review` reports risk without blocking. `security.mode: enforce` only uses deterministic blocked diagnostics to prevent `executable` outputs from being updated; `contentSignals` never trigger enforce blocking by themselves. Integrative entries are source-only, so there is no output to block, but policy diagnostics are still reported.
 
 This does not defend against runtime prompt injection from user input, tool output, or RAG content. Those require host isolation, tool mediation, permission boundaries, or separate reviewers. VASMC only governs the input path you control.
 
@@ -239,7 +261,7 @@ The pattern is deterministic checks first, AI judgment second, with one auditabl
 
 VASMC records entry and transitive dependency signatures in `vasmc-build-state.yaml`. If source, dependencies, target language set, and output files are unchanged, later builds mark the entry as skipped.
 
-Skipped entries still appear in the build report, but product-level actions such as `verify`, `translate`, `refresh_translation`, and `diff` are not repeated. This avoids asking AI to reprocess unchanged outputs.
+Skipped entries still appear in the build report. Product-level actions such as `verify`, `translate`, `refresh_translation`, and `diff` are not repeated, but relationship actions such as `integration_guidance` may still appear because the composition relationship remains relevant. This avoids asking AI to reprocess unchanged outputs while preserving guidance for later composition.
 
 `vasmc-build-state.yaml` is content-hash based and can be committed.
 
@@ -312,6 +334,7 @@ vasm:
 | `version` | 给人类判断兼容性的元数据；确定性锁定仍以内容 hash 为准。 |
 | `intent` | 描述产物应达成的用途，会进入 AI build report。 |
 | `compile` | 声明输出格式和目标语种。 |
+| `integration` | 仅用于 integrative guide，声明这份组合指导适用于哪些目标。 |
 | `dependencies` | 声明远程依赖，供 `vasmc add/sync` 解析。 |
 
 `compile.format` 只接受三类当前格式：
@@ -320,9 +343,24 @@ vasm:
 | --- | --- | --- |
 | `informational` | 文档、知识、说明材料，不作为直接执行指令 | 多语种合并到同一个 `.md`。 |
 | `executable` | prompt、skill、system instruction 等会作为 AI 指令读取的内容 | 多语种输出为独立文件，例如 `skill.en.md`。 |
-| `integrative` | 指导一组 VASM 模块如何组合 | 作为组合指导审查，不直接当作最终 prompt。 |
+| `integrative` | 指导一组 VASM 模块如何组合 | source-only，只进入 build report，不生成自己的 compiled output。 |
 
 旧值 `doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated diagnostics。其他格式值非法。
+
+`integrative` 文件可以声明适用对象：
+
+```yaml
+vasm:
+  alias: reviewer-integration-guide
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:security-reviewer
+      - skill-src/reviewer/**/*.vasm.md
+```
+
+`integration.appliesTo` 是 AI 整合关系，不是内容依赖。它支持 `vasm:<alias>` 和 source/output 路径 glob。命中某个 `executable` entry 时，build report 会增加 `integration_guidance` action，提醒 AI 在组合该产物前读取对应 source guide。integrative source 本身不会经过语言输出或 routing 输出。
 
 早期尝试过的 `kind`、`scope`、`capabilities`、`activation`、`trust`、`vision`、`fix` 等字段已经移除。这些自然语言说明字段很难稳定定义，容易占用 AI 注意力，却不能提供可靠校验。
 
@@ -392,6 +430,11 @@ entries:
     compiledFiles:
       - dist/skill.en.md
     actions:
+      - type: integration_guidance
+        guides:
+          - source: skill-src/reviewer/integration.vasm.md
+            appliesTo:
+              - vasm:security-reviewer
       - type: verify
       - type: translate
       - type: tree_shake
@@ -410,7 +453,8 @@ actions:
 | action | 作用 |
 | --- | --- |
 | `verify` | 检查 executable 产物是否符合 `intent`。 |
-| `integration_review` | 检查 integrative 产物的组合边界是否清楚。 |
+| `integration_review` | 检查 integrative source 的组合边界是否清楚。 |
+| `integration_guidance` | 在组合 executable 前，提醒 AI 读取匹配的 integrative guides。 |
 | `translate` | 补齐缺失目标语种。 |
 | `refresh_translation` | 检查被保留的旧目标语种段是否需要更新。 |
 | `diff` | 对比历史产物并说明语义影响。 |
@@ -444,7 +488,7 @@ policy:
       confidence: low
 ```
 
-`security.mode: review` 只报告风险。`security.mode: enforce` 只根据确定性 blocked diagnostics 阻止 `executable` 和 `integrative` 产物被更新，不会因为 `contentSignals` 阻断输出。
+`security.mode: review` 只报告风险。`security.mode: enforce` 只根据确定性 blocked diagnostics 阻止 `executable` 产物被更新，不会因为 `contentSignals` 阻断输出。integrative 是 source-only，因此没有产物需要阻断，但仍会报告 policy diagnostics。
 
 这不能防御用户输入、工具输出或 RAG 内容中的运行时 prompt injection。那些需要宿主环境、工具代理、权限隔离或独立 reviewer 处理。VASMC 只负责你能控制的输入路径。
 
@@ -492,7 +536,7 @@ ai:
 
 VASMC 使用 `vasmc-build-state.yaml` 记录 entry 和传递依赖的内容签名。若 source、依赖、目标语种集合和产物文件都未变化，后续 build 会标记为 skipped。
 
-skipped entry 仍会进入 build report，但不会重复生成 verify/translate/refresh\_translation/diff 等产物级 action。这样可以避免 AI 在无变化产物上重复工作。
+skipped entry 仍会进入 build report。verify/translate/refresh\_translation/diff 等产物级 action 不会重复生成，但 `integration_guidance` 这类关系提示仍可能出现，因为组合关系不依赖本次是否重新写入产物。这样可以避免 AI 在无变化产物上重复工作，同时保留后续整合所需的 guide 提醒。
 
 `vasmc-build-state.yaml` 基于内容 hash，适合提交到版本控制。
 

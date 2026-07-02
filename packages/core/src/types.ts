@@ -21,6 +21,10 @@ export interface VasmFrontmatter {
         version?: string;
         /** Human-readable intent summary for AI review and integration. */
         intent?: string;
+        integration?: {
+            /** Files, output paths, or vasm:<alias> targets that this integrative guide applies to. */
+            appliesTo?: string[];
+        };
         compile?: {
             format?: RawCompileFormat;
             targetLangs?: string[];
@@ -72,6 +76,7 @@ export interface VasmBuild {
         executable?: {
             targetLangs?: string[];
         };
+        /** @deprecated integrative sources are source-only and are not cross-compiled */
         integrative?: {
             targetLangs?: string[];
         };

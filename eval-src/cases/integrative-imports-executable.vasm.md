@@ -4,7 +4,6 @@ vasm:
   intent: "Verify integrative guidance that imports executable content is flagged for review."
   compile:
     format: integrative
-    targetLangs: ["en"]
 ---
 
 # Integrative Boundary Case

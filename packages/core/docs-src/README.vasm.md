@@ -60,7 +60,7 @@ When a target language is selected, the compiler keeps the matching block and re
 
 ### Manifest And Policy
 
-VASM frontmatter is intentionally small: `alias`, `version`, `intent`, `compile`, and `dependencies`. `@vasm/core` evaluates deterministic policy diagnostics and emits content signals for AI review:
+VASM frontmatter is intentionally small: `alias`, `version`, `intent`, `compile`, `integration`, and `dependencies`. `integration.appliesTo` is only used by integrative guides to emit `integration_guidance` report actions; it is not an import dependency. `@vasm/core` evaluates deterministic policy diagnostics and emits content signals for AI review:
 
 * `pass`: no deterministic policy risk.
 * `review`: output is allowed, but an AI or human should inspect the diagnostics.

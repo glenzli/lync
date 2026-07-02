@@ -21,9 +21,6 @@ compile:
   executable:
     targetLangs:
       - "zh-CN"
-  integrative:
-    targetLangs:
-      - "zh-CN"
 
 security:
   # review: expose policy status in .vasmc/build-report.yaml.

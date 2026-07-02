@@ -45,7 +45,7 @@ vasm:
 
 - `informational`: documentation or knowledge, not an instruction file. Multiple target languages are merged into one file.
 - `executable`: prompts, skills, or instructions read by the model. Multiple languages produce separate files.
-- `integrative`: guidance for composing multiple VASM modules. AI should read it as composition guidance, not as a final prompt.
+- `integrative`: source-only guidance for composing multiple VASM modules. It is indexed into the build report and does not produce compiled output.
 
 Deprecated compatibility values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`. Other values are invalid.
 
@@ -108,7 +108,7 @@ After every build, the current AI editor should read:
 cat .vasmc/build-report.yaml
 ```
 
-The report records compiled entries, output files, manifest summaries, policy status, diagnostics, content signals, and semantic actions such as `verify`, `translate`, `refresh_translation`, `diff`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
+The report records compiled entries, output files, manifest summaries, policy status, diagnostics, content signals, integrative guides, and semantic actions such as `verify`, `integration_guidance`, `translate`, `refresh_translation`, `diff`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
 
 Other deterministic commands:
 
@@ -138,8 +138,6 @@ compile:
   informational:
     targetLangs: ["en", "zh-CN"]
   executable:
-    targetLangs: ["en"]
-  integrative:
     targetLangs: ["en"]
 
 routing:
@@ -176,7 +174,7 @@ Every build report entry includes `policy.status`:
 - `review`: output is allowed, but AI or human review should inspect diagnostics.
 - `blocked`: a deterministic blocking risk exists, such as invalid manifest shape, format-boundary violation, or lockfile hash mismatch.
 
-`security.mode: review` reports risk without blocking. `security.mode: enforce` prevents blocked `executable` and `integrative` outputs from being updated.
+`security.mode: review` reports risk without blocking. `security.mode: enforce` prevents blocked `executable` outputs from being updated. Integrative entries are source-only and only report policy.
 
 `policy.contentSignals` do not change `policy.status` and never trigger enforce blocking. AI should decide whether signal evidence is an active instruction, a prohibition, an example, or documentation.
 
@@ -302,9 +300,22 @@ vasm:
 >
 > - `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
 > - `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
-> - `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
+> - `integrative`：用于指导一组 VASM 模块如何组合；它是 source-only，不生成自己的 compiled output，AI 应在组合时参考它。
 >
 > 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
+
+> **`integration.appliesTo`**：只用于 `integrative` 文件，声明这份整合指导适用于哪些 prompt/skill。支持 `vasm:<alias>`，也支持 source/output 路径 glob。它不会把 guide 内容编进目标产物，也不会为 guide 生成 output；只会在命中的 executable entry 上生成 `integration_guidance` action。
+
+```yaml
+vasm:
+  alias: reviewer-integration-guide
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:security-reviewer
+      - skill-src/reviewer/**/*.vasm.md
+```
 
 ### 确定性 Policy Gate
 
@@ -328,7 +339,7 @@ security:
   mode: enforce
 ```
 
-`enforce` 会阻止 `executable` 和 `integrative` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
+`enforce` 会阻止 `executable` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。integrative 是 source-only，只报告 policy。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
 
 ### Project Review Pass
 
@@ -417,7 +428,7 @@ vasmc build main.vasm.md -o ./dist
 vasmc build
 ```
 
-`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Translate、Refresh Translation、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。对于 `informational` 输出，如果既有合并文档中已有旧目标语种段，VASMC 会保留它们并要求 AI 检查是否需要刷新。
+`vasmc build` 是 AI 侧唯一编译入口。它会执行确定性的 AST 组装、语言块过滤和产物写入；如果目标语言缺失，它不会调用外部模型自动补全，而是在 `.vasmc/build-report.yaml` 的 `actions` 中记录后续工作，让当前 AI 通过 VASM skill 接管 Verify、Integration Guidance、Translate、Refresh Translation、Diff、Policy Review、Policy Gate、Project Review 和 Tree-Shake 等语义任务。对于 `informational` 输出，如果既有合并文档中已有旧目标语种段，VASMC 会保留它们并要求 AI 检查是否需要刷新。
 
 常用控制参数：
 
@@ -444,7 +455,7 @@ vasmc expand main.vasm.md --target-lang zh-CN --stdout
 cat .vasmc/build-report.yaml
 ```
 
-每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-report.yaml`，并由 VASM skill 按 report 中的 `actions` 顺序执行。report 会记录本次构建涉及的入口、产物、`compiledFiles`、`minimalTokenVariant`、manifest 摘要、依赖、`policy.status`、policy diagnostics 和 content signals，供 AI 做上下文与边界审查。若启用 `ai.projectReview`，`.vasmc/project-review-context.yaml` 会列出可供 AI 做项目感知建议的文件索引。
+每次执行 `vasmc build` 后，AI 编辑器都应立即读取 `.vasmc/build-report.yaml`，并由 VASM skill 按 report 中的 `actions` 顺序执行。report 会记录本次构建涉及的入口、产物、`compiledFiles`、`minimalTokenVariant`、manifest 摘要、依赖、integrative guides、`policy.status`、policy diagnostics 和 content signals，供 AI 做上下文与边界审查。若启用 `ai.projectReview`，`.vasmc/project-review-context.yaml` 会列出可供 AI 做项目感知建议的文件索引。
 
 ### 5. 其他确定性命令
 
@@ -454,7 +465,7 @@ vasmc seal my-prompt.md --alias my-custom-name
 vasmc seal "prompts/**/*.md" --format executable
 ```
 
-`seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于整合指导文件，请使用 `--format integrative`。
+`seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于 source-only 整合指导文件，请使用 `--format integrative`，并在 source 中补充 `vasm.integration.appliesTo`。
 
 ---
 
@@ -475,8 +486,6 @@ compile:
   informational:
     targetLangs: ["zh-CN"]
   executable:
-    targetLangs: ["zh-CN"]
-  integrative:
     targetLangs: ["zh-CN"]
 
 routing:
@@ -516,14 +525,15 @@ vasmc build [file]
 每当你执行了 `vasmc build` 命令后，**立即读取 `.vasmc/build-report.yaml`**，并按 `entries[].actions` 与顶层 `actions` 顺序执行以下任务（具体步骤由编译器按需记录）：
 
 1. **Semantic Verify**：当 action 为 `verify` 时，读取 `minimalTokenVariant.path`，检查语义冲突、人格分裂、逻辑冗余和系统破坏风险四类问题。
-2. **Integration Review**：当 action 为 `integration_review` 时，把目标文件当作组合指导，而不是最终可执行 prompt，检查组合边界是否清楚。
-3. **Translation**：当 action 为 `translate` 时，将 `target` 文件翻译到 `targets` 指定的其他语种，**严格保留** Markdown AST 结构。
-4. **Refresh Translation**：当 action 为 `refresh_translation` 时，检查 informational 输出中被保留的旧目标语种段是否仍匹配新 source，只更新过期译文。
-5. **Semantic Diff**：当 action 为 `diff` 时，读取 `history` 中的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
-6. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界 diagnostics，以及 `policy.contentSignals` 中需要语义判断的词面线索。
-7. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 或 `integrative` 输出。
-8. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
-9. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
+2. **Integration Review**：当 action 为 `integration_review` 时，读取 integrative source，把它当作组合指导，而不是最终可执行 prompt，检查组合边界是否清楚。
+3. **Integration Guidance**：当 action 为 `integration_guidance` 时，读取 `guides[].source` 中匹配的 integrative guide，再组合该 executable 与其他 VASM 产物；不要把 guide 直接 inline 进最终 prompt。
+4. **Translation**：当 action 为 `translate` 时，将 `target` 文件翻译到 `targets` 指定的其他语种，**严格保留** Markdown AST 结构。
+5. **Refresh Translation**：当 action 为 `refresh_translation` 时，检查 informational 输出中被保留的旧目标语种段是否仍匹配新 source，只更新过期译文。
+6. **Semantic Diff**：当 action 为 `diff` 时，读取 `history` 中的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
+7. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界 diagnostics，以及 `policy.contentSignals` 中需要语义判断的词面线索。
+8. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 输出。integrative 是 source-only，只报告 policy。
+9. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
+10. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
 VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、翻译和冲突处理。
 
@@ -533,7 +543,7 @@ VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、�
 
 - `pass`：无确定性风险信号。
 - `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
-- `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 和 `integrative` 输出被更新。
+- `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 输出被更新。integrative 是 source-only，只报告 policy。
 
 `policy.contentSignals` 不改变 `policy.status`，也不会触发 enforce 阻断。AI 应判断 signal evidence 是 active instruction、prohibition、example 还是 documentation。
 

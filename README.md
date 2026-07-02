@@ -42,7 +42,7 @@ vasm:
 Build result:
 
 - Clean Markdown output for the target AI.
-- `.vasmc/build-report.yaml` with deterministic report actions such as `verify`, `translate`, `refresh_translation`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
+- `.vasmc/build-report.yaml` with deterministic report actions such as `verify`, `integration_guidance`, `translate`, `refresh_translation`, `tree_shake`, `policy_review`, `policy_gate`, and `project_review`.
 - Source file rule: generated `.md` files are review evidence, while fixes normally go back to `.vasm.md` source files.
 
 ## Documentation
@@ -117,7 +117,7 @@ vasm:
 构建后得到：
 
 - 给目标 AI 直接读取的纯净 Markdown 产物。
-- `.vasmc/build-report.yaml`，包含 `verify`、`translate`、`refresh_translation`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
+- `.vasmc/build-report.yaml`，包含 `verify`、`integration_guidance`、`translate`、`refresh_translation`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
 - 源文件优先：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
 
 ## 文档入口

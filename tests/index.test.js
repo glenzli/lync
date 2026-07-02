@@ -158,6 +158,53 @@ describe('Manifest Governance', () => {
         assert.ok(codes.includes('manifest.kind.removed'));
         assert.ok(codes.includes('manifest.compile.format.invalid'));
     });
+
+    it('validates integrative appliesTo relationships', () => {
+        const { validateVasmManifest, summarizeVasmManifest } = load('manifest');
+        const diagnostics = validateVasmManifest({
+            alias: 'integration-guide',
+            compile: {
+                format: 'integrative'
+            },
+            integration: {
+                appliesTo: ['vasm:reviewer', 'skills/**/*.vasm.md']
+            }
+        });
+        assert.deepStrictEqual(diagnostics, []);
+
+        const ignoredTargetLangs = validateVasmManifest({
+            compile: {
+                format: 'integrative',
+                targetLangs: ['en']
+            }
+        });
+        assert.ok(ignoredTargetLangs.map(d => d.code).includes('manifest.compile.targetLangs.integrative_ignored'));
+
+        const summary = summarizeVasmManifest({
+            alias: 'integration-guide',
+            compile: {
+                format: 'integrative'
+            },
+            integration: {
+                appliesTo: ['vasm:reviewer']
+            }
+        });
+        assert.deepStrictEqual(summary.integration.appliesTo, ['vasm:reviewer']);
+
+        const invalidManifest = {
+            compile: {
+                format: 'executable'
+            },
+            integration: {
+                appliesTo: 'vasm:reviewer'
+            }
+        };
+        const invalid = validateVasmManifest(invalidManifest);
+        const codes = invalid.map(d => d.code);
+        assert.ok(codes.includes('manifest.integration.appliesTo.invalid'));
+        assert.ok(codes.includes('manifest.integration.appliesTo.non_integrative'));
+        assert.strictEqual(summarizeVasmManifest(invalidManifest).integration, undefined);
+    });
 });
 
 // ─── Policy Gate Tests ─────────────────────────────────────────────
@@ -310,7 +357,7 @@ describe('Policy Gate', () => {
 
         const codes = verdict.diagnostics.map(d => d.code);
         assert.strictEqual(verdict.status, 'review');
-        assert.ok(verdict.enforceable);
+        assert.strictEqual(verdict.enforceable, false);
         assert.ok(codes.includes('policy.format.integrative_imports_executable'));
     });
 });

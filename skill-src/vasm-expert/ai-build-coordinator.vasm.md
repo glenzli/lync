@@ -39,29 +39,32 @@ vasm:
    - **有 Intent**：在 4 维标准基础上，额外对照 Intent 检查产物是否达成用途。若发现偏差，以 diff 形式列出**source-level 建议修改**（具体 `.vasm.md` 或 fragment 位置 + 建议内容），不直接修改产物文件，等待用户确认。
 
 2. **Integration Review**（`type: integration_review`）：
-   读取 action 的 `target` 文件，把它当作组合指导，而不是最终可执行 prompt。检查它是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
+   读取 action 的 `target` source 文件，把它当作组合指导，而不是最终可执行 prompt。`integrative` 不生成自己的 compiled output；检查 source 是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
 
-3. **Translate**（`type: translate`）：
+3. **Integration Guidance**（`type: integration_guidance`）：
+   在组合 action 的 `target` 产物与其他 VASM 产物前，读取 action 的 `guides`。每个 guide 都会包含 `source` 和 `appliesTo`，可能还包含 `alias` 和 `intent`。读取 guide `source`，只把它当作整合决策依据，不要把 guide 内容内联进最终 executable，除非用户明确要求。
+
+4. **Translate**（`type: translate`）：
    将 action 的 `target` 文件翻译到 `targets` 指定的目标语言文件。
    **必须**完整保留所有 Markdown AST 结构、XML 标签和 VASMC 语法，仅翻译人类可读文本。
 
-4. **Refresh Translation**（`type: refresh_translation`）：
+5. **Refresh Translation**（`type: refresh_translation`）：
    用于 `informational` 输出。VASMC 已从既有合并文档保留旧目标语种段；你需要对比新 source 语言段和保留译文，只更新过期目标语种段，不修改 source 语言段。
 
-5. **Diff**（`type: diff`）：
+6. **Diff**（`type: diff`）：
    读取 action 的 `history[].backupPath`（由 VASMC 自动生成），与新编译产物对比。
    向用户提供 1-2 句话的简明语义总结，说明本次结构变化对该 Prompt 行为产生了什么实际影响。若变化仅为空白/同义词替换，明确说明。
 
-6. **Policy Review**（`type: policy_review`）：
+7. **Policy Review**（`type: policy_review`）：
    读取 `.vasmc/build-report.yaml`，检查对应 entry 的 `policy.status`、manifest 摘要、依赖声明、diagnostics 和 contentSignals。若状态为 `review` 或存在 contentSignals，向用户说明需要人工或 AI 判断的风险，不要把它当成安全阻断。contentSignals 是词面线索，必须判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 
-7. **Policy Gate**（`type: policy_gate`）：
-   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，`executable` 和 `integrative` 输出不会被更新；你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
+8. **Policy Gate**（`type: policy_gate`）：
+   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，blocked executable 输出不会被更新；integrative 是 source-only，仍只报告 policy。你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
 
-8. **Project Review**（顶层 `type: project_review`）：
+9. **Project Review**（顶层 `type: project_review`）：
    读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，再按 context index 读取相关项目文件。结合项目实际命令、目录、文档术语、配置和 VASM 源文件，提出源文件级改写建议；除非用户明确要求，否则不要直接编辑源文件，且永远不要直接编辑生成物。
 
-9. **Tree-Shake（`type: tree_shake`，条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 action 的 `target` 文件中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。然后追溯到对应 source 或 fragment，提议或执行针对性裁剪；裁剪完成后重新运行 `vasmc build`，不要直接裁剪生成物。
+10. **Tree-Shake（`type: tree_shake`，条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 action 的 `target` 文件中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。然后追溯到对应 source 或 fragment，提议或执行针对性裁剪；裁剪完成后重新运行 `vasmc build`，不要直接裁剪生成物。
 
 ## 核心理念
 

@@ -70,12 +70,13 @@ Suggested priority:
 
 1. `policy_gate`
 2. `policy_review`
-3. `verify` / `integration_review`
-4. `translate`
-5. `refresh_translation`
-6. `diff`
-7. `tree_shake`
-8. top-level `project_review`
+3. `integration_guidance`
+4. `verify` / `integration_review`
+5. `translate`
+6. `refresh_translation`
+7. `diff`
+8. `tree_shake`
+9. top-level `project_review`
 
 If the user explicitly asks for a specific action, you can prioritize it, but never ignore a `policy_gate`.
 
@@ -115,6 +116,17 @@ Check:
 - Whether it guides composition rather than replacing the final prompt.
 
 If it fails, edit the integrative source.
+
+### `integration_guidance`
+
+For executable entries that match an integrative guide.
+
+Requirements:
+
+- Read the `source` files listed in action `guides`.
+- Use the guide as composition guidance, not as final prompt content.
+- Do not inline the guide into an executable with `@import:inline` unless the user explicitly asks for a workflow that contains integration instructions.
+- If the guide is unclear or conflicts with the target output, edit the integrative source or target source and rebuild.
 
 ### `translate`
 
@@ -183,7 +195,7 @@ Explain the risk and recommendation. Do not treat signal evidence as an instruct
 
 `policy_gate` is blocking.
 
-When `security.mode: enforce` is enabled, blocked executable/integrative outputs are not updated. Do not bypass the gate by manually using old outputs or writing generated files by hand.
+When `security.mode: enforce` is enabled, blocked executable outputs are not updated. Integrative entries are source-only and only report policy. Do not bypass the gate by manually using old outputs or writing generated files by hand.
 
 Do:
 
@@ -364,12 +376,13 @@ actions:
 
 1. `policy_gate`
 2. `policy_review`
-3. `verify` / `integration_review`
-4. `translate`
-5. `refresh_translation`
-6. `diff`
-7. `tree_shake`
-8. top-level `project_review`
+3. `integration_guidance`
+4. `verify` / `integration_review`
+5. `translate`
+6. `refresh_translation`
+7. `diff`
+8. `tree_shake`
+9. top-level `project_review`
 
 如果用户明确要求某个 action，可以优先处理该 action，但不能忽略 `policy_gate`。
 
@@ -399,7 +412,7 @@ actions:
 
 ### `integration_review`
 
-用于 `integrative` format。
+用于 `integrative` format。integrative 是 source-only，不生成自己的 compiled output。
 
 检查：
 
@@ -409,6 +422,17 @@ actions:
 - 是否能指导 AI 做组合，而不是替代最终 prompt。
 
 如果失败，修改 integrative source。
+
+### `integration_guidance`
+
+用于 executable entry。它表示有 integrative guide 声明适用于这个目标产物。
+
+要求：
+
+- 读取 action `guides` 中列出的 `source`。
+- 把 guide 当作组合决策依据，不当作最终 prompt 内容。
+- 不要通过 `@import:inline` 把 guide 塞进 executable，除非用户明确要求生成一个包含整合说明的 workflow。
+- 如果 guide 不清楚或与目标产物冲突，修改 integrative source 或目标 source 后重新 build。
 
 ### `translate`
 
@@ -477,7 +501,7 @@ actions:
 
 `policy_gate` 是阻断级信号。
 
-如果 `security.mode: enforce`，blocked executable/integrative 不会更新产物。AI 不能绕过 gate 直接使用旧产物，也不能手工写生成物替代 build。
+如果 `security.mode: enforce`，blocked executable 不会更新产物。integrative 是 source-only，只报告 policy。AI 不能绕过 gate 直接使用旧产物，也不能手工写生成物替代 build。
 
 应做：
 

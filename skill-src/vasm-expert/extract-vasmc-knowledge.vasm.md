@@ -50,7 +50,7 @@ vasm:
 重点说明三种编译格式的区别（在 Frontmatter 的 `compile.format` 中声明）：
 - **`informational`**：信息/文档格式，多语种合并输出，供人类或 AI 阅读但不作为执行指令。
 - **`executable`**：可执行指令格式，多语种时独立输出，供 LLM 直接消费（System Prompt、技能文件）。
-- **`integrative`**：整合指导格式，用于指导一组 VASM 模块如何组合，不直接当最终可执行 prompt。
+- **`integrative`**：整合指导格式，用于指导一组 VASM 模块如何组合；它是 source-only，不直接当最终可执行 prompt，也不生成自己的编译产物。
 
 **输出路径公式**（简明说明 `output.dir` + `baseDir` + `routing` 的交互关系）：
 默认输出 = `output.dir` + (文件路径 relative to `baseDir`)；`routing` 是拦截覆盖层，优先级最高。
@@ -70,7 +70,7 @@ vasm:
 提供 `<!-- lang:xx --> ... <!-- /lang -->` 的语法示例，说明未被包裹的内容出现在所有语种产物中。
 
 ### 模块 Frontmatter 协议
-提供完整的 YAML Frontmatter 示例，包含 `alias`、`version`、`intent`、`dependencies`、`compile.format`、`compile.targetLangs` 字段及其含义。说明 `doc` 和 `prompt` 仅作为 deprecated 兼容值存在，分别映射到 `informational` 和 `executable`。
+提供完整的 YAML Frontmatter 示例，包含 `alias`、`version`、`intent`、`dependencies`、`compile.format`、`compile.targetLangs` 字段及其含义。补充 `integrative` 文件可通过 `integration.appliesTo` 声明适用的 `vasm:<alias>` 或路径 glob；说明这只是 AI 整合关系，不是 `@import` 内容依赖。说明 `doc` 和 `prompt` 仅作为 deprecated 兼容值存在，分别映射到 `informational` 和 `executable`。
 
 ---
 
@@ -96,8 +96,8 @@ vasm:
 - `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化。
 - 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
 - `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
-- `integrative` 格式只作为组合指导，不要直接当最终可执行 prompt。
-- `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`；若出现 Policy Gate，说明确定性 policy 已发现阻断风险，`security.mode: enforce` 下 `executable` 和 `integrative` 输出不会被更新。
+- `integrative` 格式只作为 source-only 组合指导，不要直接当最终可执行 prompt；创建此类文件时，如服务于某个 prompt/skill，应声明 `vasm.integration.appliesTo`。
+- `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`；若出现 Policy Gate，说明确定性 policy 已发现阻断风险，`security.mode: enforce` 下 blocked executable 输出不会被更新；integrative source 只报告 policy。
 - AI 应阅读 build report 中的 manifest、lockfile、format diagnostics；若存在 `policy.contentSignals`，把它们当作需要语义判断的词面线索；不要依赖旧的 kind/scope/capabilities/activation/trust 字段。
 - `ai.projectReview` 会生成 `.vasmc/project-review-context.yaml`，AI 应结合项目文件给出源文件级建议或 patch 建议，不应直接编辑生成物。
 - `tree_shake` 是条件性 action；只有用户明确要求优化或精简 Prompt 时才执行，并且应裁剪 source 或 fragment 后重新 build。

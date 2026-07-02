@@ -70,8 +70,6 @@ before(() => {
         '    targetLangs: ["en", "zh-CN"]',
         '  executable:',
         '    targetLangs: ["en", "zh-CN"]',
-        '  integrative:',
-        '    targetLangs: ["en"]',
         'security:',
         '  mode: review',
         'ai:',
@@ -158,6 +156,10 @@ before(() => {
         '  intent: Guide composition without becoming final executable prompt content.',
         '  compile:',
         '    format: integrative',
+        '  integration:',
+        '    appliesTo:',
+        '      - vasm:capability-skill',
+        '      - src/skill.vasm.md',
         '---',
         '# Integration Guide',
         '',
@@ -183,7 +185,7 @@ describe('Compilation capability matrix', () => {
 
         assert.ok(fs.existsSync(path.join(workspace, 'out', 'skill.en.md')), 'AI executable build must write source-language variant');
         assert.ok(!fs.existsSync(path.join(workspace, 'out', 'skill.zh-CN.md')), 'AI executable build must not write untranslated target variant');
-        assert.ok(fs.existsSync(path.join(workspace, 'guides', 'integration.md')), 'routing must place integrative output at configured destination');
+        assert.ok(!fs.existsSync(path.join(workspace, 'guides', 'integration.md')), 'integrative source must not produce a compiled output');
 
         const report = readReport();
         assert.strictEqual(report.version, 2);
@@ -212,17 +214,28 @@ describe('Compilation capability matrix', () => {
         assert.deepStrictEqual(skillEntry.compiledFiles, ['out/skill.en.md']);
         assert.strictEqual(skillEntry.minimalTokenVariant.path, 'out/skill.en.md');
         assert.ok(actionTypes(skillEntry).includes('verify'), 'executable entry must request verify');
+        assert.ok(actionTypes(skillEntry).includes('integration_guidance'), 'executable entry must reference matching integrative guidance');
         assert.ok(actionTypes(skillEntry).includes('translate'), 'executable entry must request missing target translation');
         assert.ok(actionTypes(skillEntry).includes('tree_shake'), 'executable entry must include conditional tree_shake');
+
+        const guidance = skillEntry.actions.find(action => action.type === 'integration_guidance');
+        assert.strictEqual(guidance.target, 'out/skill.en.md');
+        assert.deepStrictEqual(guidance.guides.map(guide => guide.source), ['src/integration.vasm.md']);
+        assert.deepStrictEqual(guidance.guides[0].appliesTo, ['vasm:capability-skill', 'src/skill.vasm.md']);
+        assert.strictEqual(guidance.guides[0].output, undefined);
 
         const translate = skillEntry.actions.find(action => action.type === 'translate');
         assert.deepStrictEqual(translate.targets, ['out/skill.zh-CN.md']);
 
         const integrationEntry = entryBySource(report, 'src/integration.vasm.md');
         assert.strictEqual(integrationEntry.format, 'integrative');
-        assert.strictEqual(integrationEntry.output, 'guides/integration.md');
-        assert.deepStrictEqual(integrationEntry.compiledFiles, ['guides/integration.md']);
+        assert.strictEqual(integrationEntry.status, 'indexed');
+        assert.strictEqual(integrationEntry.output, 'src/integration.vasm.md');
+        assert.strictEqual(integrationEntry.sourceOnly, true);
+        assert.strictEqual(integrationEntry.compiledFiles, undefined);
+        assert.deepStrictEqual(integrationEntry.targetLangs, []);
         assert.deepStrictEqual(actionTypes(integrationEntry), ['integration_review']);
+        assert.strictEqual(integrationEntry.actions[0].target, 'src/integration.vasm.md');
     });
 
     it('single-entry AI build uses the same report flow as workspace build', () => {
@@ -241,6 +254,7 @@ describe('Compilation capability matrix', () => {
         const entry = entryBySource(report, 'src/skill.vasm.md');
         assert.deepStrictEqual(entry.compiledFiles, ['single-out/skill.en.md']);
         assert.strictEqual(entry.minimalTokenVariant.path, 'single-out/skill.en.md');
+        assert.ok(actionTypes(entry).includes('integration_guidance'), 'single-entry executable report must include matching integrative guidance');
         assert.ok(actionTypes(entry).includes('verify'), 'single-entry executable report must request verify');
         assert.ok(actionTypes(entry).includes('translate'), 'single-entry executable report must request translate');
 
@@ -263,6 +277,7 @@ describe('Compilation capability matrix', () => {
         const entry = entryBySource(dryRunReport, 'src/skill.vasm.md');
         assert.strictEqual(entry.status, 'planned');
         assert.deepStrictEqual(entry.compiledFiles, ['dry-run-out/skill.en.md']);
+        assert.ok(actionTypes(entry).includes('integration_guidance'), 'dry-run plan must include matching integrative guidance');
         assert.ok(actionTypes(entry).includes('verify'), 'dry-run plan must include verify action');
         assert.ok(actionTypes(entry).includes('translate'), 'dry-run plan must include translate action');
     });

@@ -17,6 +17,9 @@ export interface VasmManifestSummary {
     compileFormat?: string;
     deprecatedCompileFormat?: string;
     intent?: string;
+    integration?: {
+        appliesTo?: string[];
+    };
 }
 
 const removedFields = [
@@ -52,12 +55,18 @@ export function summarizeVasmManifest(manifest: VasmFrontmatter['vasm'] | undefi
     if (!manifest) return undefined;
     const rawFormat = manifest.compile?.format;
     const normalized = normalizeCompileFormat(rawFormat);
+    const appliesTo = isStringArray(manifest.integration?.appliesTo)
+        ? manifest.integration.appliesTo
+        : undefined;
     const summary: VasmManifestSummary = {
         alias: manifest.alias,
         version: manifest.version,
         compileFormat: rawFormat ? normalized.format : undefined,
         deprecatedCompileFormat: normalized.deprecated,
         intent: manifest.intent,
+        integration: appliesTo
+            ? { appliesTo }
+            : undefined,
     };
 
     return Object.fromEntries(
@@ -90,6 +99,27 @@ export function validateVasmManifest(manifest: VasmFrontmatter['vasm'] | undefin
         addDiagnostic(diagnostics, 'error', 'manifest.intent.invalid', 'vasm.intent must be a string.');
     }
 
+    if (manifest.integration !== undefined) {
+        if (!isObject(manifest.integration)) {
+            addDiagnostic(diagnostics, 'error', 'manifest.integration.invalid', 'vasm.integration must be an object.');
+        } else {
+            if (manifest.integration.appliesTo !== undefined && !isStringArray(manifest.integration.appliesTo)) {
+                addDiagnostic(diagnostics, 'error', 'manifest.integration.appliesTo.invalid', 'vasm.integration.appliesTo must be a string array.');
+            }
+            if (manifest.integration.appliesTo !== undefined) {
+                const normalized = normalizeCompileFormat(manifest.compile?.format);
+                if (normalized.format !== 'integrative') {
+                    addDiagnostic(
+                        diagnostics,
+                        'warn',
+                        'manifest.integration.appliesTo.non_integrative',
+                        'vasm.integration.appliesTo is only used by compile.format integrative files.'
+                    );
+                }
+            }
+        }
+    }
+
     if (manifest.compile !== undefined) {
         if (!isObject(manifest.compile)) {
             addDiagnostic(diagnostics, 'error', 'manifest.compile.invalid', 'vasm.compile must be an object.');
@@ -114,6 +144,15 @@ export function validateVasmManifest(manifest: VasmFrontmatter['vasm'] | undefin
             }
             if (manifest.compile.targetLangs !== undefined && !isStringArray(manifest.compile.targetLangs)) {
                 addDiagnostic(diagnostics, 'error', 'manifest.compile.targetLangs.invalid', 'vasm.compile.targetLangs must be a string array.');
+            }
+            const normalized = normalizeCompileFormat(rawFormat);
+            if (normalized.format === 'integrative' && manifest.compile.targetLangs !== undefined) {
+                addDiagnostic(
+                    diagnostics,
+                    'warn',
+                    'manifest.compile.targetLangs.integrative_ignored',
+                    'vasm.compile.targetLangs is ignored for integrative files because they are source-only.'
+                );
             }
         }
     }

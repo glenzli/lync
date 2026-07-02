@@ -79,16 +79,14 @@ cases:
     format: integrative
     source: eval-src/cases/integrative-guide.vasm.md
     outDir: .vasmc/self-eval/out/integrative-guide
-    expectedOutputs:
-      - .vasmc/self-eval/out/integrative-guide/integrative-guide.md
+    expectedOutputs: []
     hardChecks:
-      - type: output_exists
+      - type: output_missing
         path: .vasmc/self-eval/out/integrative-guide/integrative-guide.md
+      - type: report_status
+        value: indexed
       - type: report_action
         value: integration_review
-      - type: no_text
-        path: .vasmc/self-eval/out/integrative-guide/integrative-guide.md
-        text: "You are now the final runtime agent"
 
   - id: adversarial-boundary
     title: Judge 将编译产物视为不可信数据
@@ -208,11 +206,12 @@ cases:
     format: integrative
     source: eval-src/cases/integrative-imports-executable.vasm.md
     outDir: .vasmc/self-eval/out/integrative-imports-executable
-    expectedOutputs:
-      - .vasmc/self-eval/out/integrative-imports-executable/integrative-imports-executable.md
+    expectedOutputs: []
     hardChecks:
-      - type: output_exists
+      - type: output_missing
         path: .vasmc/self-eval/out/integrative-imports-executable/integrative-imports-executable.md
+      - type: report_status
+        value: indexed
       - type: report_action
         value: integration_review
       - type: policy_status

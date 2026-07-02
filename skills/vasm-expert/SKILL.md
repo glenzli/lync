@@ -21,6 +21,7 @@ VASMC 是面向 AI prompt/source 管理的静态编译器：`.vasm.md` 是 sourc
    - `@vasm/cli` 中的 `build` 会同时生成确定性产物和结构化 report actions。
 3. **只把生成物当审查证据**。除 `translate` action 明确要求写目标语言产物，或 `refresh_translation` action 明确要求检查并更新已保留目标语种段外，不要直接修改生成的 `.md`；verify、tree-shake、policy、project review 的结论都应落到 `.vasm.md` source、fragment、manifest 或 build config。
 4. **保持上下文扁平化**。如果用户试图深度嵌套 `@import:inline` 层级（超过 3 层深），请警告他们这会导致主流 LLM 发生严重的注意力缺失（幻觉）。建议他们将架构扁平化。
+5. **整合指导用关系声明，不用 inline 注入**。创建 `integrative` source 时，用 `vasm.integration.appliesTo` 声明它服务的 prompt/skill；执行 `integration_guidance` action 时先读 guide，再做组合决策。
 
 ### VASMC 知识手册
 
@@ -66,7 +67,7 @@ project-root/
 |------|------|------|
 | `informational` | README、HELP、DESIGN 等信息/文档 | 多语种合并输出 |
 | `executable` | System Prompt、技能文件等 AI 指令内容 | 多语种时每种语种独立输出，产物纯净无元数据 |
-| `integrative` | 指导一组 VASM 模块如何组合 | 供 AI 做整合决策，不直接当最终可执行 prompt |
+| `integrative` | 指导一组 VASM 模块如何组合 | source-only，不生成自己的 compiled output；用 `integration.appliesTo` 声明适用对象 |
 
 ---
 
@@ -130,6 +131,24 @@ vasm:
 ---
 ```
 
+整合指导文件应使用 `compile.format: integrative`，并在需要指导具体 prompt/skill 组合时声明适用对象：
+
+```yaml
+---
+vasm:
+  alias: "reviewer-integration-guide"
+  intent: "Guide how reviewer-related VASM modules should be combined."
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:security-reviewer
+      - skill-src/reviewer/**/*.vasm.md
+---
+```
+
+`appliesTo` 支持 `vasm:<alias>`，也支持 source/output 路径 glob。它是 AI 整合提示关系，不是 `@import` 内容依赖。
+
 ---
 
 ## 第四章：AI 专用 CLI 命令
@@ -157,8 +176,10 @@ vasm:
 - `--out-dir` 不是 dry-run；命中 `routing` 时，最终路径仍由 `routing.dest` 决定。
 - 需要无副作用检查时，使用 `vasmc build --dry-run`；需要临时展开稿时，使用 `vasmc expand ... --stdout`。
 - `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
-- `integrative` 只用于组合指导，不要把它直接当最终可执行 prompt。
-- `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，`executable` 和 `integrative` 输出不会被更新。
+- `integrative` 只用于组合指导，是 source-only 文件；不要把它直接当最终可执行 prompt，也不要期待它生成独立产物。
+- 创建 integrative source 时，如果它是为某个 prompt/skill 或一组 VASM 文件服务的，必须写 `vasm.integration.appliesTo`；不要通过 `@import:inline` 把整合指导塞进最终 executable。
+- 如果 `.vasmc/build-report.yaml` 的 actions 出现 `integration_guidance`，在组合目标产物前必须读取 action 中的 `guides[].source`。
+- `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，blocked executable 输出不会被更新。integrative source 不产生输出，只报告 policy。
 - 如果 `.vasmc/build-report.yaml` 的 actions 出现 `policy_review` 或 `policy_gate`，必须重点检查 manifest、lockfile、format 边界 diagnostics。若存在 `policy.contentSignals`，把它们当作词面线索，判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 - 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。
 - `tree_shake` 是条件性 action；只有用户明确要求优化或精简 Prompt 时才执行，并且应裁剪 source 或 fragment 后重新 build。
@@ -177,7 +198,6 @@ vasm:
 |------|----------|
 | 项目内所有 informational 统一交叉编译 | `vasmc-build.yaml` → `compile.informational.targetLangs` |
 | 项目内所有 executable 统一语种 | `vasmc-build.yaml` → `compile.executable.targetLangs` |
-| 项目内所有 integrative 统一语种 | `vasmc-build.yaml` → `compile.integrative.targetLangs` |
 | 对外发布的独立模块（自带语种声明） | 文件 frontmatter `compile.targetLangs` |
 
 优先级（高到低）：`文件 frontmatter` > `vasmc-build.yaml 按格式配置` > `CLI --target-langs` > `文件内 lang 块自动提取`
@@ -217,19 +237,37 @@ vasm:
   compile:
     format: executable      # ← 如果是 AI 消费的 Skill/Prompt 文件
     # format: informational # ← 如果是 README/HELP/DESIGN 等信息文档
-    # format: integrative   # ← 如果是组合多个 VASM 模块的整合指导
+    # format: integrative   # ← 如果是组合多个 VASM 模块的 source-only 整合指导
     targetLangs: ["zh-CN"]  # ← 确认语种，必要时添加 "en" 等目标语种
 ```
 
 - `informational` 格式：多语种内容合并到**单一文件**（如 `README.md` 中文英文都有）；如果旧输出已有目标语种段，AI build 会保留它们并生成 `refresh_translation` action
 - `executable` 格式：每种语种输出**独立文件**（如 `skill.zh-CN.md`, `skill.en.md`）
-- `integrative` 格式：每种语种输出**独立文件**，AI 只把它当组合指导
+- `integrative` 格式：**不生成输出文件**，AI 直接读取 source，把它当组合指导
 
 `vasmc seal` 的 `--format` 参数可以显式指定，不要依赖启发式猜测。
 
 ---
 
-## 规则四：`@import:link` 目标要进入同一次构建
+## 规则四：integrative 指导用 appliesTo 建关系
+
+如果你创建的是组合指导文件，不要把它通过 `@import:inline` 放进目标 executable。正确方式是在 guide 的 Frontmatter 中声明：
+
+```yaml
+vasm:
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:target-skill
+      - skill-src/target/**/*.vasm.md
+```
+
+`appliesTo` 命中后，`vasmc build` 会在目标 executable 的 report actions 中生成 `integration_guidance`，提醒 AI 在整合前读取 guide。
+
+---
+
+## 规则五：`@import:link` 目标要进入同一次构建
 
 `@import:link` 只保留链接边界，不会内联内容。编译器会把本地 `.vasm.md` 链接重写为生成 `.md` 路径，但**链接目标也必须被构建**，否则生成的链接可能指向不存在的文件。
 
@@ -287,29 +325,32 @@ vasm:
 - **有 Intent**：在 4 维标准基础上，额外对照 Intent 检查产物是否达成用途。若发现偏差，以 diff 形式列出**source-level 建议修改**（具体 `.vasm.md` 或 fragment 位置 + 建议内容），不直接修改产物文件，等待用户确认。
 
 2. **Integration Review**（`type: integration_review`）：
-   读取 action 的 `target` 文件，把它当作组合指导，而不是最终可执行 prompt。检查它是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
+   读取 action 的 `target` source 文件，把它当作组合指导，而不是最终可执行 prompt。`integrative` 不生成自己的 compiled output；检查 source 是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
 
-3. **Translate**（`type: translate`）：
+3. **Integration Guidance**（`type: integration_guidance`）：
+   在组合 action 的 `target` 产物与其他 VASM 产物前，读取 action 的 `guides`。每个 guide 都会包含 `source` 和 `appliesTo`，可能还包含 `alias` 和 `intent`。读取 guide `source`，只把它当作整合决策依据，不要把 guide 内容内联进最终 executable，除非用户明确要求。
+
+4. **Translate**（`type: translate`）：
    将 action 的 `target` 文件翻译到 `targets` 指定的目标语言文件。
    **必须**完整保留所有 Markdown AST 结构、XML 标签和 VASMC 语法，仅翻译人类可读文本。
 
-4. **Refresh Translation**（`type: refresh_translation`）：
+5. **Refresh Translation**（`type: refresh_translation`）：
    用于 `informational` 输出。VASMC 已从既有合并文档保留旧目标语种段；你需要对比新 source 语言段和保留译文，只更新过期目标语种段，不修改 source 语言段。
 
-5. **Diff**（`type: diff`）：
+6. **Diff**（`type: diff`）：
    读取 action 的 `history[].backupPath`（由 VASMC 自动生成），与新编译产物对比。
    向用户提供 1-2 句话的简明语义总结，说明本次结构变化对该 Prompt 行为产生了什么实际影响。若变化仅为空白/同义词替换，明确说明。
 
-6. **Policy Review**（`type: policy_review`）：
+7. **Policy Review**（`type: policy_review`）：
    读取 `.vasmc/build-report.yaml`，检查对应 entry 的 `policy.status`、manifest 摘要、依赖声明、diagnostics 和 contentSignals。若状态为 `review` 或存在 contentSignals，向用户说明需要人工或 AI 判断的风险，不要把它当成安全阻断。contentSignals 是词面线索，必须判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 
-7. **Policy Gate**（`type: policy_gate`）：
-   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，`executable` 和 `integrative` 输出不会被更新；你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
+8. **Policy Gate**（`type: policy_gate`）：
+   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，blocked executable 输出不会被更新；integrative 是 source-only，仍只报告 policy。你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
 
-8. **Project Review**（顶层 `type: project_review`）：
+9. **Project Review**（顶层 `type: project_review`）：
    读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，再按 context index 读取相关项目文件。结合项目实际命令、目录、文档术语、配置和 VASM 源文件，提出源文件级改写建议；除非用户明确要求，否则不要直接编辑源文件，且永远不要直接编辑生成物。
 
-9. **Tree-Shake（`type: tree_shake`，条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 action 的 `target` 文件中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。然后追溯到对应 source 或 fragment，提议或执行针对性裁剪；裁剪完成后重新运行 `vasmc build`，不要直接裁剪生成物。
+10. **Tree-Shake（`type: tree_shake`，条件性）**：**仅当**用户在当前请求中明确表达了优化或精简 Prompt 的意图时，才执行此步骤。分析 action 的 `target` 文件中：(a) 与文件核心意图无直接关联的节，或 (b) 在其他节中完全重复的内容。然后追溯到对应 source 或 fragment，提议或执行针对性裁剪；裁剪完成后重新运行 `vasmc build`，不要直接裁剪生成物。
 
 ## 核心理念
 

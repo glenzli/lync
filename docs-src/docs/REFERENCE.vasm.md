@@ -47,6 +47,7 @@ vasm:
 | `version` | string | 人类理解兼容性的版本信息；确定性锁定仍以 hash 为准。 |
 | `intent` | string | 产物用途说明。会进入 build report，供 AI verify/integration review 使用。 |
 | `compile` | object | 编译声明。 |
+| `integration` | object | 仅用于 integrative guide 的适用对象声明。 |
 | `dependencies` | object | 模块声明的远程依赖。 |
 
 ### 已移除字段
@@ -66,7 +67,7 @@ severity: error
 | --- | --- | --- |
 | `informational` | README、HELP、DESIGN、知识文档、说明材料 | 多语种合并到一个 `.md` |
 | `executable` | system prompt、skill、workflow instruction | 多语种时每个语种独立输出 |
-| `integrative` | 指导一批 VASM 模块如何组合 | 多语种时独立输出，AI 只当组合指导 |
+| `integrative` | 指导一批 VASM 模块如何组合 | source-only，不生成 compiled output，AI 只当组合指导 |
 
 Deprecated 兼容值：
 
@@ -82,7 +83,29 @@ code: manifest.compile.format.invalid
 severity: error
 ```
 
-## 4. `compile.targetLangs`
+## 4. `integration.appliesTo`
+
+```yaml
+vasm:
+  alias: reviewer-integration-guide
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:security-reviewer
+      - skill-src/reviewer/**/*.vasm.md
+```
+
+`integration.appliesTo` 只用于 `compile.format: integrative` 的文件。它声明这份 guide 应在整合哪些 executable 文件前被 AI 参考。
+
+匹配规则：
+
+- `vasm:<alias>` 匹配目标文件的 `vasm.alias`。
+- 普通字符串按 source 路径或 output 路径做精确匹配或 glob 匹配。
+
+这不是内容依赖。它不会把 integrative guide inline 到目标 prompt，也不会为 guide 生成 output；只会在 build report 中为命中的 executable entry 生成 `integration_guidance` action。
+
+## 5. `compile.targetLangs`
 
 ```yaml
 vasm:
@@ -99,7 +122,9 @@ vasm:
 
 工程项目通常把统一语种放在 `vasmc-build.yaml`。对外发布的独立模块可以在文件 frontmatter 中声明。
 
-## 5. Import 指令
+`integrative` 是 source-only，不产生语言产物；它会忽略 `compile.targetLangs`，并在 report diagnostics 中提示该字段无效用。
+
+## 6. Import 指令
 
 VASMC 把 import 写成标准 Markdown 链接 title，未编译时仍可读。
 
@@ -129,7 +154,7 @@ VASMC 把 import 写成标准 Markdown 链接 title，未编译时仍可读。
 
 `vasm:secure-rules` 来自 `vasmc.yaml` 和 `vasmc-lock.yaml`。
 
-## 6. 语言块
+## 7. 语言块
 
 ```markdown
 <!-- lang:en -->
@@ -143,7 +168,7 @@ English text.
 
 编译目标为 `en` 时只保留英文块；目标为 `zh-CN` 时只保留中文块。未包裹在语言块内的内容会进入所有目标语种。
 
-## 7. `vasmc-build.yaml`
+## 8. `vasmc-build.yaml`
 
 ```yaml
 includes:
@@ -163,8 +188,6 @@ compile:
     targetLangs: ["en", "zh-CN"]
   executable:
     targetLangs: ["en"]
-  integrative:
-    targetLangs: ["zh-CN"]
 
 security:
   mode: review
@@ -221,9 +244,9 @@ vasmc expand src/main.vasm.md --target-lang zh-CN --stdout
 | mode | 行为 |
 | --- | --- |
 | `review` | 报告风险，但不阻断输出。 |
-| `enforce` | 当 executable / integrative entry 被 policy 标记为 `blocked` 时，不更新产物。 |
+| `enforce` | 当 executable entry 被 policy 标记为 `blocked` 时，不更新产物；integrative source 只报告 policy。 |
 
-## 8. Build report
+## 9. Build report
 
 `.vasmc/build-report.yaml` 的核心结构：
 
@@ -254,6 +277,11 @@ entries:
       status: pass
       enforceable: true
     actions:
+      - type: integration_guidance
+        guides:
+          - source: src/reviewer-integration.vasm.md
+            appliesTo:
+              - vasm:security-reviewer
       - type: verify
 actions:
   - type: project_review
@@ -267,6 +295,7 @@ actions:
 | `skipped` | 增量缓存判断 source 未变化，跳过写入。 |
 | `blocked` | policy gate 阻断输出。 |
 | `planned` | dry-run 计划写入，但没有实际写文件。 |
+| `indexed` | source-only entry 已进入 report，不产生输出。 |
 
 ### Policy status
 
@@ -276,12 +305,13 @@ actions:
 | `review` | 确定性检查发现非阻断 diagnostics，需要人工或 AI 判断。 |
 | `blocked` | 确定性检查发现阻断级风险。 |
 
-## 9. Report actions
+## 10. Report actions
 
 | action | 层级 | 说明 |
 | --- | --- | --- |
 | `verify` | entry | AI 检查产物是否符合 intent 和基础质量标准。 |
-| `integration_review` | entry | AI 检查 integrative 输出是否清楚表达组合边界。 |
+| `integration_review` | entry | AI 检查 integrative source 是否清楚表达组合边界。 |
+| `integration_guidance` | entry | AI 在组合 executable 前读取匹配的 integrative source guides。 |
 | `translate` | entry | AI 按 `targets` 写目标语种产物。 |
 | `refresh_translation` | entry | informational 输出复用旧目标语种段后，AI 检查并更新过期译文。 |
 | `diff` | entry | AI 对比历史备份和新产物，总结语义变化。 |
@@ -290,7 +320,7 @@ actions:
 | `policy_gate` | entry | AI 解释 blocked 原因，并建议 source-level 修复。 |
 | `project_review` | top-level | AI 结合项目上下文提出 source-level 建议。 |
 
-## 10. Policy diagnostics
+## 11. Policy diagnostics
 
 常见 code：
 
@@ -299,13 +329,16 @@ actions:
 | `manifest.*.removed` | manifest | block | 使用了已移除 manifest 字段。 |
 | `manifest.compile.format.invalid` | manifest | block | `compile.format` 非法。 |
 | `manifest.compile.format.deprecated` | manifest | review | 使用了 deprecated format。 |
+| `manifest.compile.targetLangs.integrative_ignored` | manifest | review | integrative source 声明了不会生效的 `targetLangs`。 |
+| `manifest.integration.appliesTo.invalid` | manifest | block | `integration.appliesTo` 不是字符串数组。 |
+| `manifest.integration.appliesTo.non_integrative` | manifest | review | 非 integrative 文件声明了 `integration.appliesTo`。 |
 | `policy.lockfile.missing` | lockfile | block | lockfile 指向的依赖不存在。 |
 | `policy.lockfile.hash_mismatch` | lockfile | block | 本地依赖 hash 与 lockfile 不一致。 |
 | `policy.format.informational_imports_active` | format | block | informational 引入 executable/integrative 内容。 |
 | `policy.format.executable_imports_integrative` | format | review | executable 引入 integrative。 |
 | `policy.format.integrative_imports_executable` | format | review | integrative 引入 executable。 |
 
-## 11. Content signals
+## 12. Content signals
 
 `policy.contentSignals` 是词面线索，不是确定性 diagnostics。它不会让 `policy.status` 变成 `blocked`，也不会被 `security.mode: enforce` 阻断。AI 应结合上下文判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 
@@ -318,7 +351,7 @@ actions:
 | `policy.content.secret_exfiltration` | `unknown` / `prohibitive` | `medium` / `low` | 文本同时出现密钥访问和外传表达。 |
 | `policy.content.remote_execution` | `unknown` / `prohibitive` | `medium` / `low` | 文本同时出现远程获取和执行表达。 |
 
-## 12. CLI 包边界
+## 13. CLI 包边界
 
 | 包 | 命令 | 说明 |
 | --- | --- | --- |

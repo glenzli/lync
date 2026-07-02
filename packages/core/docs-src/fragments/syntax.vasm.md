@@ -64,9 +64,22 @@ vasm:
 > **`compile.format`**：
 > * `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
 > * `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
-> * `integrative`：用于指导一组 VASM 模块如何组合；它不是最终可执行 prompt，AI 应在组合时参考它。
+> * `integrative`：用于指导一组 VASM 模块如何组合；它是 source-only，不生成自己的 compiled output，AI 应在组合时参考它。
 >
 > 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
+
+> **`integration.appliesTo`**：只用于 `integrative` 文件，声明这份整合指导适用于哪些 prompt/skill。支持 `vasm:<alias>`，也支持 source/output 路径 glob。它不会把 guide 内容编进目标产物，也不会为 guide 生成 output；只会在命中的 executable entry 上生成 `integration_guidance` action。
+
+```yaml
+vasm:
+  alias: reviewer-integration-guide
+  compile:
+    format: integrative
+  integration:
+    appliesTo:
+      - vasm:security-reviewer
+      - skill-src/reviewer/**/*.vasm.md
+```
 
 ### 确定性 Policy Gate
 
@@ -90,7 +103,7 @@ security:
   mode: enforce
 ```
 
-`enforce` 会阻止 `executable` 和 `integrative` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
+`enforce` 会阻止 `executable` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。integrative 是 source-only，只报告 policy。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
 
 ### Project Review Pass
 

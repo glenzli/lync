@@ -4,7 +4,6 @@ vasm:
   intent: "Verify integrative format stays composition guidance and does not become a final executable prompt."
   compile:
     format: integrative
-    targetLangs: ["zh-CN"]
 ---
 
 # Skill Bundle Integration Guide

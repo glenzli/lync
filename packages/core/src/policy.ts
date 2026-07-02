@@ -255,7 +255,7 @@ function collectContentSignals(files: string[], cwd: string): PolicyContentSigna
 
 export function evaluateVasmPolicy(entry: PolicyEntry, cwd: string): PolicyVerdict {
     const files = collectGraphFiles(entry, cwd);
-    const enforceable = entry.compileFormat === 'executable' || entry.compileFormat === 'integrative';
+    const enforceable = entry.compileFormat === 'executable';
     const diagnostics: PolicyDiagnostic[] = [];
     const contentSignals: PolicyContentSignal[] = [];
 

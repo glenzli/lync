@@ -79,8 +79,7 @@ baseDir: "."
 #     targetLangs: ["en", "zh-CN"]
 #   executable:                   # Executable prompt format: one file per language
 #     targetLangs: ["en"]
-#   integrative:                  # Composition guidance format: one file per language
-#     targetLangs: ["en"]
+# Integrative sources are source-only composition guidance and are not cross-compiled.
 
 # Advanced Routing Interceptors (optional)
 # routing:

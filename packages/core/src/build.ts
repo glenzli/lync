@@ -42,6 +42,10 @@ interface EntryMetadata {
     intent?: string;
 }
 
+interface IntegrationGuide extends BuildReportIntegrationGuide {
+    absoluteFile: string;
+}
+
 export interface CompiledResult {
     entry: WorkspaceEntry;
     compiledMap: Map<string, string>;  // lang -> content
@@ -62,9 +66,17 @@ export interface BuildReportPolicy {
     contentSignals?: BuildReportPolicyContentSignal[];
 }
 
+export interface BuildReportIntegrationGuide {
+    source: string;
+    appliesTo: string[];
+    alias?: string;
+    intent?: string;
+}
+
 export type BuildReportActionType =
     | 'verify'
     | 'integration_review'
+    | 'integration_guidance'
     | 'translate'
     | 'refresh_translation'
     | 'diff'
@@ -85,6 +97,7 @@ export interface BuildReportAction {
     intent?: string;
     diagnostics?: BuildReportPolicyDiagnostic[];
     contentSignals?: BuildReportPolicyContentSignal[];
+    guides?: BuildReportIntegrationGuide[];
     history?: Array<{ lang: string; backupPath: string }>;
     condition?: string;
     notes?: string[];
@@ -102,7 +115,7 @@ export interface BuildReportDependency {
     diagnostics?: BuildReportDiagnostic[];
 }
 
-export type BuildReportEntryStatus = 'built' | 'skipped' | 'blocked' | 'planned';
+export type BuildReportEntryStatus = 'built' | 'skipped' | 'blocked' | 'planned' | 'indexed';
 
 export interface BuildReportEntry {
     source: string;
@@ -110,6 +123,7 @@ export interface BuildReportEntry {
     status: BuildReportEntryStatus;
     format: CompileFormat;
     targetLangs: string[];
+    sourceOnly?: boolean;
     compiledFiles?: string[];
     minimalTokenVariant?: BuildReportVariant;
     actions?: BuildReportAction[];
@@ -174,12 +188,14 @@ export function createBuildReportEntry(entry: WorkspaceEntry, cwd: string, statu
     const diagnostics = collectManifestDiagnostics(entry.absoluteFile, cwd);
     const dependencies = collectDependencyManifestReports(entry.absoluteFile, cwd);
     const policy = evaluateVasmPolicy(entry, cwd);
+    const sourceOnly = entry.compileFormat === 'integrative';
     const report: BuildReportEntry = {
         source: entry.relativeFile,
-        output: path.relative(cwd, entry.finalDest),
+        output: sourceOnly ? entry.relativeFile : path.relative(cwd, entry.finalDest),
         status,
         format: entry.compileFormat,
         targetLangs: entry.targetLangs,
+        ...(sourceOnly ? { sourceOnly: true } : {}),
         policy: {
             status: policy.status,
             enforceable: policy.enforceable,
@@ -248,6 +264,105 @@ export function createProjectReviewReportAction(contextFile: string, mode: 'sugg
                 ? 'Read project context and provide focused source-file patch suggestions.'
                 : 'Read project context and provide source-file suggestions.',
             'Never edit generated outputs directly.',
+        ],
+    };
+}
+
+function createIntegrationReviewReportAction(entry: WorkspaceEntry, intent?: string): BuildReportAction {
+    return {
+        type: 'integration_review',
+        status: 'pending',
+        title: 'Integration Review',
+        target: entry.relativeFile,
+        format: entry.compileFormat,
+        intent,
+        notes: [
+            'Review this integrative source file as composition guidance only.',
+            'No compiled output is produced for integrative sources.',
+        ],
+    };
+}
+
+function normalizeMatchPath(value: string): string {
+    return value.split(path.sep).join('/');
+}
+
+function isVasmAliasTarget(value: string): boolean {
+    return value.startsWith('vasm:') && value.length > 'vasm:'.length;
+}
+
+function integrationTargetMatches(pattern: string, entry: WorkspaceEntry, cwd: string): boolean {
+    const normalizedPattern = normalizeMatchPath(pattern);
+    const entryManifest = readVasmManifest(entry.absoluteFile);
+    if (isVasmAliasTarget(normalizedPattern)) {
+        return entryManifest?.alias === normalizedPattern.slice('vasm:'.length);
+    }
+
+    const candidates = [
+        entry.relativeFile,
+        path.relative(cwd, entry.finalDest),
+    ].map(normalizeMatchPath);
+
+    return candidates.some(candidate =>
+        candidate === normalizedPattern
+        || minimatch(candidate, normalizedPattern, { dot: true, matchBase: true })
+    );
+}
+
+function guideAppliesToEntry(guide: IntegrationGuide, entry: WorkspaceEntry, cwd: string): boolean {
+    if (entry.compileFormat !== 'executable') return false;
+    return guide.appliesTo.some(pattern => integrationTargetMatches(pattern, entry, cwd));
+}
+
+function readIntegrationAppliesTo(manifest: VasmFrontmatter['vasm'] | undefined): string[] {
+    const appliesTo = manifest?.integration?.appliesTo;
+    return Array.isArray(appliesTo) && appliesTo.every(item => typeof item === 'string')
+        ? appliesTo
+        : [];
+}
+
+async function collectIntegrationGuides(cwd: string): Promise<IntegrationGuide[]> {
+    const entries = await resolveWorkspaceEntries(cwd);
+    const guides: IntegrationGuide[] = [];
+
+    for (const entry of entries) {
+        if (entry.compileFormat !== 'integrative') continue;
+        const manifest = readVasmManifest(entry.absoluteFile);
+        const appliesTo = readIntegrationAppliesTo(manifest);
+        if (appliesTo.length === 0) continue;
+
+        guides.push({
+            source: entry.relativeFile,
+            absoluteFile: entry.absoluteFile,
+            appliesTo,
+            alias: manifest?.alias,
+            intent: manifest?.intent,
+        });
+    }
+
+    return guides;
+}
+
+function createIntegrationGuidanceReportAction(
+    entry: WorkspaceEntry,
+    target: string,
+    integrationGuides: IntegrationGuide[],
+    cwd: string
+): BuildReportAction | undefined {
+    const guides = integrationGuides
+        .filter(guide => guideAppliesToEntry(guide, entry, cwd))
+        .map(({ absoluteFile: _absoluteFile, ...guide }) => guide);
+    if (guides.length === 0) return undefined;
+
+    return {
+        type: 'integration_guidance',
+        status: 'pending',
+        title: 'Integration Guidance',
+        target,
+        guides,
+        notes: [
+            'Read these integrative source files before combining this executable output with other VASM outputs.',
+            'Use the guides as source-only composition guidance; do not inline them into the final executable prompt unless the user explicitly asks.',
         ],
     };
 }
@@ -377,6 +492,10 @@ function resolveTargetLangs(
     frontmatterTargetLangs?: string[],
     cliOptions?: BuildRunOptions
 ): string[] {
+    if (compileFormat === 'integrative') {
+        return [];
+    }
+
     if (frontmatterTargetLangs && frontmatterTargetLangs.length > 0) {
         return frontmatterTargetLangs;
     }
@@ -592,15 +711,17 @@ function createEntryFollowupActions(
     historyPaths: { lang: string; backupPath: string }[],
     cwd: string,
     reportTarget: string,
+    integrationGuides: IntegrationGuide[],
     intent?: string
 ): BuildReportAction[] {
     const isInformationalFormat = entry.compileFormat === 'informational';
     const isExecutableFormat = entry.compileFormat === 'executable';
-    const isIntegrativeFormat = entry.compileFormat === 'integrative';
     const langsNeedingTranslation = entry.targetLangs.filter(l => l !== 'auto' && !compiledLangs.has(l));
     const preservedTargetLangs = preservedLangs.filter(l => l !== 'auto' && entry.targetLangs.includes(l));
 
     const actionItems: BuildReportAction[] = [];
+    const integrationGuidanceAction = createIntegrationGuidanceReportAction(entry, minVariantPath, integrationGuides, cwd);
+    if (integrationGuidanceAction) actionItems.push(integrationGuidanceAction);
 
     if (isExecutableFormat) {
         actionItems.push({
@@ -611,16 +732,6 @@ function createEntryFollowupActions(
             format: entry.compileFormat,
             intent,
             notes: ['Check against the skill-defined verify criteria. If issues are found, output suggested edits.'],
-        });
-    } else if (isIntegrativeFormat) {
-        actionItems.push({
-            type: 'integration_review',
-            status: 'pending',
-            title: 'Integration Review',
-            target: minVariantPath,
-            format: entry.compileFormat,
-            intent,
-            notes: ['Use this output as composition guidance only, not as a final executable prompt.'],
         });
     }
 
@@ -722,8 +833,14 @@ function preserveExistingInformationalLangs(entry: WorkspaceEntry, compiledMap: 
 export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode: boolean = false): Promise<CompiledResult> {
     const { relativeFile, absoluteFile, finalDest, compileFormat, targetLangs } = entry;
     const isInformationalFormat = compileFormat === 'informational';
+    const isIntegrativeFormat = compileFormat === 'integrative';
     let compiledMap = new Map<string, string>();
     let preservedLangs: string[] = [];
+
+    if (isIntegrativeFormat) {
+        console.log(`[BUILD] 🧭 Indexed integrative source: ${relativeFile}`);
+        return { entry, compiledMap, preservedLangs };
+    }
 
     // In AI build mode with multiple langs, only compile languages that are actually present in source.
     // Missing languages are recorded as report actions for the active AI skill to translate.
@@ -794,6 +911,12 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOption
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isInformationalFormat = entry.compileFormat === 'informational';
+        const isIntegrativeFormat = entry.compileFormat === 'integrative';
+
+        if (isIntegrativeFormat) {
+            console.log(`[BUILD] 🧭 Indexed integrative source: ${relativeFile}`);
+            continue;
+        }
 
         if (shouldSkipEntry(entry, cwd, buildState, cliOptions?.force, false)) {
             console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
@@ -847,6 +970,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
     const securityMode = buildConfig.security?.mode || 'review';
     const buildState = loadBuildState(cwd);
     const dryRun = cliOptions?.dryRun || false;
+    const integrationGuides = await collectIntegrationGuides(cwd);
     const generatedAt = new Date();
     const reportPath = cliOptions?.reportOut
         ? path.resolve(cwd, cliOptions.reportOut)
@@ -888,6 +1012,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isInformationalFormat = entry.compileFormat === 'informational';
+        const isIntegrativeFormat = entry.compileFormat === 'integrative';
         const skippedReport = createBuildReportEntry(entry, cwd, 'skipped');
 
         if (shouldBlockPolicyOutput(skippedReport, securityMode)) {
@@ -912,10 +1037,27 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
             }
         }
 
+        if (isIntegrativeFormat) {
+            const indexedReport = createBuildReportEntry(entry, cwd, 'indexed');
+            const actions = [
+                createIntegrationReviewReportAction(entry, intent),
+                createPolicyReportAction(indexedReport, reportTarget),
+            ].filter((action): action is BuildReportAction => !!action);
+            if (actions.length > 0) indexedReport.actions = actions;
+            buildReport.entries.push(indexedReport);
+            if (!dryRun) console.log(`[BUILD] 🧭 Indexed integrative source: ${relativeFile}`);
+            continue;
+        }
+
         if (shouldSkipEntry(entry, cwd, buildState, cliOptions?.force, true)) {
             if (!dryRun) console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
-            const action = createPolicyReportAction(skippedReport, reportTarget);
-            if (action) skippedReport.actions = [action];
+            const skippedLang = resolveLangsToCompile(entry, cwd, true)[0];
+            const skippedTarget = path.relative(cwd, outputPathForLang(entry, skippedLang));
+            const actions = [
+                createIntegrationGuidanceReportAction(entry, skippedTarget, integrationGuides, cwd),
+                createPolicyReportAction(skippedReport, reportTarget),
+            ].filter((action): action is BuildReportAction => !!action);
+            if (actions.length > 0) skippedReport.actions = actions;
             buildReport.entries.push(skippedReport);
             continue;
         }
@@ -927,7 +1069,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
             const plannedReport = createBuildReportEntry(entry, cwd, 'planned');
             plannedReport.compiledFiles = plannedFiles;
             const targetForActions = plannedFiles[0] || path.relative(cwd, finalDest);
-            const actions = createEntryFollowupActions(entry, targetForActions, plannedLangSet, [], [], cwd, reportTarget, intent);
+            const actions = createEntryFollowupActions(entry, targetForActions, plannedLangSet, [], [], cwd, reportTarget, integrationGuides, intent);
             if (actions.length > 0) plannedReport.actions = actions;
             buildReport.entries.push(plannedReport);
             continue;
@@ -966,7 +1108,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
 
         const minVariantPath = path.relative(cwd, outputPathForLang(entry, bestLang));
         const compiledLangs = new Set(result.compiledMap.keys());
-        const actionItems = createEntryFollowupActions(entry, minVariantPath, compiledLangs, result.preservedLangs, historyPaths, cwd, reportTarget, intent);
+        const actionItems = createEntryFollowupActions(entry, minVariantPath, compiledLangs, result.preservedLangs, historyPaths, cwd, reportTarget, integrationGuides, intent);
 
         // Update incremental build cache after successful AI build
         const builtReport = createBuildReportEntry(entry, cwd, 'built');
