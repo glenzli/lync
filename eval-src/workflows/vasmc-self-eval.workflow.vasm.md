@@ -46,6 +46,7 @@ npm run build
 - `source`
 - `buildSources`（如果存在，按顺序编译）
 - `workspaceBuild` 与 `cwd`（如果存在，在该目录执行 workspace build）
+- `setupCommands`（如果存在，先按顺序执行，用于准备 producer catalog、sync lockfile 等前置状态）
 - `expectedFailure`（如果存在，编译失败才是通过条件之一）
 - `outDir`
 - `hardChecks`
@@ -90,6 +91,7 @@ self-eval-reports/latest.md
 - `translate_target`：`translate.targets` 必须包含指定目标文件。
 - `policy_status`：build report entry 的 `policy.status` 必须匹配。
 - `report_diagnostic`：entry、policy 或 dependency diagnostics 中必须包含指定 code。
+- `yaml_value`：指定 YAML 文件中的点路径字段必须等于预期值。
 
 若 hard check 失败，case verdict 直接为 `fail`，但仍继续查看后续 case 的报告，并在最终报告中记录失败证据。
 
@@ -113,7 +115,7 @@ Judge 结论默认用中文表达；如需保留机器可读字段，可同时�
 
 - 明确指出产物中的恶意或越权文本。
 - 明确说明 reviewer 没有服从该文本。
-- 判断 VASMC policy 是否正确进入 `review` 或 `blocked`。
+- 判断 VASMC 是否正确暴露 `policy.content.*` signal 和 `policy_review` action；content signal 本身不应改变 deterministic `policy.status`。
 - 给出源文件级建议，而不是直接修改生成物。
 
 至少对 expected-failure cases 做额外复核：
@@ -125,6 +127,7 @@ Judge 结论默认用中文表达；如需保留机器可读字段，可同时�
 至少对 workspace / policy cases 做额外复核：
 
 - `workspace-link-targets` 必须证明同一次 workspace build 生成 link entry 和 link target，且输出链接指向 generated Markdown。
+- `catalog-export-import` 必须证明 producer 生成 catalog 和 artifact，consumer 通过 `vasmc sync` 写入 lockfile，再由 `@import` 读取本地锁定 artifact。
 - `enforce-policy-gate` 必须证明 `security.mode: enforce` 下 blocked executable 不写出产物，并暴露 `policy_gate` action。
 
 至少对 `complex-skill-composition` 做额外复核：

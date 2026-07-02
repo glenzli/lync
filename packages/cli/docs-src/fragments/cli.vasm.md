@@ -23,6 +23,9 @@ dependencies:
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
 ```
 
 也可以直接使用命令行注册依赖：
@@ -44,6 +47,8 @@ vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills
 ```bash
 vasmc sync
 ```
+
+catalog 依赖会先读取 `vasmc-catalog.yaml`，再按其中的 `file` 和 `hash` 固定具体 artifact。最终 `@import` 仍然使用 `vasm:<alias>`，不直接扫描远端 catalog 或仓库。
 
 需要强制刷新时：
 
@@ -128,6 +133,15 @@ compile:
 routing:
   - match: "src/agents/*.vasm.md"
     dest: "./dist/agents/"
+
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    mainSkill:
+      source: "src/agents/main-skill.vasm.md"
+      targetLang: "zh-CN"
+    mainWorkflow:
+      source: "src/integrations/main-workflow.vasm.md"
 ```
 
 也支持 CLI 临时覆盖：
@@ -137,3 +151,5 @@ vasmc build --out-dir ./doc --base-dir ./src
 ```
 
 注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。
+
+如果配置了 `catalog.exports`，workspace build 会额外生成 `catalog.outDir/vasmc-catalog.yaml` 和导出 artifact。catalog 是 release 索引：`executable`/`informational` 导出编译后 Markdown，`integrative` 导出展开后的组合指导，并把适用关系写入 catalog。外部使用时应通过 `dependencies.<alias>.catalog` / `export` 锁定 artifact hash，再由 `@import` 走本地锁定文件。

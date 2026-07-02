@@ -86,6 +86,32 @@ function runBuildSource(buildSource, defaultCwd) {
     }
 }
 
+function runSetupCommand(command, defaultCwd) {
+    const cwd = absPath(command.cwd || defaultCwd || '.');
+    const args = Array.isArray(command.args) ? command.args : [];
+    try {
+        const output = execFileSync(process.execPath, [cliPath, ...args], {
+            cwd,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, NO_COLOR: '1' },
+        });
+        if (output) process.stdout.write(output);
+        return { ok: true, cwd: relPath(cwd), args, output };
+    } catch (error) {
+        const stdout = error.stdout ? String(error.stdout) : '';
+        const stderr = error.stderr ? String(error.stderr) : '';
+        if (stdout) process.stdout.write(stdout);
+        if (stderr) process.stderr.write(stderr);
+        return {
+            ok: false,
+            cwd: relPath(cwd),
+            args,
+            output: commandOutput(error),
+        };
+    }
+}
+
 function normalizeBuildSource(source, defaultOutDir) {
     if (typeof source === 'string') {
         return { source, outDir: defaultOutDir };
@@ -93,6 +119,8 @@ function normalizeBuildSource(source, defaultOutDir) {
     return {
         source: source.source,
         outDir: source.outDir || defaultOutDir,
+        cwd: source.cwd,
+        workspace: source.workspace,
     };
 }
 
@@ -134,10 +162,16 @@ function checkHardBoundary(check, entry, buildResult) {
             return result(!fs.existsSync(absPath(check.path)), `目标文件不存在：${check.path}`);
         }
         case 'contains': {
+            if (!fs.existsSync(absPath(check.path))) {
+                return result(false, `目标文件缺失，无法检查包含文本：${check.path}`);
+            }
             const content = readText(check.path);
             return result(content.includes(check.text), `目标文件包含预期文本：${check.path}`, check.text);
         }
         case 'no_text': {
+            if (!fs.existsSync(absPath(check.path))) {
+                return result(false, `目标文件缺失，无法检查禁止文本：${check.path}`);
+            }
             const content = readText(check.path);
             return result(!content.includes(check.text), `目标文件不包含禁止文本：${check.path}`, check.text);
         }
@@ -158,6 +192,9 @@ function checkHardBoundary(check, entry, buildResult) {
             return result(targets.includes(check.value), `translate target 包含 ${check.value}`, targets);
         }
         case 'link_target_exists': {
+            if (!fs.existsSync(absPath(check.path))) {
+                return result(false, `目标文件缺失，无法检查链接目标：${check.path}`);
+            }
             const content = readText(check.path);
             const targetPath = path.resolve(path.dirname(absPath(check.path)), check.href);
             return result(
@@ -172,6 +209,18 @@ function checkHardBoundary(check, entry, buildResult) {
         case 'report_diagnostic': {
             const codes = collectDiagnosticCodes(entry);
             return result(codes.includes(check.value), `report diagnostics 包含 ${check.value}`, codes);
+        }
+        case 'yaml_value': {
+            if (!fs.existsSync(absPath(check.path))) {
+                return result(false, `YAML 文件缺失，无法检查字段：${check.path}`);
+            }
+            const content = readYaml(absPath(check.path));
+            const actual = String(check.field).split('.').reduce((value, key) => value?.[key], content);
+            return result(
+                actual === check.value,
+                `${check.path} 中 ${check.field} 为 ${check.value}`,
+                actual
+            );
         }
         default:
             return result(false, `未知 hard check 类型：${check.type}`);
@@ -306,9 +355,21 @@ function main() {
             ok: true,
             lastError: '',
             runs: [],
+            setupRuns: [],
         };
 
+        for (const command of testCase.setupCommands || []) {
+            const run = runSetupCommand(command, caseCwd);
+            buildResult.setupRuns.push(run);
+            if (!run.ok) {
+                buildResult.ok = false;
+                buildResult.lastError = run.output;
+                break;
+            }
+        }
+
         for (const buildSource of buildSources) {
+            if (!buildResult.ok) break;
             const run = runBuildSource(buildSource, caseCwd);
             buildResult.runs.push(run);
             if (!run.ok) {
@@ -342,6 +403,7 @@ function main() {
             title: testCase.title,
             source: testCase.source,
             buildSources,
+            setupCommands: testCase.setupCommands,
             expectedFailure: expectsFailure,
             outDir: testCase.outDir,
             buildReport: buildReportSnapshot ? relPath(buildReportSnapshot) : undefined,

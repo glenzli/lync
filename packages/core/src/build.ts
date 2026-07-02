@@ -14,8 +14,9 @@ import { readVasmManifest, summarizeVasmManifest, validateVasmManifest, Manifest
 import { evaluateVasmPolicy, PolicyContentSignal, PolicyDiagnostic, PolicyStatus } from './policy';
 import { createProjectReviewContext, ProjectReviewReport } from './project-review';
 import { assertCompileFormat, deprecatedCompileFormatTargetConfigKey, formatDeprecationMessage } from './formats';
+import { computeHash } from './network';
 import type { CompileFormat } from './formats';
-import type { VasmBuild } from './types';
+import type { CatalogExportDeclaration, VasmBuild, VasmCatalog, VasmCatalogExport } from './types';
 
 // ========== Types ==========
 
@@ -44,6 +45,18 @@ interface EntryMetadata {
 
 interface IntegrationGuide extends BuildReportIntegrationGuide {
     absoluteFile: string;
+}
+
+interface NormalizedCatalogExport {
+    key: string;
+    source: string;
+    targetLang?: string;
+    file?: string;
+    absoluteFile: string;
+    manifest: NonNullable<VasmFrontmatter['vasm']>;
+    compileFormat: CompileFormat;
+    artifactFile: string;
+    artifactPath: string;
 }
 
 export interface CompiledResult {
@@ -543,6 +556,204 @@ function applyRouting(cwd: string, buildConfig: VasmBuild, relativeFile: string,
     return defaultDest;
 }
 
+function normalizeCatalogExportDeclaration(key: string, declaration: CatalogExportDeclaration): { source: string; targetLang?: string; file?: string } {
+    if (typeof declaration === 'string') {
+        return { source: declaration };
+    }
+    if (!declaration || typeof declaration !== 'object' || typeof declaration.source !== 'string' || declaration.source.trim() === '') {
+        throw new Error(`vasmc-build.yaml catalog.exports.${key} must declare a source path.`);
+    }
+    return {
+        source: declaration.source,
+        targetLang: declaration.targetLang,
+        file: declaration.file,
+    };
+}
+
+function sanitizeCatalogFileBase(value: string): string {
+    return value
+        .trim()
+        .replace(/^vasm:/, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        || 'unnamed';
+}
+
+function defaultCatalogArtifactFile(exportKey: string, manifest: NonNullable<VasmFrontmatter['vasm']>, targetLang?: string): string {
+    const base = sanitizeCatalogFileBase(manifest.alias || exportKey);
+    return targetLang && targetLang !== 'auto'
+        ? `${base}.${targetLang}.md`
+        : `${base}.md`;
+}
+
+function assertCatalogManifest(exportKey: string, manifest: VasmFrontmatter['vasm'] | undefined): NonNullable<VasmFrontmatter['vasm']> {
+    if (!manifest) {
+        throw new Error(`catalog export '${exportKey}' must point to a VASM source with frontmatter.`);
+    }
+    if (!manifest.alias || typeof manifest.alias !== 'string') {
+        throw new Error(`catalog export '${exportKey}' must declare vasm.alias.`);
+    }
+    if (!manifest.version || typeof manifest.version !== 'string') {
+        throw new Error(`catalog export '${exportKey}' must declare vasm.version.`);
+    }
+    if (!manifest.compile?.format) {
+        throw new Error(`catalog export '${exportKey}' must declare vasm.compile.format.`);
+    }
+    return manifest;
+}
+
+function resolveCatalogTargetLang(
+    cwd: string,
+    absoluteFile: string,
+    buildConfig: VasmBuild,
+    compileFormat: CompileFormat,
+    frontmatterTargetLangs: string[] | undefined,
+    declarationTargetLang: string | undefined
+): string | undefined {
+    if (declarationTargetLang) return declarationTargetLang;
+    if (compileFormat === 'integrative') return undefined;
+
+    const targetLangs = resolveTargetLangs(absoluteFile, buildConfig, compileFormat, frontmatterTargetLangs);
+    const concreteTargetLangs = targetLangs.filter(lang => lang && lang !== 'auto');
+    if (concreteTargetLangs.length === 1) return concreteTargetLangs[0];
+    if (concreteTargetLangs.length > 1) {
+        throw new Error(`catalog export for ${path.relative(cwd, absoluteFile)} must set targetLang when multiple target languages are configured.`);
+    }
+    return undefined;
+}
+
+function catalogPatternMatchesExport(pattern: string, target: NormalizedCatalogExport): boolean {
+    const normalizedPattern = normalizeMatchPath(pattern);
+    if (isVasmAliasTarget(normalizedPattern)) {
+        return target.manifest.alias === normalizedPattern.slice('vasm:'.length);
+    }
+
+    const candidates = [
+        target.key,
+        target.source,
+        target.artifactFile,
+    ].map(normalizeMatchPath);
+
+    return candidates.some(candidate =>
+        candidate === normalizedPattern
+        || minimatch(candidate, normalizedPattern, { dot: true, matchBase: true })
+    );
+}
+
+function resolveCatalogAppliesTo(sourceExport: NormalizedCatalogExport, allExports: NormalizedCatalogExport[]): string[] | undefined {
+    if (sourceExport.compileFormat !== 'integrative') return undefined;
+    const appliesTo = readIntegrationAppliesTo(sourceExport.manifest);
+    if (appliesTo.length === 0) return undefined;
+
+    const matched = new Set<string>();
+    for (const pattern of appliesTo) {
+        for (const target of allExports) {
+            if (target.key === sourceExport.key) continue;
+            if (target.compileFormat !== 'executable') continue;
+            if (catalogPatternMatchesExport(pattern, target)) matched.add(target.key);
+        }
+    }
+
+    return matched.size > 0 ? [...matched] : undefined;
+}
+
+function normalizeCatalogExports(cwd: string, buildConfig: VasmBuild): NormalizedCatalogExport[] {
+    const catalogExports = buildConfig.catalog?.exports;
+    if (!catalogExports || Object.keys(catalogExports).length === 0) return [];
+
+    const outDir = path.resolve(cwd, buildConfig.catalog?.outDir || './dist/vasm-catalog');
+    const usedArtifactFiles = new Set<string>();
+    const normalized: NormalizedCatalogExport[] = [];
+
+    for (const [key, rawDeclaration] of Object.entries(catalogExports)) {
+        const declaration = normalizeCatalogExportDeclaration(key, rawDeclaration);
+        const absoluteFile = path.resolve(cwd, declaration.source);
+        if (!fs.existsSync(absoluteFile)) {
+            throw new Error(`catalog export '${key}' source not found: ${declaration.source}`);
+        }
+
+        const relativeFile = normalizeMatchPath(path.relative(cwd, absoluteFile));
+        const metadata = readEntryMetadata(absoluteFile, relativeFile);
+        const manifest = assertCatalogManifest(key, readVasmManifest(absoluteFile));
+        const targetLang = resolveCatalogTargetLang(
+            cwd,
+            absoluteFile,
+            buildConfig,
+            metadata.compileFormat,
+            metadata.frontmatterTargetLangs,
+            declaration.targetLang
+        );
+        const artifactFile = normalizeMatchPath(declaration.file || defaultCatalogArtifactFile(key, manifest, targetLang));
+        if (path.isAbsolute(artifactFile) || artifactFile.startsWith('../') || artifactFile.includes('/../')) {
+            throw new Error(`catalog export '${key}' file must stay inside catalog outDir.`);
+        }
+        if (usedArtifactFiles.has(artifactFile)) {
+            throw new Error(`catalog export '${key}' writes duplicate artifact file: ${artifactFile}`);
+        }
+        usedArtifactFiles.add(artifactFile);
+
+        normalized.push({
+            key,
+            source: relativeFile,
+            targetLang,
+            file: declaration.file,
+            absoluteFile,
+            manifest,
+            compileFormat: metadata.compileFormat,
+            artifactFile,
+            artifactPath: path.resolve(outDir, artifactFile),
+        });
+    }
+
+    return normalized;
+}
+
+export async function runCatalogBuild(cwd: string, cliOptions?: BuildRunOptions): Promise<VasmCatalog | undefined> {
+    const buildConfig = loadBuildConfig(cwd);
+    if (!buildConfig.catalog?.exports || Object.keys(buildConfig.catalog.exports).length === 0) return undefined;
+
+    const outDir = path.resolve(cwd, buildConfig.catalog.outDir || './dist/vasm-catalog');
+    const catalogPath = path.resolve(outDir, 'vasmc-catalog.yaml');
+    const normalizedExports = normalizeCatalogExports(cwd, buildConfig);
+    const catalog: VasmCatalog = {
+        catalogVersion: 1,
+        exports: {},
+    };
+
+    for (const catalogExport of normalizedExports) {
+        if (cliOptions?.dryRun) {
+            console.log(`[CATALOG] 🧪 Planned: ${catalogExport.key} -> ${path.relative(cwd, catalogExport.artifactPath)}`);
+            continue;
+        }
+
+        const artifactContent = await compileFile(
+            catalogExport.absoluteFile,
+            catalogExport.artifactPath,
+            new Set(),
+            catalogExport.targetLang,
+            true
+        );
+        writeFileAtomic(catalogExport.artifactPath, artifactContent);
+
+        const entry: VasmCatalogExport = {
+            name: catalogExport.manifest.alias!,
+            version: catalogExport.manifest.version!,
+            format: catalogExport.compileFormat,
+            file: catalogExport.artifactFile,
+            hash: `sha256:${computeHash(artifactContent)}`,
+        };
+        const appliesTo = resolveCatalogAppliesTo(catalogExport, normalizedExports);
+        if (appliesTo) entry.appliesTo = appliesTo;
+        catalog.exports[catalogExport.key] = entry;
+    }
+
+    if (cliOptions?.dryRun) return catalog;
+
+    writeFileAtomic(catalogPath, yaml.stringify(catalog));
+    console.log(`[CATALOG] 📦 Catalog: ${path.relative(cwd, catalogPath)}`);
+    return catalog;
+}
+
 // ========== Layer 1: Workspace Resolution ==========
 
 export async function resolveWorkspaceEntries(cwd: string, cliOptions?: BuildRunOptions): Promise<WorkspaceEntry[]> {
@@ -962,6 +1173,8 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOption
     if (stateChanged) {
         saveBuildState(buildState, cwd);
     }
+
+    await runCatalogBuild(cwd, cliOptions);
 }
 
 /** Shared AI build runner for pre-resolved entries. */
@@ -1172,7 +1385,11 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
 /** AI build — used by the AI-facing `vasmc build` workspace mode. */
 export async function runAIBuild(cwd: string, cliOptions?: BuildRunOptions): Promise<BuildReport> {
     const entries = await resolveWorkspaceEntries(cwd, cliOptions);
-    return runAIBuildEntries(cwd, entries, cliOptions);
+    const report = await runAIBuildEntries(cwd, entries, cliOptions);
+    if (!cliOptions?.dryRun) {
+        await runCatalogBuild(cwd, cliOptions);
+    }
+    return report;
 }
 
 /** AI build for one explicit entry, using the same report flow as workspace build. */

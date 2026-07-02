@@ -87,7 +87,7 @@ AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
 
 * `pass`：未发现确定性 policy 风险。
 * `review`：存在需要 AI 或人类阅读的风险信号，例如疑似 prompt override、隐藏行为、密钥外传、integrative/executable 边界不清。
-* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
+* `blocked`：存在确定性阻断风险，例如 manifest 结构错误、受管理依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
 
 默认情况下，VASMC 只报告风险，不阻断输出：
 

@@ -47,7 +47,7 @@ VASMC 是面向 AI prompt/source 管理的静态编译器：`.vasm.md` 是 sourc
 
 ```
 project-root/
-├── vasmc.yaml             # 远程依赖声明（URL → 本地 Alias 映射）
+├── vasmc.yaml             # 受管理依赖声明（URL/catalog → 本地 Alias 映射）
 ├── vasmc-lock.yaml        # SHA-256 Hash 锁文件（提交到版本控制）
 ├── vasmc-build.yaml       # 工作区编译配置（includes、output、routing、targetLangs）
 ├── .vasmc/                # ⚠️ 内部缓存 + 临时产物（加入 .gitignore）
@@ -172,12 +172,15 @@ vasm:
 **注意事项**：
 
 - `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化架构。
-- 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
+- 受管理依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
 - `--out-dir` 不是 dry-run；命中 `routing` 时，最终路径仍由 `routing.dest` 决定。
 - 需要无副作用检查时，使用 `vasmc build --dry-run`；需要临时展开稿时，使用 `vasmc expand ... --stdout`。
 - `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 - `integrative` 只用于组合指导，是 source-only 文件；不要把它直接当最终可执行 prompt，也不要期待它生成独立产物。
 - 创建 integrative source 时，如果它是为某个 prompt/skill 或一组 VASM 文件服务的，必须写 `vasm.integration.appliesTo`；不要通过 `@import:inline` 把整合指导塞进最终 executable。
+- 如果项目配置了 `catalog.exports`，workspace build 会生成 `vasmc-catalog.yaml` 和 release artifact。catalog 中的 hash 是 artifact 身份；`executable`/`informational` export 是编译后 Markdown，`integrative` export 是展开后的组合指导 artifact。
+- catalog artifact 被外部项目使用时，在 `vasmc.yaml` 中声明 `dependencies.<alias>.catalog` 与 `export`，执行 `vasmc sync` 后进入 `vasmc-lock.yaml`，再由 `@import` 读取本地锁定文件。
+- `@import` 只解析本地相对路径和 `vasm:<alias>`；不要让 `@import` 直接扫描远端仓库、catalog 或未锁定路径。
 - 如果 `.vasmc/build-report.yaml` 的 actions 出现 `integration_guidance`，在组合目标产物前必须读取 action 中的 `guides[].source`。
 - `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，blocked executable 输出不会被更新。integrative source 不产生输出，只报告 policy。
 - 如果 `.vasmc/build-report.yaml` 的 actions 出现 `policy_review` 或 `policy_gate`，必须重点检查 manifest、lockfile、format 边界 diagnostics。若存在 `policy.contentSignals`，把它们当作词面线索，判断 evidence 是 active instruction、prohibition、example 还是 documentation。

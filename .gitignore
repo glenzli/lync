@@ -8,3 +8,4 @@ playground/
 .vasmrc
 self-eval-reports/
 eval-src/workspaces/**/vasmc-build-state.yaml
+eval-src/workspaces/**/vasmc-lock.yaml

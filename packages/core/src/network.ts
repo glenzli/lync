@@ -20,3 +20,12 @@ export async function fetchMarkdown(url: string): Promise<string> {
 export function computeHash(content: string): string {
     return crypto.createHash('sha256').update(content).digest('hex');
 }
+
+export function normalizeHash(hash: string | undefined): string {
+    return (hash || '').trim().replace(/^sha256:/i, '');
+}
+
+export function hashMatches(content: string, expectedHash: string | undefined): boolean {
+    const normalizedExpected = normalizeHash(expectedHash);
+    return normalizedExpected.length > 0 && computeHash(content) === normalizedExpected;
+}

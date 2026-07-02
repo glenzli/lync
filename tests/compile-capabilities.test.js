@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const yaml = require('yaml');
 const { execFileSync } = require('node:child_process');
+const crypto = require('node:crypto');
 
 const ROOT = path.join(__dirname, '..');
 const CLI = path.join(ROOT, 'packages', 'cli', 'dist', 'index.js');
@@ -52,6 +53,10 @@ function actionTypes(entry) {
     return (entry.actions || []).map(action => action.type);
 }
 
+function hash(content) {
+    return `sha256:${crypto.createHash('sha256').update(content).digest('hex')}`;
+}
+
 before(() => {
     execFileSync('npm', ['run', 'build'], { cwd: ROOT, stdio: 'ignore' });
 
@@ -77,6 +82,14 @@ before(() => {
         '    mode: suggest',
         '    include:',
         '      - "project-notes.md"',
+        'catalog:',
+        '  outDir: "./catalog"',
+        '  exports:',
+        '    capabilitySkill:',
+        '      source: "src/skill.vasm.md"',
+        '      targetLang: "en"',
+        '    capabilityIntegration:',
+        '      source: "src/integration.vasm.md"',
         'routing:',
         '  - match: "src/integration.vasm.md"',
         '    dest: "./guides/integration.md"',
@@ -97,6 +110,7 @@ before(() => {
         '---',
         'vasm:',
         '  alias: capability-docs',
+        '  version: "1.0.0"',
         '  compile:',
         '    format: informational',
         '---',
@@ -120,6 +134,7 @@ before(() => {
         '---',
         'vasm:',
         '  alias: source-only-docs',
+        '  version: "1.0.0"',
         '  compile:',
         '    format: informational',
         '---',
@@ -133,6 +148,7 @@ before(() => {
         '---',
         'vasm:',
         '  alias: capability-skill',
+        '  version: "1.2.0"',
         '  intent: Verify that executable outputs produce AI follow-up actions.',
         '  compile:',
         '    format: executable',
@@ -153,6 +169,7 @@ before(() => {
         '---',
         'vasm:',
         '  alias: capability-integration',
+        '  version: "0.4.0"',
         '  intent: Guide composition without becoming final executable prompt content.',
         '  compile:',
         '    format: integrative',
@@ -164,6 +181,8 @@ before(() => {
         '# Integration Guide',
         '',
         'Use this only as composition guidance.',
+        '',
+        '[Fragment](./fragment.vasm.md "@import:inline")',
         ''
     ].join('\n'));
 });
@@ -186,6 +205,32 @@ describe('Compilation capability matrix', () => {
         assert.ok(fs.existsSync(path.join(workspace, 'out', 'skill.en.md')), 'AI executable build must write source-language variant');
         assert.ok(!fs.existsSync(path.join(workspace, 'out', 'skill.zh-CN.md')), 'AI executable build must not write untranslated target variant');
         assert.ok(!fs.existsSync(path.join(workspace, 'guides', 'integration.md')), 'integrative source must not produce a compiled output');
+
+        const catalog = yaml.parse(read('catalog/vasmc-catalog.yaml'));
+        assert.strictEqual(catalog.catalogVersion, 1);
+        assert.strictEqual(catalog.name, undefined);
+        assert.strictEqual(catalog.generatedAt, undefined);
+        assert.deepStrictEqual(Object.keys(catalog.exports), ['capabilitySkill', 'capabilityIntegration']);
+
+        const catalogSkill = read('catalog/capability-skill.en.md');
+        assert.ok(catalogSkill.includes('Follow the English procedure'), 'catalog executable artifact must be compiled output');
+        assert.ok(!catalogSkill.includes('执行中文流程'), 'catalog executable artifact must respect targetLang');
+        assert.strictEqual(catalog.exports.capabilitySkill.name, 'capability-skill');
+        assert.strictEqual(catalog.exports.capabilitySkill.version, '1.2.0');
+        assert.strictEqual(catalog.exports.capabilitySkill.format, 'executable');
+        assert.strictEqual(catalog.exports.capabilitySkill.file, 'capability-skill.en.md');
+        assert.strictEqual(catalog.exports.capabilitySkill.hash, hash(catalogSkill));
+
+        const catalogIntegration = read('catalog/capability-integration.md');
+        assert.ok(catalogIntegration.includes('Use this only as composition guidance.'), 'catalog integrative artifact must include guide content');
+        assert.ok(catalogIntegration.includes('Shared fragment content.'), 'catalog integrative artifact must expand inline imports');
+        assert.ok(!catalogIntegration.includes('vasm:'), 'catalog integrative artifact must not expose source frontmatter');
+        assert.strictEqual(catalog.exports.capabilityIntegration.name, 'capability-integration');
+        assert.strictEqual(catalog.exports.capabilityIntegration.version, '0.4.0');
+        assert.strictEqual(catalog.exports.capabilityIntegration.format, 'integrative');
+        assert.strictEqual(catalog.exports.capabilityIntegration.file, 'capability-integration.md');
+        assert.strictEqual(catalog.exports.capabilityIntegration.hash, hash(catalogIntegration));
+        assert.deepStrictEqual(catalog.exports.capabilityIntegration.appliesTo, ['capabilitySkill']);
 
         const report = readReport();
         assert.strictEqual(report.version, 2);

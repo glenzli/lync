@@ -9,6 +9,7 @@ import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import { visitParents } from 'unist-util-visit-parents';
 import { detectLanguage, iso639_3_map, estimateTokens } from './utils';
 import { loadLockfile } from './config';
+import { resolveLockedDependencyPath } from './dependencies';
 import { Root, Link, Parent } from 'mdast';
 import { t } from './i18n';
 
@@ -242,9 +243,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
             if (!lockedDep) {
                 throw new Error(`[FATAL] Unresolved alias '${alias}'. Please run 'vasmc add' or 'vasmc sync'.`);
             }
-            lockedDestPath = lockedDep.dest
-                ? path.resolve(process.cwd(), lockedDep.dest)
-                : path.resolve(process.cwd(), '.vasmc', alias + '.md');
+            lockedDestPath = resolveLockedDependencyPath(process.cwd(), alias, lockedDep);
         } else {
             // It's a relative local file
             lockedDestPath = path.resolve(path.dirname(filePath), item.link.url);
@@ -286,9 +285,7 @@ export async function compileFile(filePath: string, outPath?: string, callStack:
                 throw new Error(`[FATAL] Unresolved alias '${alias}'. Please run 'vasmc add' or 'vasmc sync'.`);
             }
 
-            lockedDestPath = lockedDep.dest
-                ? path.resolve(process.cwd(), lockedDep.dest)
-                : path.resolve(process.cwd(), '.vasmc', alias + '.md');
+            lockedDestPath = resolveLockedDependencyPath(process.cwd(), alias, lockedDep);
         } else {
             resolveName = item.link.url;
             lockedDestPath = path.resolve(path.dirname(filePath), resolveName);
@@ -380,9 +377,7 @@ export function collectDependencies(filePath: string, cwd: string, visited: Set<
             const alias = url.replace('vasm:', '');
             const lockedDep = lock.dependencies[alias];
             if (!lockedDep) continue;
-            depPath = lockedDep.dest
-                ? path.resolve(cwd, lockedDep.dest)
-                : path.resolve(cwd, '.vasmc', alias + '.md');
+            depPath = resolveLockedDependencyPath(cwd, alias, lockedDep);
         } else if (url.startsWith('./') || url.startsWith('../')) {
             depPath = path.resolve(path.dirname(filePath), url);
         } else {

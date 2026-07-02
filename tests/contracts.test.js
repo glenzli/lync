@@ -3,6 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const yaml = require('yaml');
 const { execSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', 'packages', 'cli', 'dist', 'index.js');
@@ -25,12 +26,36 @@ before(() => {
     // Dependency file for import tests
     fs.writeFileSync(path.join(FIXTURES, '.vasmc', 'greeter.md'), '# Greeter Module\n\nHello from greeter!\n', 'utf8');
 
-    // vasmc.yaml declaring the dependency
-    fs.writeFileSync(path.join(FIXTURES, 'vasmc.yaml'), 'dependencies:\n  greeter: "https://example.com/greeter.md"\n', 'utf8');
-
     // Lockfile
     const crypto = require('crypto');
     const hash = crypto.createHash('sha256').update('# Greeter Module\n\nHello from greeter!\n').digest('hex');
+
+    const catalogArtifact = '# Catalog Reviewer\n\nUse locked catalog artifact.\n';
+    const catalogHash = crypto.createHash('sha256').update(catalogArtifact).digest('hex');
+    fs.mkdirSync(path.join(FIXTURES, 'catalog'), { recursive: true });
+    fs.writeFileSync(path.join(FIXTURES, 'catalog', 'reviewer.md'), catalogArtifact, 'utf8');
+    fs.writeFileSync(path.join(FIXTURES, 'catalog', 'vasmc-catalog.yaml'), [
+        'catalogVersion: 1',
+        'exports:',
+        '  reviewer:',
+        '    name: release-reviewer',
+        '    version: "1.0.0"',
+        '    format: executable',
+        '    file: reviewer.md',
+        `    hash: "sha256:${catalogHash}"`,
+        ''
+    ].join('\n'), 'utf8');
+
+    // vasmc.yaml declaring direct and catalog dependencies
+    fs.writeFileSync(path.join(FIXTURES, 'vasmc.yaml'), [
+        'dependencies:',
+        '  greeter: "https://example.com/greeter.md"',
+        '  reviewer:',
+        '    catalog: "./catalog/vasmc-catalog.yaml"',
+        '    export: "reviewer"',
+        ''
+    ].join('\n'), 'utf8');
+
     fs.writeFileSync(path.join(FIXTURES, 'vasmc-lock.yaml'),
         `version: 1\ndependencies:\n  greeter:\n    url: "https://example.com/greeter.md"\n    hash: "${hash}"\n    fetchedAt: "2026-01-01T00:00:00.000Z"\n`, 'utf8');
 
@@ -41,6 +66,10 @@ before(() => {
     // --- Fixture: @import:inline ---
     fs.writeFileSync(path.join(FIXTURES, 'inline-test.vasm.md'),
         '# Inline Test\n\n[Greeter](vasm:greeter "@import:inline")\n', 'utf8');
+
+    // --- Fixture: catalog dependency import ---
+    fs.writeFileSync(path.join(FIXTURES, 'catalog-import.vasm.md'),
+        '# Catalog Import Test\n\n[Reviewer](vasm:reviewer "@import:inline")\n', 'utf8');
 
     // --- Fixture: Language blocks ---
     fs.writeFileSync(path.join(FIXTURES, 'lang-test.vasm.md'),
@@ -101,6 +130,39 @@ describe('Contract: @import:inline expands content in-place', () => {
         assert.ok(!output.includes('vasm:greeter'), 'Must not contain vasm:greeter alias');
         assert.ok(output.includes('Hello from greeter!'), 'Must contain inlined content');
         fs.rmSync(outDir, { recursive: true, force: true });
+    });
+});
+
+describe('Contract: catalog dependencies feed @import', () => {
+    it('sync locks a catalog export and inline import reads the locked artifact', async () => {
+        run('sync');
+
+        const lockedArtifact = path.join(FIXTURES, '.vasmc', 'reviewer.md');
+        assert.ok(fs.existsSync(lockedArtifact), 'catalog export must be installed as a locked local artifact');
+
+        const lock = yaml.parse(fs.readFileSync(path.join(FIXTURES, 'vasmc-lock.yaml'), 'utf8'));
+        assert.strictEqual(lock.dependencies.reviewer.source, 'catalog');
+        assert.strictEqual(lock.dependencies.reviewer.catalog, './catalog/vasmc-catalog.yaml');
+        assert.strictEqual(lock.dependencies.reviewer.export, 'reviewer');
+        assert.strictEqual(lock.dependencies.reviewer.name, 'release-reviewer');
+        assert.strictEqual(lock.dependencies.reviewer.version, '1.0.0');
+        assert.strictEqual(lock.dependencies.reviewer.format, 'executable');
+        assert.ok(lock.dependencies.reviewer.hash.startsWith('sha256:'), 'catalog lock hash must keep the catalog identity hash');
+
+        const outDir = path.join(FIXTURES, 'out-catalog');
+        run(`build catalog-import.vasm.md -o ${outDir}`);
+        const output = fs.readFileSync(path.join(outDir, 'catalog-import.md'), 'utf8');
+        assert.ok(output.includes('Use locked catalog artifact.'), 'catalog dependency must expand through vasm:alias import');
+        fs.rmSync(outDir, { recursive: true, force: true });
+
+        const catalogPath = path.join(FIXTURES, 'catalog', 'vasmc-catalog.yaml');
+        const hiddenCatalogPath = path.join(FIXTURES, 'catalog', 'vasmc-catalog.yaml.bak');
+        fs.renameSync(catalogPath, hiddenCatalogPath);
+        try {
+            assert.doesNotThrow(() => run('sync'), 'locked catalog dependency should not require reading the catalog again');
+        } finally {
+            fs.renameSync(hiddenCatalogPath, catalogPath);
+        }
     });
 });
 

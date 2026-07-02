@@ -32,6 +32,9 @@ dependencies:
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
 ```
 
 Or register one from the command line:
@@ -53,6 +56,8 @@ Install missing dependencies and update the lockfile:
 ```bash
 vasmc sync
 ```
+
+Catalog dependencies read `vasmc-catalog.yaml`, then lock the selected artifact by its `file` and `hash`. `@import` still uses `vasm:<alias>` and does not scan remote catalogs or repositories.
 
 Force refresh when needed:
 
@@ -134,6 +139,15 @@ compile:
 routing:
   - match: "src/agents/*.vasm.md"
     dest: "./dist/agents/"
+
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    mainSkill:
+      source: "src/agents/main-skill.vasm.md"
+      targetLang: "en"
+    mainWorkflow:
+      source: "src/integrations/main-workflow.vasm.md"
 ```
 
 CLI overrides are also supported:
@@ -141,6 +155,8 @@ CLI overrides are also supported:
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
 ```
+
+When `catalog.exports` is configured, workspace builds also emit `catalog.outDir/vasmc-catalog.yaml` and exported artifacts. The catalog is a release index: `executable`/`informational` exports are compiled Markdown, `integrative` exports are expanded guidance artifacts, and external consumers should lock artifacts through `dependencies.<alias>.catalog` / `export` before importing them.
 <!-- /lang -->
 
 <!-- lang:zh-CN -->

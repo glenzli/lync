@@ -6,6 +6,10 @@ export interface VasmRc {
 
 export interface DependencyConfig {
     url?: string;
+    /** vasmc-catalog.yaml reference. When set, `export` selects one catalog export. */
+    catalog?: string;
+    /** Catalog export key. Defaults to the dependency alias. */
+    export?: string;
     dest?: string;
 }
 
@@ -37,6 +41,11 @@ export interface LockDependency {
     url: string;
     dest?: string;
     version?: string;
+    source?: 'url' | 'catalog';
+    catalog?: string;
+    export?: string;
+    name?: string;
+    format?: RawCompileFormat;
     hash: string;
     fetchedAt: string;
 }
@@ -44,6 +53,36 @@ export interface LockDependency {
 export interface VasmLock {
     version: number;
     dependencies: Record<string, LockDependency>;
+}
+
+export type CatalogExportDeclaration = string | {
+    /** Source .vasm.md entry that should be exported into the catalog artifact set. */
+    source: string;
+    /** Optional language filter for the released artifact. */
+    targetLang?: string;
+    /** Optional catalog-relative artifact path. Defaults to <vasm.alias>[.<targetLang>].md. */
+    file?: string;
+};
+
+export interface VasmCatalogConfig {
+    /** Directory where vasmc-catalog.yaml and exported artifacts are written. */
+    outDir?: string;
+    /** Public export entries keyed by catalog-local export id. */
+    exports?: Record<string, CatalogExportDeclaration>;
+}
+
+export interface VasmCatalogExport {
+    name: string;
+    version: string;
+    format: RawCompileFormat;
+    file: string;
+    hash: string;
+    appliesTo?: string[];
+}
+
+export interface VasmCatalog {
+    catalogVersion: 1;
+    exports: Record<string, VasmCatalogExport>;
 }
 
 export interface BuildRoutingRule {
@@ -69,6 +108,7 @@ export interface VasmBuild {
     };
     baseDir?: string;
     routing?: BuildRoutingRule[];
+    catalog?: VasmCatalogConfig;
     compile?: {
         informational?: {
             targetLangs?: string[];

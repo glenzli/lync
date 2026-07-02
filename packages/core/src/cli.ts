@@ -85,6 +85,15 @@ baseDir: "."
 # routing:
 #   - match: "src/agents/*.vasm.md"
 #     dest: "./dist/agents/"
+
+# Release catalog exports (optional)
+# When configured, workspace builds also emit <outDir>/vasmc-catalog.yaml and catalog artifacts.
+# catalog:
+#   outDir: "./dist/vasm-catalog"
+#   exports:
+#     mySkill:
+#       source: "src/agents/my-skill.vasm.md"
+#       targetLang: "en"
 `;
             fs.writeFileSync(configPath, defaultConfig, 'utf8');
             console.log(t('INIT_SUCCESS'));

@@ -2,6 +2,7 @@ export * from './build';
 export * from './buildstate';
 export * from './compiler';
 export * from './config';
+export * from './dependencies';
 export * from './frontmatter';
 export * from './formats';
 export * from './graph';

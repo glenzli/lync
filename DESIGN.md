@@ -123,7 +123,7 @@ The dependency graph must be acyclic. Circular inline imports fail the build.
 
 ## 6. Dependencies And Locking
 
-`vasmc.yaml` declares remote dependencies:
+`vasmc.yaml` declares managed dependencies:
 
 ```yaml
 dependencies:
@@ -131,11 +131,31 @@ dependencies:
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
 ```
 
-`vasmc-lock.yaml` records resolved URLs, destinations, and content hashes. Commit it to version control so the team builds from the same inputs.
+`vasmc-lock.yaml` records resolved artifact URLs, destinations, version metadata, and content hashes. Commit it to version control so the team builds from the same inputs.
 
 `.vasmc/` is the internal cache and report directory and is usually not committed.
+
+`vasmc-build.yaml` can also declare a release catalog. The catalog is an artifact index for reusable outputs, not a separate import mechanism:
+
+```yaml
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    releaseReviewer:
+      source: "src/skills/release-reviewer.vasm.md"
+      targetLang: "en"
+    releaseWorkflow:
+      source: "src/integrations/release-workflow.vasm.md"
+```
+
+Workspace builds write `vasmc-catalog.yaml` plus artifacts. `executable`/`informational` exports are compiled Markdown; `integrative` exports are expanded guidance artifacts with their relationships lifted into the catalog. The catalog does not write package name or generated timestamp; artifact `hash` is the identity.
+
+When consuming a catalog, the consumer still declares `dependencies.<alias>` and runs `vasmc sync` to generate the lockfile. `@import` does not understand catalogs directly and does not scan remote repositories; it only resolves `vasm:<alias>` to the local artifact fixed by the lockfile. This keeps direct URLs, catalog exports, and future dependency sources on one locking and import path.
 
 ## 7. AI Build Report
 
@@ -335,7 +355,7 @@ vasm:
 | `intent` | 描述产物应达成的用途，会进入 AI build report。 |
 | `compile` | 声明输出格式和目标语种。 |
 | `integration` | 仅用于 integrative guide，声明这份组合指导适用于哪些目标。 |
-| `dependencies` | 声明远程依赖，供 `vasmc add/sync` 解析。 |
+| `dependencies` | 声明受管理依赖，供 `vasmc add/sync` 解析。 |
 
 `compile.format` 只接受三类当前格式：
 
@@ -392,13 +412,13 @@ VASMC 把编译指令放在标准 Markdown link title 中，源文件在普通 M
 
 `@import:link` 会保留链接结构，并把 `.vasm.md` source 引用重写为生成态 `.md` 引用。适合保留文档边界。
 
-本地相对 import 适合仓库内部协作。`vasm:alias` 依赖 `vasmc.yaml` 和 `vasmc-lock.yaml`，适合远程模块或可锁定依赖。
+本地相对 import 适合仓库内部协作。`vasm:alias` 依赖 `vasmc.yaml` 和 `vasmc-lock.yaml`，适合跨仓库模块或可锁定依赖。
 
 依赖图必须无环。inline import 发现循环时会失败。
 
 ## 6. 依赖与锁定
 
-`vasmc.yaml` 声明远程依赖：
+`vasmc.yaml` 声明受管理依赖：
 
 ```yaml
 dependencies:
@@ -406,11 +426,31 @@ dependencies:
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
 ```
 
-`vasmc-lock.yaml` 记录解析后的 URL、dest 和内容 hash，应提交到版本控制。它保证团队成员在同一 lockfile 下得到一致输入。
+`vasmc-lock.yaml` 记录解析后的 artifact URL、dest、版本信息和内容 hash，应提交到版本控制。它保证团队成员在同一 lockfile 下得到一致输入。
 
 `.vasmc/` 是内部缓存和 report 目录，通常不提交。
+
+`vasmc-build.yaml` 也可以声明 release catalog。catalog 是可复用 artifact 的发布索引，不是另一套 import 机制：
+
+```yaml
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    releaseReviewer:
+      source: "src/skills/release-reviewer.vasm.md"
+      targetLang: "zh-CN"
+    releaseWorkflow:
+      source: "src/integrations/release-workflow.vasm.md"
+```
+
+workspace build 会生成 `vasmc-catalog.yaml` 和对应 artifact。`executable`/`informational` 导出编译后的 Markdown；`integrative` 导出展开后的组合指导，并把适用关系提升到 catalog。catalog 不写 package name 或 generatedAt，身份由 artifact `hash` 承担。
+
+消费 catalog 时，使用方仍然只声明 `dependencies.<alias>`，再执行 `vasmc sync` 生成 lockfile。`@import` 不直接理解 catalog，也不扫描远端仓库；它只通过 `vasm:<alias>` 找到 lockfile 中固定下来的本地 artifact。这让直接 URL、catalog export 和未来依赖来源共用一套锁定与导入机制。
 
 ## 7. AI Build Report
 

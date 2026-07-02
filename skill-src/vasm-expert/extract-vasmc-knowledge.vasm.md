@@ -40,7 +40,7 @@ vasm:
 ## 第二章：项目结构与文件职责
 
 用简短说明 + 目录树示例，覆盖：
-- **`vasmc.yaml`**：远程依赖声明（URL → 本地 Alias 映射）
+- **`vasmc.yaml`**：受管理依赖声明（URL/catalog → 本地 Alias 映射）
 - **`vasmc-lock.yaml`**：SHA-256 Hash 锁文件，应提交到版本控制
 - **`vasmc-build.yaml`**：工作区编译配置（includes 扫描路径、output 目录、routing 路由规则、交叉编译语种）
 - **`.vasmc/`**：内部缓存和临时产物，加入 `.gitignore`
@@ -72,6 +72,9 @@ vasm:
 ### 模块 Frontmatter 协议
 提供完整的 YAML Frontmatter 示例，包含 `alias`、`version`、`intent`、`dependencies`、`compile.format`、`compile.targetLangs` 字段及其含义。补充 `integrative` 文件可通过 `integration.appliesTo` 声明适用的 `vasm:<alias>` 或路径 glob；说明这只是 AI 整合关系，不是 `@import` 内容依赖。说明 `doc` 和 `prompt` 仅作为 deprecated 兼容值存在，分别映射到 `informational` 和 `executable`。
 
+### Release catalog
+说明 `vasmc-build.yaml` 可声明 `catalog.outDir` 与 `catalog.exports`。workspace build 会生成 `vasmc-catalog.yaml` 和导出 artifact。catalog 不写 package name 或 generatedAt；每个 export 记录 `name`、`version`、`format`、`file`、`hash`，其中 `hash` 是 artifact 内容身份。`integrative` export 也输出展开后的 artifact，并把 `integration.appliesTo` 提升为 catalog 内 export key。强调外部引用应通过 `dependencies.<alias>.catalog` 和 `export` 进入 `vasmc-lock.yaml`，再由 `@import` 读取本地锁定文件；`@import` 不直接扫描远端 catalog 或仓库。
+
 ---
 
 ## 第四章：AI 专用 CLI 命令
@@ -94,7 +97,8 @@ vasm:
 
 **注意事项（务必包含）**：
 - `@import:inline` 嵌套超过 3 层会导致 LLM 注意力缺失（幻觉），建议扁平化。
-- 远程依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
+- 受管理依赖通过 Hash 锁定，内容变更需执行 `vasmc update <alias>` 或 `vasmc update` 才生效。
+- catalog export 的 hash 是发布 artifact 的身份；如果 catalog artifact 被外部引用，应通过 `vasmc sync` 进入 lockfile 后再参与 `@import`。
 - `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
 - `integrative` 格式只作为 source-only 组合指导，不要直接当最终可执行 prompt；创建此类文件时，如服务于某个 prompt/skill，应声明 `vasm.integration.appliesTo`。
 - `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`；若出现 Policy Gate，说明确定性 policy 已发现阻断风险，`security.mode: enforce` 下 blocked executable 输出不会被更新；integrative source 只报告 policy。

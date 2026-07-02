@@ -2,8 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { collectDependencies } from './compiler';
 import { loadLockfile } from './config';
+import { resolveLockedDependencyPath } from './dependencies';
 import { ManifestDiagnostic, readVasmManifest, validateVasmManifest } from './manifest';
-import { computeHash } from './network';
+import { hashMatches } from './network';
 import { CompileFormat, isCompileFormat, isDeprecatedCompileFormat, normalizeCompileFormat } from './formats';
 
 export type PolicyStatus = 'pass' | 'review' | 'blocked';
@@ -82,9 +83,7 @@ function collectLockfileDiagnostics(files: string[], cwd: string): PolicyDiagnos
     const lockedPaths = new Map<string, { alias: string; hash: string }>();
 
     for (const [alias, locked] of Object.entries(lock.dependencies || {})) {
-        const depPath = locked.dest
-            ? path.resolve(cwd, locked.dest)
-            : path.resolve(cwd, '.vasmc', `${alias}.md`);
+        const depPath = resolveLockedDependencyPath(cwd, alias, locked);
         lockedPaths.set(depPath, { alias, hash: locked.hash });
     }
 
@@ -103,8 +102,7 @@ function collectLockfileDiagnostics(files: string[], cwd: string): PolicyDiagnos
             continue;
         }
 
-        const currentHash = computeHash(fs.readFileSync(filePath, 'utf8'));
-        if (currentHash !== locked.hash) {
+        if (!hashMatches(fs.readFileSync(filePath, 'utf8'), locked.hash)) {
             diagnostics.push({
                 severity: 'error',
                 code: 'policy.lockfile.hash_mismatch',

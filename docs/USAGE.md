@@ -379,9 +379,9 @@ baseDir: "./docs"
 
 If you only build `index.vasm.md` and never build `release-checklist.vasm.md`, the generated link may point to a missing `.md` file.
 
-## 8. Remote Dependencies
+## 8. Managed Dependencies
 
-Declare remote Markdown dependencies in `vasmc.yaml`:
+Declare managed Markdown dependencies in `vasmc.yaml`:
 
 ```yaml
 dependencies:
@@ -411,7 +411,50 @@ Use it:
 
 Commit `vasmc-lock.yaml`; ignore `.vasmc/`.
 
-## 9. Policy Gate Example
+If a dependency comes from a catalog published by another repository, do not import the remote artifact directly. First make the catalog export part of the same dependency flow:
+
+```yaml
+dependencies:
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
+```
+
+After `vasmc sync`, VASMC reads the catalog, verifies the export artifact hash, writes the artifact into `.vasmc/` or `dest`, and records it in `vasmc-lock.yaml`. The import form stays the same:
+
+```markdown
+[Release Reviewer](vasm:release-reviewer "@import:inline")
+```
+
+## 9. Release Catalog
+
+If a repository publishes reusable VASM artifacts, do not ask consumers to scan the whole repository. Declare catalog exports in `vasmc-build.yaml`:
+
+```yaml
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    releaseReviewer:
+      source: "src/skills/release-reviewer.vasm.md"
+      targetLang: "en"
+    releaseWorkflow:
+      source: "src/integrations/release-workflow.vasm.md"
+```
+
+Workspace `vasmc build` writes:
+
+```text
+dist/vasm-catalog/
+  vasmc-catalog.yaml
+  release-reviewer.en.md
+  release-workflow-guide.md
+```
+
+`executable` and `informational` exports are compiled artifacts. `integrative` exports are also release artifacts: their internal imports are expanded, and their `appliesTo` relationships are written into `vasmc-catalog.yaml` as catalog-local export keys.
+
+The catalog `hash` is the content identity. `name`, `version`, and `format` come from source frontmatter and help humans or AI judge usage and compatibility. External consumers should lock catalog exports with `dependencies.<alias>.catalog` and `dependencies.<alias>.export`, then let `@import` read the local locked artifact.
+
+## 10. Policy Gate Example
 
 VASMC exposes deterministic policy results in the build report.
 
@@ -455,7 +498,7 @@ security:
 
 Blocked executable outputs are not updated. Integrative entries are source-only and only report policy. The AI explains diagnostics and suggests source-level fixes.
 
-## 10. Project Review
+## 11. Project Review
 
 Enable project context review:
 
@@ -489,7 +532,7 @@ actions:
 
 The AI reads the context index and relevant project files, then checks stale commands, package names, docs drift, wrong formats, duplicated fragments, and missing project facts. Suggestions should point to source files.
 
-## 11. Self-Eval
+## 12. Self-Eval
 
 This repository keeps its self-evaluation suite in `eval-src/`:
 
@@ -506,7 +549,7 @@ self-eval-reports/self-eval-<timestamp>.md
 
 It checks build behavior, deterministic hard boundaries, LLM-as-judge review, and expected-failure cases. This is a repository quality workflow, not a public CLI contract.
 
-## 12. Common Workflows
+## 13. Common Workflows
 
 Create a new prompt:
 
@@ -940,7 +983,7 @@ baseDir: "./docs"
 
 如果只单独 build `index.vasm.md`，而没有 build `release-checklist.vasm.md`，输出链接可能指向不存在的 `.md`。
 
-## 8. 远程依赖
+## 8. 受管理依赖
 
 `vasmc.yaml` 声明远程 Markdown 依赖：
 
@@ -964,7 +1007,7 @@ vasmc sync
 vasmc add https://example.com/secure-rules.md --alias secure-rules
 ```
 
-引用远程依赖：
+引用依赖：
 
 ```markdown
 [Secure Rules](vasm:secure-rules "@import:inline")
@@ -972,7 +1015,50 @@ vasmc add https://example.com/secure-rules.md --alias secure-rules
 
 `vasmc-lock.yaml` 记录下载内容的 SHA-256 hash，应提交到版本控制。`.vasmc/` 是本地缓存，应加入 `.gitignore`。
 
-## 9. Policy gate 示例
+如果依赖来自另一个仓库发布的 catalog，不要直接 import 远端 artifact；先把 catalog export 纳入同一个依赖管理流程：
+
+```yaml
+dependencies:
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
+```
+
+执行 `vasmc sync` 后，VASMC 会读取 catalog、校验 export 中声明的 artifact hash、把 artifact 固定到本地 `.vasmc/` 或 `dest`，并写入 `vasmc-lock.yaml`。之后引用方式仍然相同：
+
+```markdown
+[Release Reviewer](vasm:release-reviewer "@import:inline")
+```
+
+## 9. Release catalog
+
+如果仓库要发布一组可复用 VASM artifact，不要让使用方扫描整个仓库。应在 `vasmc-build.yaml` 里声明 catalog export：
+
+```yaml
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    releaseReviewer:
+      source: "src/skills/release-reviewer.vasm.md"
+      targetLang: "zh-CN"
+    releaseWorkflow:
+      source: "src/integrations/release-workflow.vasm.md"
+```
+
+workspace `vasmc build` 会生成：
+
+```text
+dist/vasm-catalog/
+  vasmc-catalog.yaml
+  release-reviewer.zh-CN.md
+  release-workflow-guide.md
+```
+
+`executable` 和 `informational` export 是编译后的 artifact；`integrative` export 也是 release artifact，不再保留内部 import，而是展开后的组合指导。它的 `appliesTo` 会写入 `vasmc-catalog.yaml`，指向同一 catalog 内被命中的 export key。
+
+catalog 中的 `hash` 是 artifact 内容 hash，承担真正的身份校验。`name`、`version`、`format` 来自 source frontmatter，帮助人类和 AI 判断用途与兼容性。外部引用这些 artifact 时，应该用 `dependencies.<alias>.catalog` 和 `dependencies.<alias>.export` 锁定 catalog export，再由 `@import` 读取本地锁定文件。
+
+## 10. Policy gate 示例
 
 VASMC 会在 build report 中暴露确定性 policy 结果。
 
@@ -1016,7 +1102,7 @@ security:
 
 当 executable entry 的 `policy.status` 是 `blocked` 时，VASMC 不会更新产物。integrative 是 source-only，因此只报告 policy，不阻断产物。AI 只能解释阻断原因，并建议修改 source manifest 或 dependency。
 
-## 10. Project review
+## 11. Project review
 
 开启项目感知审查：
 
@@ -1057,7 +1143,7 @@ AI 应读取 context index，再读取相关项目文件，检查 prompt 是否�
 
 建议应指向 source 文件；不要直接编辑生成物。
 
-## 11. Self-eval
+## 12. Self-eval
 
 本仓库使用 `eval-src/` 保存 vasmc 自评估套件：
 
@@ -1081,7 +1167,7 @@ self-eval-reports/self-eval-<timestamp>.md
 
 这不是公开 CLI contract，而是仓库内部质量流程。
 
-## 12. 常见工作流
+## 13. 常见工作流
 
 ### 创建新 prompt
 

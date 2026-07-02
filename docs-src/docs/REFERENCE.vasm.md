@@ -17,9 +17,10 @@ vasm:
 | --- | --- |
 | `*.vasm.md` | VASM source。包含 frontmatter、import、语言块和正文。 |
 | `*.md` | 编译产物。由 VASMC 生成，通常不手工编辑。 |
-| `vasmc.yaml` | 远程依赖声明。 |
-| `vasmc-lock.yaml` | 远程依赖锁文件，应提交。 |
+| `vasmc.yaml` | 受管理依赖声明。支持直接 URL，也支持 catalog export。 |
+| `vasmc-lock.yaml` | 依赖锁文件，应提交。 |
 | `vasmc-build.yaml` | workspace build 配置。 |
+| `vasmc-catalog.yaml` | 由 release catalog build 生成的可复用 artifact 索引。 |
 | `.vasmc/build-report.yaml` | AI build 结构化报告。 |
 | `.vasmc/project-review-context.yaml` | 项目感知审查索引。 |
 
@@ -36,6 +37,9 @@ vasm:
     targetLangs: ["zh-CN"]
   dependencies:
     secure-rules: "https://example.com/security-rules.md"
+    release-reviewer:
+      catalog: "https://example.com/vasmc-catalog.yaml"
+      export: releaseReviewer
 ---
 ```
 
@@ -48,7 +52,7 @@ vasm:
 | `intent` | string | 产物用途说明。会进入 build report，供 AI verify/integration review 使用。 |
 | `compile` | object | 编译声明。 |
 | `integration` | object | 仅用于 integrative guide 的适用对象声明。 |
-| `dependencies` | object | 模块声明的远程依赖。 |
+| `dependencies` | object | 模块声明的受管理依赖。直接 URL 和 catalog export 都会进入 `vasmc.yaml` / `vasmc-lock.yaml`。 |
 
 ### 已移除字段
 
@@ -202,6 +206,15 @@ ai:
 routing:
   - match: "src/skills/*.vasm.md"
     dest: "./skills/"
+
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    releaseReviewer:
+      source: "src/skills/release-reviewer.vasm.md"
+      targetLang: "zh-CN"
+    releaseWorkflow:
+      source: "src/integrations/release-workflow.vasm.md"
 ```
 
 ### 输出路径
@@ -230,6 +243,50 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 | `--report-out <file>` | 显式把 build report 写到指定路径；可与 `--dry-run` 组合。 |
 
 `--out-dir` 不是 dry-run。单文件 build 和 workspace build 都会先解析 workspace 配置；如果命中 `routing`，最终路径由 `routing.dest` 决定。
+
+### Release catalog
+
+`catalog` 是 release 约束，不影响普通 workspace routing。配置存在时，workspace `vasmc build` 会额外生成 `catalog.outDir/vasmc-catalog.yaml` 和导出 artifact。单文件 build 不生成 catalog。
+
+`executable` 与 `informational` export 输出编译后的 Markdown artifact；`integrative` export 输出展开后的组合指导 artifact。catalog 阶段会消除内部 `@import:inline`，并把 `integration.appliesTo` 提升为 catalog 内的 export key 列表。
+
+生成的 `vasmc-catalog.yaml` 只保留协议版本和 exports，不写 package name 或 generated timestamp，减少无意义 diff：
+
+```yaml
+catalogVersion: 1
+exports:
+  releaseReviewer:
+    name: release-reviewer
+    version: "1.2.0"
+    format: executable
+    file: release-reviewer.zh-CN.md
+    hash: sha256:...
+  releaseWorkflow:
+    name: release-workflow-guide
+    version: "0.4.0"
+    format: integrative
+    file: release-workflow-guide.md
+    hash: sha256:...
+    appliesTo:
+      - releaseReviewer
+```
+
+`hash` 是 artifact 内容 hash，是去中心化引用中的稳定身份。`name` 和 `version` 来自 source frontmatter，只用于人类和 AI 判断语义兼容性。
+
+外部引用 catalog export 时，在 `vasmc.yaml` 中声明 catalog dependency：
+
+```yaml
+dependencies:
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
+```
+
+`vasmc sync` 会读取 catalog、校验 artifact hash、把 artifact 写入本地 `.vasmc/` 或显式 `dest`，并在 `vasmc-lock.yaml` 中记录 `source: catalog`、`catalog`、`export`、`name`、`version`、`format`、`hash` 和实际 artifact URL。之后 `@import` 仍然只通过 `vasm:<alias>` + lockfile 解析本地文件，不直接扫描远端仓库：
+
+```markdown
+[Release Reviewer](vasm:release-reviewer "@import:inline")
+```
 
 ### `expand`
 

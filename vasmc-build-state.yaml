@@ -1,7 +1,7 @@
 version: 1
 entries:
   skill-src/vasm-expert/vasmc-expert.vasm.md|zh-CN:
-    inputSignature: 56118212a5c49c07209979aaf662760d18877ba13057ad2a1f82a829357be1be
+    inputSignature: 1a43471b1497fdf9a756e6cff3278f31ac094bfa71f19e507e3c9376785c8caa
     outputFile: skills/vasm-expert/SKILL.md
     targetLang: zh-CN
     targetLangs:
@@ -14,28 +14,28 @@ entries:
       - en
       - zh-CN
   docs-src/HELP.vasm.md|merged:
-    inputSignature: 5209fa440589364d4d472657a279019183882ab86f11c73489cfeffed1a533b9
+    inputSignature: e2b20896ae666b9dd9c6feba74d77238375a5fae0e675bfc83ab356a002eca5f
     outputFile: HELP.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/DESIGN.vasm.md|merged:
-    inputSignature: 2862bf4802e03b363d6d03f15e84a90e643f1670c3d69c4c8504abc3410d0805
+    inputSignature: a3fd1599c3a75f94623fa8713d121e826868b12437fb78fd2ad79727789aa6cb
     outputFile: DESIGN.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/docs/USAGE.vasm.md|merged:
-    inputSignature: e88366a127b6089f372442814c6951129babb3141a43b6973a2cc3d21207594f
+    inputSignature: 3b9d0967dbed6a1865fec54616cedd3fe76258506c6a70af1b97448749c29851
     outputFile: docs/USAGE.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/docs/REFERENCE.vasm.md|merged:
-    inputSignature: 7b82059fc62fe1fbdc126aa15840815538b96f9ae9dc7eeed73a192ec8fec9a7
+    inputSignature: b52992d6a070e96a9618dd6aff576901cd9d1a84dacb8fd36c2d1d68ce4e2b16
     outputFile: docs/REFERENCE.md
     targetLang: merged
     targetLangs:
@@ -49,14 +49,14 @@ entries:
       - en
       - zh-CN
   docs-src/docs/HELP.vasm.md|merged:
-    inputSignature: 522f498bc33b4bb80949eabdcf779e70510b756e13aaddcd1c5269d3083c276e
+    inputSignature: c5f37fe4c08d48e0865a245bd8148e8c35be69989c858a9220fc6bb386180f03
     outputFile: docs/HELP.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/docs/DESIGN.vasm.md|merged:
-    inputSignature: 565cdaebd5f99c216b14effd5b803002b2e51301e156f57d52426de661901aa6
+    inputSignature: f8587ece33b62b086a811d1c8fd90fbd50261e439c9e8f17edcb51ac3206e2e7
     outputFile: docs/DESIGN.md
     targetLang: merged
     targetLangs:
@@ -70,7 +70,7 @@ entries:
       - en
       - zh-CN
   packages/core/docs-src/README.vasm.md|merged:
-    inputSignature: 078e9861111830ec423684dc32b14ef12fed2bd43e60948886c50a375280fcf0
+    inputSignature: 9393e0d212786a68af3ced627011d7a116da9a4d8bc606864215e2a66265a52b
     outputFile: packages/core/README.md
     targetLang: merged
     targetLangs:
@@ -84,8 +84,65 @@ entries:
       - en
       - zh-CN
   packages/cli/docs-src/README.vasm.md|merged:
-    inputSignature: 0727d9425ea45d6121b5c064ba4166d5710cf08619560606f4c5240915940279
+    inputSignature: 4cef7c33215fe45ce95bba0855c8199b6f0871ef854f184d39ec2ba2c70b0673
     outputFile: packages/cli/README.md
+    targetLang: merged
+    targetLangs:
+      - en
+      - zh-CN
+  eval-src/cases/informational-merge.vasm.md|merged:
+    inputSignature: 944210f56f0a0e8cb7db6295a45effa5e095cd2bd50891db9730e28568e4d094
+    outputFile: .vasmc/self-eval/out/informational-merge/informational-merge.md
+    targetLang: merged
+    targetLangs:
+      - en
+      - zh-CN
+  eval-src/cases/executable-ai-actions.vasm.md|en:
+    inputSignature: a95e032ef972447db13d72deac48470e16544e45a9ac2943f35c984dab7f0fda
+    outputFile: .vasmc/self-eval/out/executable-ai-actions/executable-ai-actions.en.md
+    targetLang: en
+    targetLangs:
+      - en
+      - zh-CN
+  eval-src/cases/adversarial-boundary.vasm.md|en:
+    inputSignature: 5b64d0086558982551fb8d6f3f0564189c800c5d454843ab82648dac6bf49cba
+    outputFile: .vasmc/self-eval/out/adversarial-boundary/adversarial-boundary.md
+    targetLang: en
+    targetLangs:
+      - en
+  eval-src/cases/fragments/shared-definition.vasm.md|merged:
+    inputSignature: ffa15d3094beb113691209fd42d04a6ca9bbb83197a7a87a6f5b946ae4e23847
+    outputFile: .vasmc/self-eval/out/link-rewrite/fragments/shared-definition.md
+    targetLang: merged
+    targetLangs:
+      - zh-CN
+  eval-src/cases/link-rewrite.vasm.md|merged:
+    inputSignature: 50a66369ed1598370755d2f3fd624366cfb6a6284522516e99e43fba1e6a5b75
+    outputFile: .vasmc/self-eval/out/link-rewrite/link-rewrite.md
+    targetLang: merged
+    targetLangs:
+      - en
+  eval-src/cases/deprecated-format-doc-compat.vasm.md|merged:
+    inputSignature: 2137016a8eef6563b264825b0b8160effe75e6ef7db31e59a03c2c131b6abfc1
+    outputFile: .vasmc/self-eval/out/deprecated-format-compat/deprecated-format-doc-compat.md
+    targetLang: merged
+    targetLangs:
+      - en
+  eval-src/cases/informational-imports-executable.vasm.md|merged:
+    inputSignature: a527a974a36a74ded9d55018a3b9d4b1be9cd912db915c1297287fdaffd044f9
+    outputFile: .vasmc/self-eval/out/informational-imports-executable/informational-imports-executable.md
+    targetLang: merged
+    targetLangs:
+      - en
+  eval-src/cases/complex-skill-composition.vasm.md|zh-CN:
+    inputSignature: 457f015475b6eb0f9555f8b1f9258fb7f8de4ed37a649718f86b0f719c27978f
+    outputFile: .vasmc/self-eval/out/complex-skill-composition/complex-skill-composition.md
+    targetLang: zh-CN
+    targetLangs:
+      - zh-CN
+  eval-src/cases/bilingual-doc-navigation.vasm.md|merged:
+    inputSignature: cd907e308a5e7543f72b7c93f0e6f1a0443c11ebad0f14da960f48eab4f5464f
+    outputFile: .vasmc/self-eval/out/bilingual-doc-navigation/bilingual-doc-navigation.md
     targetLang: merged
     targetLangs:
       - en

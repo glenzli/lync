@@ -6,6 +6,7 @@ import remarkFrontmatter from 'remark-frontmatter';
 import { visit } from 'unist-util-visit';
 import { Root, Link } from 'mdast';
 import { loadLockfile } from './config';
+import { resolveLockedDependencyPath } from './dependencies';
 import { t } from './i18n';
 
 interface GraphNode {
@@ -78,9 +79,7 @@ export async function generateGraph(entryFile: string, cwd: string = process.cwd
                     continue;
                 }
 
-                nextFilePath = lockedDep.dest
-                    ? path.resolve(cwd, lockedDep.dest)
-                    : path.resolve(cwd, '.vasmc', alias + '.md');
+                nextFilePath = resolveLockedDependencyPath(cwd, alias, lockedDep);
             } else {
                 nextName = item.url;
                 nextFilePath = path.resolve(path.dirname(filePath), item.url);

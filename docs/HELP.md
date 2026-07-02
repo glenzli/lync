@@ -23,7 +23,7 @@ VASMC sources are Markdown files with optional VASM frontmatter and import direc
 
 `@import:link` preserves the Markdown link but rewrites `.vasm.md` source references to generated `.md` paths. Use it when the target should stay as a separate document.
 
-Local imports use relative file paths. Remote dependency aliases use `vasm:alias` and are resolved through `vasmc.yaml` plus `vasmc-lock.yaml`.
+Local imports use relative file paths. Managed dependency aliases use `vasm:alias` and are resolved through `vasmc.yaml` plus `vasmc-lock.yaml`.
 
 ### Frontmatter
 
@@ -69,6 +69,19 @@ Register a dependency:
 vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
 ```
 
+Or declare dependencies in `vasmc.yaml`, including catalog exports:
+
+```yaml
+dependencies:
+  company-rules: "https://example.com/guidelines.md"
+  coder-skill:
+    url: "https://example.com/coder-skill.md"
+    dest: "./skills/coder.md"
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
+```
+
 Sync dependencies and lock deterministic inputs:
 
 ```bash
@@ -76,6 +89,8 @@ vasmc sync
 vasmc update <alias>
 vasmc update
 ```
+
+Catalog dependencies read `vasmc-catalog.yaml`, then lock the selected artifact by its `file` and `hash`. `@import` still uses `vasm:<alias>` and does not scan remote catalogs or repositories.
 
 Compile a single source:
 
@@ -143,6 +158,15 @@ compile:
 routing:
   - match: "src/skills/*.vasm.md"
     dest: "./dist/skills/"
+
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    mainSkill:
+      source: "src/skills/main-skill.vasm.md"
+      targetLang: "en"
+    mainWorkflow:
+      source: "src/integrations/main-workflow.vasm.md"
 ```
 
 CLI overrides are also available:
@@ -152,6 +176,8 @@ vasmc build --out-dir ./doc --base-dir ./src
 ```
 
 `--out-dir` is not dry-run. When a source matches `routing`, `routing.dest` still controls the final output path.
+
+When `catalog.exports` is configured, workspace builds also emit `catalog.outDir/vasmc-catalog.yaml` and exported artifacts. The catalog is a release index: `executable`/`informational` exports are compiled Markdown, `integrative` exports are expanded guidance artifacts, and external consumers should lock artifacts through `dependencies.<alias>.catalog` / `export` before importing them.
 
 ## AI Build Workflow
 
@@ -323,7 +349,7 @@ AI 侧 `vasmc build` 会为每个 entry 生成 `policy.status`：
 
 - `pass`：未发现确定性 policy 风险。
 - `review`：存在需要 AI 或人类阅读的风险信号，例如疑似 prompt override、隐藏行为、密钥外传、integrative/executable 边界不清。
-- `blocked`：存在确定性阻断风险，例如 manifest 结构错误、远程依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
+- `blocked`：存在确定性阻断风险，例如 manifest 结构错误、受管理依赖 hash 与 `vasmc-lock.yaml` 不一致、`informational` 产物导入了 `executable` 或 `integrative` 内容。
 
 默认情况下，VASMC 只报告风险，不阻断输出：
 
@@ -385,6 +411,9 @@ dependencies:
   coder-skill:
     url: "https://example.com/coder-skill.md"
     dest: "./skills/coder.md"
+  release-reviewer:
+    catalog: "https://example.com/dist/vasm-catalog/vasmc-catalog.yaml"
+    export: releaseReviewer
 ```
 
 也可以直接使用命令行注册依赖：
@@ -406,6 +435,8 @@ vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills
 ```bash
 vasmc sync
 ```
+
+catalog 依赖会先读取 `vasmc-catalog.yaml`，再按其中的 `file` 和 `hash` 固定具体 artifact。最终 `@import` 仍然使用 `vasm:<alias>`，不直接扫描远端 catalog 或仓库。
 
 需要强制刷新时：
 
@@ -491,6 +522,15 @@ compile:
 routing:
   - match: "src/agents/*.vasm.md"
     dest: "./dist/agents/"
+
+catalog:
+  outDir: "./dist/vasm-catalog"
+  exports:
+    mainSkill:
+      source: "src/agents/main-skill.vasm.md"
+      targetLang: "zh-CN"
+    mainWorkflow:
+      source: "src/integrations/main-workflow.vasm.md"
 ```
 
 也支持 CLI 临时覆盖：
@@ -500,6 +540,8 @@ vasmc build --out-dir ./doc --base-dir ./src
 ```
 
 注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。
+
+如果配置了 `catalog.exports`，workspace build 会额外生成 `catalog.outDir/vasmc-catalog.yaml` 和导出 artifact。catalog 是 release 索引：`executable`/`informational` 导出编译后 Markdown，`integrative` 导出展开后的组合指导，并把适用关系写入 catalog。外部使用时应通过 `dependencies.<alias>.catalog` / `export` 锁定 artifact hash，再由 `@import` 走本地锁定文件。
 
 <a name="cli-ai-build-zh-cn"></a>
 

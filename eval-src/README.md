@@ -19,6 +19,7 @@
 - `cases/*.vasm.md`：self-eval 使用的 prompt/doc 样本。
 - `cases/fragments/*.vasm.md`：用于 import 检查和复杂 prompt 组合的片段。
 - `cases/failures/*.vasm.md`：预期失败的编译样本，用于检查硬失败边界。
+- `workspaces/catalog-import/`：producer/consumer 双 workspace，用于检查 catalog export、sync lockfile 和 `@import` 消费链路。
 - `workspaces/*/`：带独立 `vasmc-build.yaml` 的 workspace 级流程样本。
 - `self-eval-reports/latest.md`：被 `.gitignore` 忽略的人类可读最新合并报告。
 
