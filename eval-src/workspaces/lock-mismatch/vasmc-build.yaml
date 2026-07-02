@@ -1,8 +1,0 @@
-includes:
-  - "src/**/*.vasm.md"
-output:
-  dir: "../../../.vasmc/self-eval/out/lock-mismatch"
-baseDir: "./src"
-compile:
-  executable:
-    targetLangs: ["en"]

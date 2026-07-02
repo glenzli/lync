@@ -5,7 +5,7 @@ const path = require('path');
 const yaml = require('yaml');
 
 const root = path.resolve(__dirname, '..');
-const suitePath = path.join(root, 'eval-src', 'vasmc-self-eval.yaml');
+const suitePath = path.join(root, 'vasm', 'eval', 'vasmc-self-eval.yaml');
 const reportPath = path.join(root, 'self-eval-reports', 'latest.md');
 
 function fail(message) {

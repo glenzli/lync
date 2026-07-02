@@ -36,10 +36,11 @@ const defaultIncludes = [
     'packages/*/package.json',
     'vasmc.yaml',
     'vasmc-build.yaml',
-    'docs-src/**/*.vasm.md',
-    'packages/*/docs-src/**/*.vasm.md',
-    'skill-src/**/*.vasm.md',
-    'skill-src/**/*.md',
+    'vasm/root/**/*.vasm.md',
+    'vasm/docs/**/*.vasm.md',
+    'packages/*/vasm/**/*.vasm.md',
+    'vasm/skills/**/*.vasm.md',
+    'vasm/skills/**/*.md',
 ];
 
 const defaultExcludes = [
@@ -105,7 +106,7 @@ export async function createProjectReviewContext(cwd: string, config?: ProjectRe
             'Suggest source-level changes only; do not edit generated outputs directly.',
             'Look for unclear intent, incorrect compile.format choices, duplicated fragments, stale project facts, and missing project-specific guidance.',
             mode === 'patch'
-                ? 'If useful, provide focused patches against .vasm.md or docs-src files.'
+                ? 'If useful, provide focused patches against .vasm.md files under vasm/ or packages/*/vasm/.'
                 : 'Provide concise recommendations and ask before making source edits.',
         ],
     };

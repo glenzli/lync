@@ -143,7 +143,7 @@ vasm:
   integration:
     appliesTo:
       - vasm:security-reviewer
-      - skill-src/reviewer/**/*.vasm.md
+      - vasm/skills/reviewer/**/*.vasm.md
 ---
 ```
 
@@ -265,7 +265,7 @@ vasm:
   integration:
     appliesTo:
       - vasm:target-skill
-      - skill-src/target/**/*.vasm.md
+      - vasm/skills/target/**/*.vasm.md
 ```
 
 `appliesTo` 命中后，`vasmc build` 会在目标 executable 的 report actions 中生成 `integration_guidance`，提醒 AI 在整合前读取 guide。

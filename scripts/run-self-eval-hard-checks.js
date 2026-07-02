@@ -6,7 +6,7 @@ const { execFileSync } = require('child_process');
 const yaml = require('yaml');
 
 const root = path.resolve(__dirname, '..');
-const suitePath = path.join(root, 'eval-src', 'vasmc-self-eval.yaml');
+const suitePath = path.join(root, 'vasm', 'eval', 'vasmc-self-eval.yaml');
 const cliPath = path.join(root, 'packages', 'cli', 'dist', 'index.js');
 
 function readYaml(filePath) {
@@ -68,7 +68,7 @@ function runBuildSource(buildSource, defaultCwd) {
     const args = Array.isArray(buildSource.args)
         ? [cliPath, ...buildSource.args]
         : buildSource.workspace
-        ? [cliPath, 'build']
+        ? [cliPath, 'build', '--force']
         : [cliPath, 'build', buildSource.source, '-o', buildSource.outDir];
     try {
         const output = execFileSync(process.execPath, args, {
@@ -356,7 +356,7 @@ function renderMarkdownReport(report) {
         ``,
         `状态：待执行。`,
         ``,
-        `继续按 \`eval-src/workflows/vasmc-self-eval.workflow.vasm.md\` 执行 LLM-as-judge 语义评审，并把结果写回本节。默认输出语言为中文。`,
+        `继续按 \`vasm/eval/workflows/vasmc-self-eval.workflow.vasm.md\` 执行 LLM-as-judge 语义评审，并把结果写回本节。默认输出语言为中文。`,
         ``,
         `<!-- judge:end -->`,
         ``

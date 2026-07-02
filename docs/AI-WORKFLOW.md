@@ -55,7 +55,7 @@ projectReview:
 Then inspect each entry:
 
 ```yaml
-source: skill-src/reviewer.vasm.md
+source: vasm/skills/reviewer.vasm.md
 output: skills/reviewer.md
 status: built
 format: executable
@@ -361,7 +361,7 @@ projectReview:
 再逐个 entry 查看：
 
 ```yaml
-source: skill-src/reviewer.vasm.md
+source: vasm/skills/reviewer.vasm.md
 output: skills/reviewer.md
 status: built
 format: executable

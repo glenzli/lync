@@ -1,0 +1,15 @@
+includes:
+  - "src/**/*.vasm.md"
+output:
+  dir: "../../../../.vasmc/self-eval/out/policy-enforce"
+baseDir: "./src"
+compile:
+  executable:
+    targetLangs: ["en"]
+security:
+  mode: enforce
+ai:
+  projectReview:
+    mode: suggest
+    include:
+      - "src/**/*.vasm.md"

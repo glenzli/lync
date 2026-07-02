@@ -342,7 +342,7 @@ vasm:
   integration:
     appliesTo:
       - vasm:security-reviewer
-      - skill-src/reviewer/**/*.vasm.md
+      - vasm/skills/reviewer/**/*.vasm.md
 ```
 
 ### 确定性 Policy Gate
@@ -382,7 +382,7 @@ ai:
       - "docs/**/*.md"
       - "package.json"
       - "vasmc-build.yaml"
-      - "skill-src/**/*.vasm.md"
+      - "vasm/skills/**/*.vasm.md"
 ```
 
 开启后，`vasmc build` 会生成 `.vasmc/project-review-context.yaml`，并在 `.vasmc/build-report.yaml` 顶层 `actions` 中写入 `project_review`。该 pass 不调用模型，也不自动改文件；它只告诉当前 AI 应读取哪些项目文件，并要求 AI 输出源文件级建议。`patch` 模式表示可以给出聚焦的源文件 patch 建议，但仍不得直接编辑生成物。

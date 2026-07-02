@@ -1,12 +1,12 @@
 includes:
-  - "docs-src/*.vasm.md"
-  - "docs-src/docs/*.vasm.md"
-  - "packages/*/docs-src/README.vasm.md"
-  - "skill-src/vasm-expert/vasmc-expert.vasm.md"
+  - "vasm/root/*.vasm.md"
+  - "vasm/docs/*.vasm.md"
+  - "packages/*/vasm/README.vasm.md"
+  - "vasm/skills/vasm-expert/vasmc-expert.vasm.md"
 
 excludes:
   # extract-vasmc-knowledge 是临时 Prompt 文件，只在 update-vasmc-expert workflow 中手动触发
-  - "skill-src/vasm-expert/extract-*.vasm.md"
+  - "vasm/skills/vasm-expert/extract-*.vasm.md"
 
 output:
   dir: "./dist"
@@ -40,36 +40,37 @@ ai:
       - "packages/*/package.json"
       - "packages/*/CHANGELOG.md"
       - "vasmc-build.yaml"
-      - "docs-src/**/*.vasm.md"
-      - "packages/*/docs-src/**/*.vasm.md"
-      - "eval-src/**/*.md"
-      - "eval-src/**/*.vasm.md"
-      - "eval-src/**/*.yaml"
-      - "skill-src/**/*.vasm.md"
-      - "skill-src/**/*.md"
+      - "vasm/root/**/*.vasm.md"
+      - "vasm/docs/**/*.vasm.md"
+      - "packages/*/vasm/**/*.vasm.md"
+      - "vasm/eval/**/*.md"
+      - "vasm/eval/**/*.vasm.md"
+      - "vasm/eval/**/*.yaml"
+      - "vasm/skills/**/*.vasm.md"
+      - "vasm/skills/**/*.md"
 
 routing:
-  # 顶层阅读文档：docs-src 是维护对象，docs/ 是 AI 和人读取的生成态入口
-  - match: "docs-src/docs/*.vasm.md"
+  # 顶层阅读文档：vasm/ 是维护对象，docs/ 是 AI 和人读取的生成态入口
+  - match: "vasm/docs/*.vasm.md"
     dest: "./docs/"
 
   # package 自己的 README 源路由到对应 npm package 根目录。
-  # package docs-src/fragments 只作为 import 片段，不直接生成 docs/。
-  - match: "packages/core/docs-src/README.vasm.md"
+  # package vasm/fragments 只作为 import 片段，不直接生成 docs/。
+  - match: "packages/core/vasm/README.vasm.md"
     dest: "./packages/core/README.md"
-  - match: "packages/cli/docs-src/README.vasm.md"
+  - match: "packages/cli/vasm/README.vasm.md"
     dest: "./packages/cli/README.md"
-  - match: "packages/console/docs-src/README.vasm.md"
+  - match: "packages/console/vasm/README.vasm.md"
     dest: "./packages/console/README.md"
 
   # 文档源文件直接路由到项目根目录
-  - match: "docs-src/*.vasm.md"
+  - match: "vasm/root/*.vasm.md"
     dest: "./"
 
   # vasmc-expert 主技能文件，编译产物命名为 SKILL.md（Antigravity skill 标准入口）
-  - match: "skill-src/vasm-expert/vasmc-expert.vasm.md"
+  - match: "vasm/skills/vasm-expert/vasmc-expert.vasm.md"
     dest: "./skills/vasm-expert/SKILL.md"
 
-  # 其他 skill-src 文件（兜底路由，实际由 excludes 过滤）
-  - match: "skill-src/vasm-expert/*.vasm.md"
+  # 其他 vasm/skills 文件（兜底路由，实际由 excludes 过滤）
+  - match: "vasm/skills/vasm-expert/*.vasm.md"
     dest: "./skills/vasm-expert/"

@@ -229,7 +229,7 @@ ai:
       - "docs/**/*.md"
       - "package.json"
       - "vasmc-build.yaml"
-      - "skill-src/**/*.vasm.md"
+      - "vasm/skills/**/*.vasm.md"
 ```
 
 When enabled, VASMC writes `.vasmc/project-review-context.yaml` and adds a top-level `project_review` action.
@@ -238,13 +238,13 @@ The compiler still does not call a model. The current AI editor reads the contex
 
 ## 10. Bootstrap And vasm-expert
 
-`skills/vasm-expert/SKILL.md` is generated from `skill-src/vasm-expert/vasmc-expert.vasm.md`. It inlines VASMC knowledge and AI build coordination rules so AI editors have a project-specific skill entrypoint.
+`skills/vasm-expert/SKILL.md` is generated from `vasm/skills/vasm-expert/vasmc-expert.vasm.md`. It inlines VASMC knowledge and AI build coordination rules so AI editors have a project-specific skill entrypoint.
 
-The maintenance surface remains `skill-src/` and `docs-src/`. The generated skill is output for AI consumption and should not be hand-tuned.
+The maintenance surface is `vasm/skills/`, `vasm/root/`, and `vasm/docs/`. The generated skill is output for AI consumption and should not be hand-tuned.
 
 ## 11. Self-Evaluation Flow
 
-`eval-src/` is a repository-local self-evaluation suite, not a public CLI contract. It tests VASMC's own compile capabilities:
+`vasm/eval/` is a repository-local self-evaluation suite, not a public CLI contract. It tests VASMC's own compile capabilities:
 
 - prompt/doc sample cases
 - hard boundary checks
@@ -356,7 +356,7 @@ vasm:
   integration:
     appliesTo:
       - vasm:security-reviewer
-      - skill-src/reviewer/**/*.vasm.md
+      - vasm/skills/reviewer/**/*.vasm.md
 ```
 
 `integration.appliesTo` 是 AI 整合关系，不是内容依赖。source 中写的是稳定引用：`vasm:<alias>`、catalog export key，或 source/output 路径 glob。命中某个 `executable` entry 时，build report 会增加 `integration_guidance` action，提醒 AI 在组合该产物前读取对应 integrative guide。integrative 会按普通 routing/output 生成一个 artifact，但不会按 `targetLangs` 生成多语种变体。
@@ -451,7 +451,7 @@ entries:
     actions:
       - type: integration_guidance
         guides:
-          - source: skill-src/reviewer/integration.vasm.md
+          - source: vasm/skills/reviewer/integration.vasm.md
             appliesTo:
               - vasm:security-reviewer
       - type: verify
@@ -524,7 +524,7 @@ ai:
       - "docs/**/*.md"
       - "package.json"
       - "vasmc-build.yaml"
-      - "skill-src/**/*.vasm.md"
+      - "vasm/skills/**/*.vasm.md"
 ```
 
 开启后，VASMC 写入 `.vasmc/project-review-context.yaml`，并在 build report 顶层加入 `project_review` action。
@@ -533,13 +533,13 @@ ai:
 
 ## 10. 自举与 vasm-expert
 
-仓库内的 `skills/vasm-expert/SKILL.md` 由 `skill-src/vasm-expert/vasmc-expert.vasm.md` 编译生成。它内联 VASMC 知识手册和 AI build 协调规程，作为 AI 编辑器理解本仓库的技能入口。
+仓库内的 `skills/vasm-expert/SKILL.md` 由 `vasm/skills/vasm-expert/vasmc-expert.vasm.md` 编译生成。它内联 VASMC 知识手册和 AI build 协调规程，作为 AI 编辑器理解本仓库的技能入口。
 
-这一流程的维护面仍在 `skill-src/` 和 `docs-src/`。生成的 `skills/vasm-expert/SKILL.md` 是给 AI 读取的产物，不应手工微调。
+这一流程的维护面在 `vasm/skills/`、`vasm/root/` 和 `vasm/docs/`。生成的 `skills/vasm-expert/SKILL.md` 是给 AI 读取的产物，不应手工微调。
 
 ## 11. 自评估流程
 
-`eval-src/` 是仓库本地的自评估集合，不是公开 CLI contract。它用于测试 VASMC 自身的编译能力：
+`vasm/eval/` 是仓库本地的自评估集合，不是公开 CLI contract。它用于测试 VASMC 自身的编译能力：
 
 - prompt/doc 样本 case。
 - hard boundary checks。

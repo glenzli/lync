@@ -1,0 +1,18 @@
+includes:
+  - "src/**/*.vasm.md"
+excludes:
+  - "src/fragments/*.vasm.md"
+output:
+  dir: "../../../../../.vasmc/self-eval/out/catalog-import/producer"
+baseDir: "./src"
+compile:
+  executable:
+    targetLangs: ["en"]
+catalog:
+  outDir: "../../../../../.vasmc/self-eval/out/catalog-import/catalog"
+  exports:
+    reviewSkill:
+      source: "src/catalog-reviewer.vasm.md"
+      targetLang: "en"
+    reviewGuide:
+      source: "src/catalog-integration.vasm.md"

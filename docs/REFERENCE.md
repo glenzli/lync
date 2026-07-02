@@ -96,7 +96,7 @@ vasm:
   integration:
     appliesTo:
       - vasm:security-reviewer
-      - skill-src/reviewer/**/*.vasm.md
+      - vasm/skills/reviewer/**/*.vasm.md
 ```
 
 `integration.appliesTo` is only used by `compile.format: integrative` files. It declares which executable files should read this guide before composition.
@@ -514,7 +514,7 @@ vasm:
   integration:
     appliesTo:
       - vasm:security-reviewer
-      - skill-src/reviewer/**/*.vasm.md
+      - vasm/skills/reviewer/**/*.vasm.md
 ```
 
 `integration.appliesTo` 只用于 `compile.format: integrative` 的文件。它声明这份 guide 应在整合哪些 executable 文件前被 AI 参考。
