@@ -65,7 +65,17 @@ Build result:
 
 ## Release
 
-This repository uses Changesets. Run `npm run release:check` before publishing; use `npm run release:publish` for npm release and `npm run release:github` for GitHub tag/release automation.
+This repository uses Changesets. Run `npm run release:check` before publishing. The unified release entrypoint is:
+
+```bash
+npm run release
+npm run release -- --only npm
+npm run release -- --only gitlab,npm
+npm run release -- --skip github
+npm run release -- --dry-run
+```
+
+The default targets are npmjs, GitHub, and GitLab. Use `--only` to select targets, or `--skip` to exclude targets from the default set. The script creates the aggregate `v<version>` tag and package tags, then publishes npm packages, pushes tags, and creates GitHub/GitLab releases according to the selected targets.
 
 ---
 
@@ -130,4 +140,14 @@ vasm:
 
 ## 发布
 
-本仓库使用 Changesets。发布前运行 `npm run release:check`；npm 发布使用 `npm run release:publish`，GitHub tag/release 自动化使用 `npm run release:github`。
+本仓库使用 Changesets。发布前运行 `npm run release:check`。统一发布入口是：
+
+```bash
+npm run release
+npm run release -- --only npm
+npm run release -- --only gitlab,npm
+npm run release -- --skip github
+npm run release -- --dry-run
+```
+
+默认目标是 npmjs、GitHub 和 GitLab。`--only` 用于只选择部分目标，`--skip` 用于从默认目标中排除部分目标；脚本会创建 `v<version>` 聚合 tag 和 package tags，并按目标发布 npm 包、推送 tag、创建 GitHub/GitLab release。

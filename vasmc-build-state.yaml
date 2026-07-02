@@ -7,7 +7,7 @@ entries:
     targetLangs:
       - zh-CN
   docs-src/README.vasm.md|merged:
-    inputSignature: 15bc11fd799953f1960250f6253167e2b3e1136c82f17e7c3b93cc21ff79a53c
+    inputSignature: 827fb6912f9d93d8612ccae339342300f5a58b52e58451bc76f83a65456669af
     outputFile: README.md
     targetLang: merged
     targetLangs:
