@@ -401,6 +401,7 @@ Or add a dependency:
 
 ```bash
 vasmc add https://example.com/secure-rules.md --alias secure-rules
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
 ```
 
 Use it:
@@ -420,7 +421,13 @@ dependencies:
     export: releaseReviewer
 ```
 
-After `vasmc sync`, VASMC reads the catalog, verifies the export artifact hash, writes the artifact into `.vasmc/` or `dest`, and records it in `vasmc-lock.yaml`. The import form stays the same:
+You can also create the same declaration and sync immediately:
+
+```bash
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
+```
+
+After `vasmc sync` or `vasmc add --catalog ...`, VASMC reads the catalog, verifies the export artifact hash, writes the artifact into `.vasmc/` or `dest`, and records it in `vasmc-lock.yaml`. The import form stays the same:
 
 ```markdown
 [Release Reviewer](vasm:release-reviewer "@import:inline")
@@ -1005,6 +1012,7 @@ vasmc sync
 
 ```bash
 vasmc add https://example.com/secure-rules.md --alias secure-rules
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
 ```
 
 引用依赖：
@@ -1024,7 +1032,13 @@ dependencies:
     export: releaseReviewer
 ```
 
-执行 `vasmc sync` 后，VASMC 会读取 catalog、校验 export 中声明的 artifact hash、把 artifact 固定到本地 `.vasmc/` 或 `dest`，并写入 `vasmc-lock.yaml`。之后引用方式仍然相同：
+也可以用命令生成同样的声明并立即同步：
+
+```bash
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
+```
+
+执行 `vasmc sync` 或 `vasmc add --catalog ...` 后，VASMC 会读取 catalog、校验 export 中声明的 artifact hash、把 artifact 固定到本地 `.vasmc/` 或 `dest`，并写入 `vasmc-lock.yaml`。之后引用方式仍然相同：
 
 ```markdown
 [Release Reviewer](vasm:release-reviewer "@import:inline")

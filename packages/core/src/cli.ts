@@ -100,13 +100,66 @@ baseDir: "."
         });
 
     program
-        .command('add <url>')
-        .description('Add a remote dependency')
+        .command('add [url]')
+        .description('Add a direct URL or catalog dependency')
         .option('--alias <alias>', 'Explicitly set the alias name')
         .option('--dest <dest>', 'Explicitly set local destination path')
-        .action(async (url: string, options: { alias?: string; dest?: string }) => {
+        .option('--catalog <catalog>', 'Use a vasmc-catalog.yaml reference instead of a direct URL')
+        .option('--export <name>', 'Catalog export key to install')
+        .action(async (url: string | undefined, options: { alias?: string; dest?: string; catalog?: string; export?: string }) => {
             const config = loadConfig();
             config.dependencies = config.dependencies || {};
+
+            if (options.catalog) {
+                if (url) {
+                    console.error('Use either a direct URL or --catalog, not both.');
+                    process.exit(1);
+                }
+
+                const exportName = options.export || options.alias;
+                if (!exportName) {
+                    console.error('Catalog dependencies require --export <name> or --alias <name>.');
+                    process.exit(1);
+                }
+
+                const baseAlias = options.alias || exportName;
+                const declaration: Record<string, string> = {
+                    catalog: options.catalog,
+                    export: exportName,
+                };
+                if (options.dest) declaration.dest = options.dest;
+
+                let finalAlias = baseAlias;
+                let counter = 1;
+                while (config.dependencies![finalAlias]) {
+                    const existingDecl = config.dependencies![finalAlias];
+                    const existingMatches = typeof existingDecl !== 'string'
+                        && existingDecl.catalog === options.catalog
+                        && (existingDecl.export || finalAlias) === exportName
+                        && (existingDecl.dest || undefined) === (options.dest || undefined);
+                    if (existingMatches) break;
+
+                    finalAlias = `${baseAlias}-${counter}`;
+                    counter++;
+                }
+
+                config.dependencies![finalAlias] = declaration;
+                saveConfig(config);
+                console.log(t('ADD_SUCCESS', finalAlias, `${options.catalog}#${exportName}`));
+
+                await syncDependencies();
+                return;
+            }
+
+            if (options.export) {
+                console.error('Use --export only with --catalog.');
+                process.exit(1);
+            }
+
+            if (!url) {
+                console.error('Usage: vasmc add <url> [--alias <alias>] [--dest <path>] or vasmc add --catalog <catalog> --export <name> [--alias <alias>] [--dest <path>]');
+                process.exit(1);
+            }
 
             let alias = options.alias;
 

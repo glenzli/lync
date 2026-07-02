@@ -1,7 +1,7 @@
 version: 1
 entries:
   skill-src/vasm-expert/vasmc-expert.vasm.md|zh-CN:
-    inputSignature: 956ad6c97b0c58b22cb013c46b6970e12ca57c0e9097f26eef09cbe99a9e9c23
+    inputSignature: e18ba6a4f48fb0753e8c810e73b63934531d54e2fd4a1b890cb00c2c4808651e
     outputFile: skills/vasm-expert/SKILL.md
     targetLang: zh-CN
     targetLangs:
@@ -14,7 +14,7 @@ entries:
       - en
       - zh-CN
   docs-src/HELP.vasm.md|merged:
-    inputSignature: 1a3322c5dad6985e75edf6829b234fdedf71b95a472e135cdf3e7c63618655a8
+    inputSignature: 96ebdd514a84c75c654ea77b559aec290b9c435680d0697b8660c7ca119acac6
     outputFile: HELP.md
     targetLang: merged
     targetLangs:
@@ -28,14 +28,14 @@ entries:
       - en
       - zh-CN
   docs-src/docs/USAGE.vasm.md|merged:
-    inputSignature: be45f89b3d0a71ac59835c3aa97c1ae5edec4f7fb4e63d840489d21f3734baec
+    inputSignature: 3be9c94dc667365a88919aef6569e90ec0159a3c1b577f1806bb8e37478d7dac
     outputFile: docs/USAGE.md
     targetLang: merged
     targetLangs:
       - en
       - zh-CN
   docs-src/docs/REFERENCE.vasm.md|merged:
-    inputSignature: 2a46c6ef6e899de9e0325783c72af1043ab66a15c5e5c8ab2caa3d73bfb1de06
+    inputSignature: b805e14e6bb72b7b58443cc22707634a7f494a6bc63b3c078a8b32a7d1501697
     outputFile: docs/REFERENCE.md
     targetLang: merged
     targetLangs:
@@ -49,7 +49,7 @@ entries:
       - en
       - zh-CN
   docs-src/docs/HELP.vasm.md|merged:
-    inputSignature: f3569463183a5476806b0b0fd103c4d8dd07a071a5023baedb3dd7239de5e303
+    inputSignature: 43fb97db9986165ed46b91ebaba61c4cb3105793bf449d463d6b5e1bce6a1fd4
     outputFile: docs/HELP.md
     targetLang: merged
     targetLangs:
@@ -84,7 +84,7 @@ entries:
       - en
       - zh-CN
   packages/cli/docs-src/README.vasm.md|merged:
-    inputSignature: e98446a630891174c2cca33dc1754f8e614d8a3ed794dc84bcf6e574fb065788
+    inputSignature: c1294c093d72e5f29118bff1e81396898c3b5802dedba010aa710ee8b5d83b45
     outputFile: packages/cli/README.md
     targetLang: merged
     targetLangs:

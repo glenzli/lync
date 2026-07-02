@@ -41,6 +41,7 @@ Or register one from the command line:
 
 ```bash
 vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
 ```
 
 ### 2. Sync And Lock
@@ -57,7 +58,7 @@ Install missing dependencies and update the lockfile:
 vasmc sync
 ```
 
-Catalog dependencies read `vasmc-catalog.yaml`, then lock the selected artifact by its `file` and `hash`. `@import` still uses `vasm:<alias>` and does not scan remote catalogs or repositories.
+Catalog dependencies can be written in `vasmc.yaml` or registered with `vasmc add --catalog <catalog> --export <key>`. VASMC reads `vasmc-catalog.yaml`, then locks the selected artifact by its `file` and `hash`. `@import` still uses `vasm:<alias>` and does not scan remote catalogs or repositories.
 
 Force refresh when needed:
 
@@ -200,6 +201,7 @@ dependencies:
 
 ```bash
 vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
 ```
 
 ### 2. 同步与锁定
@@ -216,7 +218,7 @@ vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills
 vasmc sync
 ```
 
-catalog 依赖会先读取 `vasmc-catalog.yaml`，再按其中的 `file` 和 `hash` 固定具体 artifact。最终 `@import` 仍然使用 `vasm:<alias>`，不直接扫描远端 catalog 或仓库。
+catalog 依赖可以手写在 `vasmc.yaml`，也可以通过 `vasmc add --catalog <catalog> --export <key>` 注册。它会先读取 `vasmc-catalog.yaml`，再按其中的 `file` 和 `hash` 固定具体 artifact。最终 `@import` 仍然使用 `vasm:<alias>`，不直接扫描远端 catalog 或仓库。
 
 需要强制刷新时：
 

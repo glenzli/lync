@@ -163,7 +163,8 @@ vasm:
 | `vasmc expand <file> --target-lang <lang> --stdout` | 纯展开 source，不走 workspace routing、build-state 或 build report |
 | `vasmc graph <file>` | 静态分析依赖 AST 树，排查循环依赖或缺失文件 |
 | `vasmc init` | 在当前目录生成默认 `vasmc-build.yaml` 配置模板 |
-| `vasmc add <url>` | 下载远程模块并注册到 `vasmc.yaml`（支持 `--alias`、`--dest`） |
+| `vasmc add <url>` | 注册并同步直接 URL 依赖（支持 `--alias`、`--dest`） |
+| `vasmc add --catalog <catalog> --export <key>` | 注册并同步 catalog export 依赖（支持 `--alias`、`--dest`） |
 | `vasmc sync` | 根据 `vasmc.yaml` 安装所有缺失依赖，生成/更新 `vasmc-lock.yaml` |
 | `vasmc seal <patterns>` | 将普通 Markdown 封装为 VASM 模块（注入 Frontmatter、重命名为 `.vasm.md`） |
 

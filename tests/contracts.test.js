@@ -166,6 +166,49 @@ describe('Contract: catalog dependencies feed @import', () => {
     });
 });
 
+describe('Contract: add catalog dependency', () => {
+    it('registers a catalog export, syncs it, and writes lock metadata', async () => {
+        const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'vasmc-add-catalog-'));
+        try {
+            const crypto = require('crypto');
+            const artifact = '# Added Catalog Reviewer\n\nInstalled through vasmc add.\n';
+            const artifactHash = crypto.createHash('sha256').update(artifact).digest('hex');
+            fs.mkdirSync(path.join(workspace, 'catalog'), { recursive: true });
+            fs.writeFileSync(path.join(workspace, 'catalog', 'reviewer.md'), artifact, 'utf8');
+            fs.writeFileSync(path.join(workspace, 'catalog', 'vasmc-catalog.yaml'), [
+                'catalogVersion: 1',
+                'exports:',
+                '  reviewer:',
+                '    name: added-reviewer',
+                '    version: "1.0.0"',
+                '    format: executable',
+                '    file: reviewer.md',
+                `    hash: "sha256:${artifactHash}"`,
+                ''
+            ].join('\n'), 'utf8');
+
+            run('add --catalog ./catalog/vasmc-catalog.yaml --export reviewer --alias review-kit', workspace);
+
+            const config = yaml.parse(fs.readFileSync(path.join(workspace, 'vasmc.yaml'), 'utf8'));
+            assert.strictEqual(config.dependencies['review-kit'].catalog, './catalog/vasmc-catalog.yaml');
+            assert.strictEqual(config.dependencies['review-kit'].export, 'reviewer');
+
+            const lockedArtifact = path.join(workspace, '.vasmc', 'review-kit.md');
+            assert.ok(fs.existsSync(lockedArtifact), 'add --catalog must sync the selected artifact');
+            assert.strictEqual(fs.readFileSync(lockedArtifact, 'utf8'), artifact);
+
+            const lock = yaml.parse(fs.readFileSync(path.join(workspace, 'vasmc-lock.yaml'), 'utf8'));
+            assert.strictEqual(lock.dependencies['review-kit'].source, 'catalog');
+            assert.strictEqual(lock.dependencies['review-kit'].catalog, './catalog/vasmc-catalog.yaml');
+            assert.strictEqual(lock.dependencies['review-kit'].export, 'reviewer');
+            assert.strictEqual(lock.dependencies['review-kit'].name, 'added-reviewer');
+            assert.strictEqual(lock.dependencies['review-kit'].hash, `sha256:${artifactHash}`);
+        } finally {
+            fs.rmSync(workspace, { recursive: true, force: true });
+        }
+    });
+});
+
 // ─── Contract 3: Language block filtering ─────────────────────────
 
 describe('Contract: Cross-compilation filters language blocks', () => {

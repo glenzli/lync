@@ -282,7 +282,13 @@ dependencies:
     export: releaseReviewer
 ```
 
-`vasmc sync` 会读取 catalog、校验 artifact hash、把 artifact 写入本地 `.vasmc/` 或显式 `dest`，并在 `vasmc-lock.yaml` 中记录 `source: catalog`、`catalog`、`export`、`name`、`version`、`format`、`hash`、实际 artifact URL，以及 integrative export 的 `appliesTo`。之后 `@import` 仍然只通过 `vasm:<alias>` + lockfile 解析本地文件，不直接扫描远端仓库：
+也可以使用命令写入同样的依赖声明并立即同步：
+
+```bash
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
+```
+
+`vasmc sync` 或 `vasmc add --catalog ...` 会读取 catalog、校验 artifact hash、把 artifact 写入本地 `.vasmc/` 或显式 `dest`，并在 `vasmc-lock.yaml` 中记录 `source: catalog`、`catalog`、`export`、`name`、`version`、`format`、`hash`、实际 artifact URL，以及 integrative export 的 `appliesTo`。之后 `@import` 仍然只通过 `vasm:<alias>` + lockfile 解析本地文件，不直接扫描远端仓库：
 
 ```markdown
 [Release Reviewer](vasm:release-reviewer "@import:inline")

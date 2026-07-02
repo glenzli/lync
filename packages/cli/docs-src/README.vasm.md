@@ -41,6 +41,7 @@ Or register one from the command line:
 
 ```bash
 vasmc add https://example.com/coder-skill.md --alias coder-skill --dest ./skills/coder.md
+vasmc add --catalog https://example.com/dist/vasm-catalog/vasmc-catalog.yaml --export releaseReviewer --alias release-reviewer
 ```
 
 ### 2. Sync And Lock
@@ -57,7 +58,7 @@ Install missing dependencies and update the lockfile:
 vasmc sync
 ```
 
-Catalog dependencies read `vasmc-catalog.yaml`, then lock the selected artifact by its `file` and `hash`. `@import` still uses `vasm:<alias>` and does not scan remote catalogs or repositories.
+Catalog dependencies can be written in `vasmc.yaml` or registered with `vasmc add --catalog <catalog> --export <key>`. VASMC reads `vasmc-catalog.yaml`, then locks the selected artifact by its `file` and `hash`. `@import` still uses `vasm:<alias>` and does not scan remote catalogs or repositories.
 
 Force refresh when needed:
 
