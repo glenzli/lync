@@ -2,7 +2,7 @@ import { glob } from 'glob';
 import { minimatch } from 'minimatch';
 import * as path from 'path';
 import * as fs from 'fs';
-import { loadBuildConfig } from './config';
+import { loadBuildConfig, loadLockfile } from './config';
 import { compileFile, extractTargetLangs, collectDependencies } from './compiler';
 import { t } from './i18n';
 import { VasmFrontmatter } from './types';
@@ -14,7 +14,8 @@ import { readVasmManifest, summarizeVasmManifest, validateVasmManifest, Manifest
 import { evaluateVasmPolicy, PolicyContentSignal, PolicyDiagnostic, PolicyStatus } from './policy';
 import { createProjectReviewContext, ProjectReviewReport } from './project-review';
 import { assertCompileFormat, deprecatedCompileFormatTargetConfigKey, formatDeprecationMessage } from './formats';
-import { computeHash } from './network';
+import { computeHash, normalizeHash } from './network';
+import { resolveLockedDependencyPath } from './dependencies';
 import type { CompileFormat } from './formats';
 import type { CatalogExportDeclaration, VasmBuild, VasmCatalog, VasmCatalogExport } from './types';
 
@@ -35,6 +36,7 @@ export interface BuildRunOptions {
     force?: boolean;
     dryRun?: boolean;
     reportOut?: string;
+    securityMode?: 'review' | 'enforce';
 }
 
 interface EntryMetadata {
@@ -45,6 +47,8 @@ interface EntryMetadata {
 
 interface IntegrationGuide extends BuildReportIntegrationGuide {
     absoluteFile: string;
+    catalog?: string;
+    exportName?: string;
 }
 
 interface NormalizedCatalogExport {
@@ -57,6 +61,11 @@ interface NormalizedCatalogExport {
     compileFormat: CompileFormat;
     artifactFile: string;
     artifactPath: string;
+}
+
+interface CompiledCatalogExport {
+    normalized: NormalizedCatalogExport;
+    entry: VasmCatalogExport;
 }
 
 export interface CompiledResult {
@@ -81,9 +90,15 @@ export interface BuildReportPolicy {
 
 export interface BuildReportIntegrationGuide {
     source: string;
+    output?: string;
     appliesTo: string[];
     alias?: string;
     intent?: string;
+    dependencyAlias?: string;
+    catalog?: string;
+    export?: string;
+    version?: string;
+    hash?: string;
 }
 
 export type BuildReportActionType =
@@ -128,7 +143,7 @@ export interface BuildReportDependency {
     diagnostics?: BuildReportDiagnostic[];
 }
 
-export type BuildReportEntryStatus = 'built' | 'skipped' | 'blocked' | 'planned' | 'indexed';
+export type BuildReportEntryStatus = 'built' | 'skipped' | 'blocked' | 'planned';
 
 export interface BuildReportEntry {
     source: string;
@@ -136,7 +151,6 @@ export interface BuildReportEntry {
     status: BuildReportEntryStatus;
     format: CompileFormat;
     targetLangs: string[];
-    sourceOnly?: boolean;
     compiledFiles?: string[];
     minimalTokenVariant?: BuildReportVariant;
     actions?: BuildReportAction[];
@@ -201,14 +215,12 @@ export function createBuildReportEntry(entry: WorkspaceEntry, cwd: string, statu
     const diagnostics = collectManifestDiagnostics(entry.absoluteFile, cwd);
     const dependencies = collectDependencyManifestReports(entry.absoluteFile, cwd);
     const policy = evaluateVasmPolicy(entry, cwd);
-    const sourceOnly = entry.compileFormat === 'integrative';
     const report: BuildReportEntry = {
         source: entry.relativeFile,
-        output: sourceOnly ? entry.relativeFile : path.relative(cwd, entry.finalDest),
+        output: path.relative(cwd, entry.finalDest),
         status,
         format: entry.compileFormat,
         targetLangs: entry.targetLangs,
-        ...(sourceOnly ? { sourceOnly: true } : {}),
         policy: {
             status: policy.status,
             enforceable: policy.enforceable,
@@ -281,17 +293,17 @@ export function createProjectReviewReportAction(contextFile: string, mode: 'sugg
     };
 }
 
-function createIntegrationReviewReportAction(entry: WorkspaceEntry, intent?: string): BuildReportAction {
+function createIntegrationReviewReportAction(entry: WorkspaceEntry, cwd: string, intent?: string): BuildReportAction {
     return {
         type: 'integration_review',
         status: 'pending',
         title: 'Integration Review',
-        target: entry.relativeFile,
+        target: path.relative(cwd, entry.finalDest),
         format: entry.compileFormat,
         intent,
         notes: [
-            'Review this integrative source file as composition guidance only.',
-            'No compiled output is produced for integrative sources.',
+            'Review this compiled integrative artifact as composition guidance only.',
+            'If the guide is unclear or stale, edit the corresponding .vasm.md source and rebuild.',
         ],
     };
 }
@@ -322,9 +334,67 @@ function integrationTargetMatches(pattern: string, entry: WorkspaceEntry, cwd: s
     );
 }
 
+function normalizeCatalogRefForMatch(ref: string | undefined, cwd: string): string | undefined {
+    if (!ref) return undefined;
+    if (/^(https?:|file:)\/\//i.test(ref)) return ref;
+    return normalizeMatchPath(path.resolve(cwd, ref));
+}
+
+function catalogRefsMatch(left: string | undefined, right: string | undefined, cwd: string): boolean {
+    const normalizedLeft = normalizeCatalogRefForMatch(left, cwd);
+    const normalizedRight = normalizeCatalogRefForMatch(right, cwd);
+    return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function entryUsesCatalogExport(entry: WorkspaceEntry, guide: IntegrationGuide, cwd: string): boolean {
+    if (!guide.catalog || guide.appliesTo.length === 0) return false;
+
+    const lock = loadLockfile(cwd);
+    const dependencies = collectDependencies(entry.absoluteFile, cwd);
+    const appliesTo = new Set(guide.appliesTo);
+
+    for (const [alias, lockedDep] of Object.entries(lock.dependencies || {})) {
+        if (lockedDep.source !== 'catalog') continue;
+        if (!catalogRefsMatch(lockedDep.catalog, guide.catalog, cwd)) continue;
+        const lockedHash = normalizeHash(lockedDep.hash);
+        if (!lockedHash || !appliesTo.has(`sha256:${lockedHash}`)) continue;
+
+        const dependencyPath = resolveLockedDependencyPath(cwd, alias, lockedDep);
+        if (dependencies.has(dependencyPath)) return true;
+    }
+
+    return false;
+}
+
+function entryMatchesCatalogExportReference(pattern: string, entry: WorkspaceEntry, cwd: string): boolean {
+    const normalizedPattern = normalizeMatchPath(pattern);
+    if (isVasmAliasTarget(normalizedPattern)) return false;
+
+    const exports = loadBuildConfig(cwd).catalog?.exports;
+    if (!exports) return false;
+
+    for (const [key, declaration] of Object.entries(exports)) {
+        const normalizedDeclaration = normalizeCatalogExportDeclaration(key, declaration);
+        const absoluteSource = path.resolve(cwd, normalizedDeclaration.source);
+        if (path.normalize(absoluteSource) !== path.normalize(entry.absoluteFile)) continue;
+
+        const normalizedKey = normalizeMatchPath(key);
+        if (
+            normalizedKey === normalizedPattern
+            || minimatch(normalizedKey, normalizedPattern, { dot: true, matchBase: true })
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function guideAppliesToEntry(guide: IntegrationGuide, entry: WorkspaceEntry, cwd: string): boolean {
     if (entry.compileFormat !== 'executable') return false;
-    return guide.appliesTo.some(pattern => integrationTargetMatches(pattern, entry, cwd));
+    return guide.appliesTo.some(pattern => integrationTargetMatches(pattern, entry, cwd))
+        || guide.appliesTo.some(pattern => entryMatchesCatalogExportReference(pattern, entry, cwd))
+        || entryUsesCatalogExport(entry, guide, cwd);
 }
 
 function readIntegrationAppliesTo(manifest: VasmFrontmatter['vasm'] | undefined): string[] {
@@ -346,10 +416,35 @@ async function collectIntegrationGuides(cwd: string): Promise<IntegrationGuide[]
 
         guides.push({
             source: entry.relativeFile,
+            output: path.relative(cwd, entry.finalDest),
             absoluteFile: entry.absoluteFile,
             appliesTo,
             alias: manifest?.alias,
             intent: manifest?.intent,
+        });
+    }
+
+    const lock = loadLockfile(cwd);
+    for (const [dependencyAlias, lockedDep] of Object.entries(lock.dependencies || {})) {
+        if (lockedDep.source !== 'catalog') continue;
+        if (lockedDep.format !== 'integrative') continue;
+        if (!lockedDep.appliesTo || lockedDep.appliesTo.length === 0) continue;
+
+        const absoluteFile = resolveLockedDependencyPath(cwd, dependencyAlias, lockedDep);
+        if (!fs.existsSync(absoluteFile)) continue;
+        const localPath = path.relative(cwd, absoluteFile);
+        guides.push({
+            source: localPath,
+            output: localPath,
+            absoluteFile,
+            appliesTo: lockedDep.appliesTo,
+            alias: lockedDep.name || dependencyAlias,
+            dependencyAlias,
+            catalog: lockedDep.catalog,
+            export: lockedDep.export,
+            exportName: lockedDep.export,
+            version: lockedDep.version,
+            hash: lockedDep.hash,
         });
     }
 
@@ -374,8 +469,8 @@ function createIntegrationGuidanceReportAction(
         target,
         guides,
         notes: [
-            'Read these integrative source files before combining this executable output with other VASM outputs.',
-            'Use the guides as source-only composition guidance; do not inline them into the final executable prompt unless the user explicitly asks.',
+            'Read these integrative guide artifacts or sources before combining this executable output with other VASM outputs.',
+            'Use the guides as composition guidance; do not inline them into the final executable prompt unless the user explicitly asks.',
         ],
     };
 }
@@ -640,21 +735,30 @@ function catalogPatternMatchesExport(pattern: string, target: NormalizedCatalogE
     );
 }
 
-function resolveCatalogAppliesTo(sourceExport: NormalizedCatalogExport, allExports: NormalizedCatalogExport[]): string[] | undefined {
+function resolveCatalogAppliesTo(
+    sourceExport: NormalizedCatalogExport,
+    compiledExports: CompiledCatalogExport[]
+): string[] | undefined {
     if (sourceExport.compileFormat !== 'integrative') return undefined;
     const appliesTo = readIntegrationAppliesTo(sourceExport.manifest);
     if (appliesTo.length === 0) return undefined;
 
     const matched = new Set<string>();
     for (const pattern of appliesTo) {
-        for (const target of allExports) {
+        for (const compiledExport of compiledExports) {
+            const target = compiledExport.normalized;
             if (target.key === sourceExport.key) continue;
             if (target.compileFormat !== 'executable') continue;
-            if (catalogPatternMatchesExport(pattern, target)) matched.add(target.key);
+            if (catalogPatternMatchesExport(pattern, target)) matched.add(compiledExport.entry.hash);
         }
     }
 
-    return matched.size > 0 ? [...matched] : undefined;
+    if (matched.size === 0) {
+        console.warn(`[CATALOG] ⚠️ Integrative export '${sourceExport.key}' did not match any executable catalog export via integration.appliesTo.`);
+        return undefined;
+    }
+
+    return [...matched];
 }
 
 function normalizeCatalogExports(cwd: string, buildConfig: VasmBuild): NormalizedCatalogExport[] {
@@ -719,6 +823,7 @@ export async function runCatalogBuild(cwd: string, cliOptions?: BuildRunOptions)
         catalogVersion: 1,
         exports: {},
     };
+    const compiledExports: CompiledCatalogExport[] = [];
 
     for (const catalogExport of normalizedExports) {
         if (cliOptions?.dryRun) {
@@ -742,12 +847,16 @@ export async function runCatalogBuild(cwd: string, cliOptions?: BuildRunOptions)
             file: catalogExport.artifactFile,
             hash: `sha256:${computeHash(artifactContent)}`,
         };
-        const appliesTo = resolveCatalogAppliesTo(catalogExport, normalizedExports);
-        if (appliesTo) entry.appliesTo = appliesTo;
+        compiledExports.push({ normalized: catalogExport, entry });
         catalog.exports[catalogExport.key] = entry;
     }
 
     if (cliOptions?.dryRun) return catalog;
+
+    for (const compiledExport of compiledExports) {
+        const appliesTo = resolveCatalogAppliesTo(compiledExport.normalized, compiledExports);
+        if (appliesTo) compiledExport.entry.appliesTo = appliesTo;
+    }
 
     writeFileAtomic(catalogPath, yaml.stringify(catalog));
     console.log(`[CATALOG] 📦 Catalog: ${path.relative(cwd, catalogPath)}`);
@@ -868,6 +977,9 @@ function outputPathForLang(entry: WorkspaceEntry, targetLang?: string): string {
 
 function resolveLangsToCompile(entry: WorkspaceEntry, cwd: string, agentMode: boolean): string[] {
     const isInformationalFormat = entry.compileFormat === 'informational';
+    if (entry.compileFormat === 'integrative') {
+        return [undefined] as any;
+    }
     if (agentMode && entry.targetLangs.length > 1) {
         const sourceLangs = resolveAgentSourceTargetLangs(entry.absoluteFile, cwd, entry.targetLangs);
         if (sourceLangs.length > 0) {
@@ -898,7 +1010,7 @@ function shouldSkipEntry(entry: WorkspaceEntry, cwd: string, buildState: ReturnT
         return cached.inputSignature === sig && targetLangsMatch(cached.targetLangs, targetLangs);
     }
 
-    const langsToCheck = agentMode ? resolveLangsToCompile(entry, cwd, true) : targetLangs;
+    const langsToCheck = resolveLangsToCompile(entry, cwd, Boolean(agentMode));
     for (const targetLang of langsToCheck) {
         const actualDest = outputPathForLang(entry, targetLang);
         const key = buildStateKey(relativeFile, targetLang || 'auto');
@@ -927,10 +1039,15 @@ function createEntryFollowupActions(
 ): BuildReportAction[] {
     const isInformationalFormat = entry.compileFormat === 'informational';
     const isExecutableFormat = entry.compileFormat === 'executable';
+    const isIntegrativeFormat = entry.compileFormat === 'integrative';
     const langsNeedingTranslation = entry.targetLangs.filter(l => l !== 'auto' && !compiledLangs.has(l));
     const preservedTargetLangs = preservedLangs.filter(l => l !== 'auto' && entry.targetLangs.includes(l));
 
     const actionItems: BuildReportAction[] = [];
+    if (isIntegrativeFormat) {
+        actionItems.push(createIntegrationReviewReportAction(entry, cwd, intent));
+    }
+
     const integrationGuidanceAction = createIntegrationGuidanceReportAction(entry, minVariantPath, integrationGuides, cwd);
     if (integrationGuidanceAction) actionItems.push(integrationGuidanceAction);
 
@@ -1044,14 +1161,8 @@ function preserveExistingInformationalLangs(entry: WorkspaceEntry, compiledMap: 
 export async function compileEntry(entry: WorkspaceEntry, cwd: string, agentMode: boolean = false): Promise<CompiledResult> {
     const { relativeFile, absoluteFile, finalDest, compileFormat, targetLangs } = entry;
     const isInformationalFormat = compileFormat === 'informational';
-    const isIntegrativeFormat = compileFormat === 'integrative';
     let compiledMap = new Map<string, string>();
     let preservedLangs: string[] = [];
-
-    if (isIntegrativeFormat) {
-        console.log(`[BUILD] 🧭 Indexed integrative source: ${relativeFile}`);
-        return { entry, compiledMap, preservedLangs };
-    }
 
     // In AI build mode with multiple langs, only compile languages that are actually present in source.
     // Missing languages are recorded as report actions for the active AI skill to translate.
@@ -1122,12 +1233,6 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOption
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isInformationalFormat = entry.compileFormat === 'informational';
-        const isIntegrativeFormat = entry.compileFormat === 'integrative';
-
-        if (isIntegrativeFormat) {
-            console.log(`[BUILD] 🧭 Indexed integrative source: ${relativeFile}`);
-            continue;
-        }
 
         if (shouldSkipEntry(entry, cwd, buildState, cliOptions?.force, false)) {
             console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
@@ -1135,14 +1240,14 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOption
         }
 
         if (cliOptions?.dryRun) {
-            const plannedFiles = (isInformationalFormat ? [finalDest] : targetLangs.map(targetLang => outputPathForLang(entry, targetLang)))
+            const plannedFiles = (isInformationalFormat ? [finalDest] : resolveLangsToCompile(entry, cwd, false).map(targetLang => outputPathForLang(entry, targetLang)))
                 .map(filePath => path.relative(cwd, filePath));
             console.log(`[BUILD] 🧪 Planned: ${relativeFile} -> ${plannedFiles.join(', ')}`);
             continue;
         }
 
         // Full compile
-        await compileEntry(entry, cwd, false);
+        const result = await compileEntry(entry, cwd, false);
 
         // Update cache after successful compile
         const deps = collectDependencies(absoluteFile, cwd);
@@ -1156,7 +1261,7 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOption
                 targetLangs: [...targetLangs].sort(),
             };
         } else {
-            for (const targetLang of targetLangs) {
+            for (const targetLang of result.compiledMap.keys()) {
                 const key = buildStateKey(relativeFile, targetLang || 'auto');
                 const actualDest = outputPathForLang(entry, targetLang);
                 buildState.entries[key] = {
@@ -1180,7 +1285,7 @@ export async function runWorkspaceBuild(cwd: string, cliOptions?: BuildRunOption
 /** Shared AI build runner for pre-resolved entries. */
 export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], cliOptions?: BuildRunOptions): Promise<BuildReport> {
     const buildConfig = loadBuildConfig(cwd);
-    const securityMode = buildConfig.security?.mode || 'review';
+    const securityMode = cliOptions?.securityMode || buildConfig.security?.mode || 'review';
     const buildState = loadBuildState(cwd);
     const dryRun = cliOptions?.dryRun || false;
     const integrationGuides = await collectIntegrationGuides(cwd);
@@ -1225,7 +1330,6 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
     for (const entry of entries) {
         const { relativeFile, absoluteFile, finalDest, targetLangs } = entry;
         const isInformationalFormat = entry.compileFormat === 'informational';
-        const isIntegrativeFormat = entry.compileFormat === 'integrative';
         const skippedReport = createBuildReportEntry(entry, cwd, 'skipped');
 
         if (shouldBlockPolicyOutput(skippedReport, securityMode)) {
@@ -1250,23 +1354,12 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
             }
         }
 
-        if (isIntegrativeFormat) {
-            const indexedReport = createBuildReportEntry(entry, cwd, 'indexed');
-            const actions = [
-                createIntegrationReviewReportAction(entry, intent),
-                createPolicyReportAction(indexedReport, reportTarget),
-            ].filter((action): action is BuildReportAction => !!action);
-            if (actions.length > 0) indexedReport.actions = actions;
-            buildReport.entries.push(indexedReport);
-            if (!dryRun) console.log(`[BUILD] 🧭 Indexed integrative source: ${relativeFile}`);
-            continue;
-        }
-
         if (shouldSkipEntry(entry, cwd, buildState, cliOptions?.force, true)) {
             if (!dryRun) console.log(`[BUILD] ⚡️ Skipped (unchanged): ${relativeFile}`);
             const skippedLang = resolveLangsToCompile(entry, cwd, true)[0];
             const skippedTarget = path.relative(cwd, outputPathForLang(entry, skippedLang));
             const actions = [
+                entry.compileFormat === 'integrative' ? createIntegrationReviewReportAction(entry, cwd, intent) : undefined,
                 createIntegrationGuidanceReportAction(entry, skippedTarget, integrationGuides, cwd),
                 createPolicyReportAction(skippedReport, reportTarget),
             ].filter((action): action is BuildReportAction => !!action);
@@ -1291,7 +1384,7 @@ export async function runAIBuildEntries(cwd: string, entries: WorkspaceEntry[], 
         // Cache old content for AI diff report actions
         const historyPaths: { lang: string; backupPath: string }[] = [];
         if (!isInformationalFormat) {
-            for (const targetLang of targetLangs) {
+            for (const targetLang of resolveLangsToCompile(entry, cwd, true)) {
                 const actualDest = outputPathForLang(entry, targetLang);
                 if (fs.existsSync(actualDest)) {
                     const oldContent = fs.readFileSync(actualDest, 'utf8');

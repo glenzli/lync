@@ -287,7 +287,7 @@ actions:
 
 ## 5. `integrative`：组合指导，不是最终 prompt
 
-`integrative` 用于说明一组 VASM 模块如何组合。它不是最终可执行 prompt，也不生成自己的 compiled output；AI 直接读取 source 做整合决策。
+`integrative` 用于说明一组 VASM 模块如何组合。它不是最终可执行 prompt；VASMC 会生成一个展开后的组合指导 artifact，AI 读取这个 artifact 做整合决策。
 
 ### Source
 
@@ -475,7 +475,7 @@ dist/vasm-catalog/
   release-workflow-guide.md
 ```
 
-`executable` 和 `informational` export 是编译后的 artifact；`integrative` export 也是 release artifact，不再保留内部 import，而是展开后的组合指导。它的 `appliesTo` 会写入 `vasmc-catalog.yaml`，指向同一 catalog 内被命中的 export key。
+`executable` 和 `informational` export 是编译后的 artifact；`integrative` export 也是 release artifact，不再保留内部 import，而是展开后的组合指导。它的 `appliesTo` 会写入 `vasmc-catalog.yaml`，指向同一 catalog 内被命中 artifact 的 hash。source 中仍写 `vasm:<alias>`、catalog export key 或路径 glob，不写 hash。
 
 catalog 中的 `hash` 是 artifact 内容 hash，承担真正的身份校验。`name`、`version`、`format` 来自 source frontmatter，帮助人类和 AI 判断用途与兼容性。外部引用这些 artifact 时，应该用 `dependencies.<alias>.catalog` 和 `dependencies.<alias>.export` 锁定 catalog export，再由 `@import` 读取本地锁定文件。
 
@@ -521,7 +521,7 @@ security:
   mode: enforce
 ```
 
-当 executable entry 的 `policy.status` 是 `blocked` 时，VASMC 不会更新产物。integrative 是 source-only，因此只报告 policy，不阻断产物。AI 只能解释阻断原因，并建议修改 source manifest 或 dependency。
+当 executable entry 的 `policy.status` 是 `blocked` 时，VASMC 不会更新产物。integrative artifact 仍按组合指导处理，policy diagnostics 用于审阅；AI 只能解释阻断原因，并建议修改 source manifest 或 dependency。
 
 ## 11. Project review
 

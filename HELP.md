@@ -45,7 +45,7 @@ vasm:
 
 - `informational`: documentation or knowledge, not an instruction file. Multiple target languages are merged into one file.
 - `executable`: prompts, skills, or instructions read by the model. Multiple languages produce separate files.
-- `integrative`: source-only guidance for composing multiple VASM modules. It is indexed into the build report and does not produce compiled output.
+- `integrative`: guidance for composing multiple VASM modules. It produces one expanded guide artifact and is not split into language variants.
 
 Deprecated compatibility values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`. Other values are invalid.
 
@@ -173,11 +173,12 @@ CLI overrides are also available:
 
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
+vasmc build --security enforce
 ```
 
 `--out-dir` is not dry-run. When a source matches `routing`, `routing.dest` still controls the final output path.
 
-When `catalog.exports` is configured, workspace builds also emit `catalog.outDir/vasmc-catalog.yaml` and exported artifacts. The catalog is a release index: `executable`/`informational` exports are compiled Markdown, `integrative` exports are expanded guidance artifacts, and external consumers should lock artifacts through `dependencies.<alias>.catalog` / `export` before importing them.
+When `catalog.exports` is configured, workspace builds also emit `catalog.outDir/vasmc-catalog.yaml` and exported artifacts. The catalog is a release index: `executable`/`informational` exports are compiled Markdown, `integrative` exports are expanded guidance artifacts, and catalog `appliesTo` relationships are emitted as target artifact hashes. External consumers should lock artifacts through `dependencies.<alias>.catalog` / `export` before importing them.
 
 ## AI Build Workflow
 
@@ -200,7 +201,7 @@ Every build report entry includes `policy.status`:
 - `review`: output is allowed, but AI or human review should inspect diagnostics.
 - `blocked`: a deterministic blocking risk exists, such as invalid manifest shape, format-boundary violation, or lockfile hash mismatch.
 
-`security.mode: review` reports risk without blocking. `security.mode: enforce` prevents blocked `executable` outputs from being updated. Integrative entries are source-only and only report policy.
+`security.mode: review` reports risk without blocking. `security.mode: enforce` prevents blocked `executable` outputs from being updated. Integrative artifacts remain composition guidance and still require policy review.
 
 `policy.contentSignals` do not change `policy.status` and never trigger enforce blocking. AI should decide whether signal evidence is an active instruction, a prohibition, an example, or documentation.
 
@@ -326,11 +327,11 @@ vasm:
 >
 > - `informational`：纯信息/文档产物，多个目标语种会合并为一个 Markdown 文件。
 > - `executable`：作为 AI 指令读取的 prompt/skill 产物，多语种时每种语言输出独立文件。
-> - `integrative`：用于指导一组 VASM 模块如何组合；它是 source-only，不生成自己的 compiled output，AI 应在组合时参考它。
+> - `integrative`：用于指导一组 VASM 模块如何组合；它会生成一个展开后的组合指导 artifact，AI 应在组合时参考它。
 >
 > 为了平滑迁移，`doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated 诊断；其他值是非法格式。
 
-> **`integration.appliesTo`**：只用于 `integrative` 文件，声明这份整合指导适用于哪些 prompt/skill。支持 `vasm:<alias>`，也支持 source/output 路径 glob。它不会把 guide 内容编进目标产物，也不会为 guide 生成 output；只会在命中的 executable entry 上生成 `integration_guidance` action。
+> **`integration.appliesTo`**：只用于 `integrative` 文件，声明这份整合指导适用于哪些 prompt/skill。source 中写稳定引用：`vasm:<alias>`、catalog export key，或 source/output 路径 glob。生成 catalog 时，命中的 catalog 关系会被解析为目标 artifact hash；source 不写 hash。guide 内容不会编进目标产物；guide 自身会生成 artifact，并在命中的 executable entry 上生成 `integration_guidance` action。
 
 ```yaml
 vasm:
@@ -365,7 +366,7 @@ security:
   mode: enforce
 ```
 
-`enforce` 会阻止 `executable` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。integrative 是 source-only，只报告 policy。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
+`enforce` 会阻止 `executable` 产物在 blocked 状态下被更新；`informational` 文档仍按确定性编译流程输出并记录报告。integrative artifact 仍作为组合指导接受 policy review。被阻断时，`.vasmc/build-report.yaml` 会记录 `status: blocked`，并在对应 entry 的 `actions` 中写入 `policy_gate`。
 
 ### Project Review Pass
 
@@ -496,7 +497,7 @@ vasmc seal my-prompt.md --alias my-custom-name
 vasmc seal "prompts/**/*.md" --format executable
 ```
 
-`seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于 source-only 整合指导文件，请使用 `--format integrative`，并在 source 中补充 `vasm.integration.appliesTo`。
+`seal` 会为普通 Markdown 注入 VASM Frontmatter，并将文件重命名为 `.vasm.md`。对于 README、HELP、DESIGN 等信息文档，请显式使用 `--format informational`；对于 System Prompt、Skill 等 AI 消费文件，请使用 `--format executable`；对于整合指导文件，请使用 `--format integrative`，并在 source 中补充 `vasm.integration.appliesTo`。
 
 ---
 
@@ -537,11 +538,12 @@ catalog:
 
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
+vasmc build --security enforce
 ```
 
 注意：`--out-dir` 不是 dry-run。只要 source 命中 `routing`，最终写入路径仍由 `routing.dest` 决定。
 
-如果配置了 `catalog.exports`，workspace build 会额外生成 `catalog.outDir/vasmc-catalog.yaml` 和导出 artifact。catalog 是 release 索引：`executable`/`informational` 导出编译后 Markdown，`integrative` 导出展开后的组合指导，并把适用关系写入 catalog。外部使用时应通过 `dependencies.<alias>.catalog` / `export` 锁定 artifact hash，再由 `@import` 走本地锁定文件。
+如果配置了 `catalog.exports`，workspace build 会额外生成 `catalog.outDir/vasmc-catalog.yaml` 和导出 artifact。catalog 是 release 索引：`executable`/`informational` 导出编译后 Markdown，`integrative` 导出展开后的组合指导，并把 source 中的适用关系解析为目标 artifact hash。外部使用时应通过 `dependencies.<alias>.catalog` / `export` 锁定 artifact hash，再由 `@import` 走本地锁定文件。
 
 <a name="cli-ai-build-zh-cn"></a>
 
@@ -567,13 +569,13 @@ vasmc build [file]
 每当你执行了 `vasmc build` 命令后，**立即读取 `.vasmc/build-report.yaml`**，并按 `entries[].actions` 与顶层 `actions` 顺序执行以下任务（具体步骤由编译器按需记录）：
 
 1. **Semantic Verify**：当 action 为 `verify` 时，读取 `minimalTokenVariant.path`，检查语义冲突、人格分裂、逻辑冗余和系统破坏风险四类问题。
-2. **Integration Review**：当 action 为 `integration_review` 时，读取 integrative source，把它当作组合指导，而不是最终可执行 prompt，检查组合边界是否清楚。
-3. **Integration Guidance**：当 action 为 `integration_guidance` 时，读取 `guides[].source` 中匹配的 integrative guide，再组合该 executable 与其他 VASM 产物；不要把 guide 直接 inline 进最终 prompt。
+2. **Integration Review**：当 action 为 `integration_review` 时，读取 integrative artifact，把它当作组合指导，而不是最终可执行 prompt，检查组合边界是否清楚。
+3. **Integration Guidance**：当 action 为 `integration_guidance` 时，读取 `guides[].output` 或 `guides[].source` 中匹配的 integrative guide，再组合该 executable 与其他 VASM 产物；不要把 guide 直接 inline 进最终 prompt。
 4. **Translation**：当 action 为 `translate` 时，将 `target` 文件翻译到 `targets` 指定的其他语种，**严格保留** Markdown AST 结构。
 5. **Refresh Translation**：当 action 为 `refresh_translation` 时，检查 informational 输出中被保留的旧目标语种段是否仍匹配新 source，只更新过期译文。
 6. **Semantic Diff**：当 action 为 `diff` 时，读取 `history` 中的历史备份文件，向用户说明本次编译在底层结构上影响了什么。
 7. **Policy Review**：当 action 为 `policy_review` 时，检查 manifest、lockfile、format 边界 diagnostics，以及 `policy.contentSignals` 中需要语义判断的词面线索。
-8. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 输出。integrative 是 source-only，只报告 policy。
+8. **Policy Gate**：当 action 为 `policy_gate` 时，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，VASMC 不会更新 blocked 的 `executable` 输出。integrative artifact 仍作为组合指导接受 policy review。
 9. **Project Review**：当顶层 action 为 `project_review` 时，读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，结合项目文件给出源文件级建议或 patch 建议，不能直接编辑生成物。
 10. **Tree-Shake**：当 action 为 `tree_shake` 且用户明确表达了优化 Prompt 的意图时，才执行裁剪分析。
 
@@ -585,7 +587,7 @@ VASMC 负责确定性组装、路由和报告；当前 AI 负责语义判断、�
 
 - `pass`：无确定性风险信号。
 - `review`：允许输出，但 AI 必须审查 report 中的 diagnostics。
-- `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 输出被更新。integrative 是 source-only，只报告 policy。
+- `blocked`：存在可确定的阻断风险，例如 manifest 结构错误、format 边界错误或 lockfile hash 失配。默认 `review` 模式只报告；`enforce` 模式会阻止 blocked 的 `executable` 输出被更新。integrative artifact 仍作为组合指导接受 policy review。
 
 `policy.contentSignals` 不改变 `policy.status`，也不会触发 enforce 阻断。AI 应判断 signal evidence 是 active instruction、prohibition、example 还是 documentation。
 

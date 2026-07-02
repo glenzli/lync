@@ -79,7 +79,7 @@ baseDir: "."
 #     targetLangs: ["en", "zh-CN"]
 #   executable:                   # Executable prompt format: one file per language
 #     targetLangs: ["en"]
-# Integrative sources are source-only composition guidance and are not cross-compiled.
+# Integrative outputs are single composition guide artifacts and are not cross-compiled.
 
 # Advanced Routing Interceptors (optional)
 # routing:
@@ -466,8 +466,14 @@ baseDir: "."
             .option('--dry-run', 'Plan the build without writing outputs, build-state, or the default report')
             .option('--plan', 'Alias for --dry-run')
             .option('--report-out <file>', 'Write build report to this path instead of the default report path')
-            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; force?: boolean; dryRun?: boolean; plan?: boolean; reportOut?: string }) => {
+            .option('--security <mode>', 'Override security mode for this build: review or enforce')
+            .action(async (entry?: string, options?: { outDir?: string; baseDir?: string; targetLangs?: string; force?: boolean; dryRun?: boolean; plan?: boolean; reportOut?: string; security?: string }) => {
             const targetLangsArray = options?.targetLangs ? options.targetLangs.split(',').map(s => s.trim()) : undefined;
+            const securityMode = options?.security;
+            if (securityMode && securityMode !== 'review' && securityMode !== 'enforce') {
+                console.error(`Invalid --security '${securityMode}'. Expected review or enforce.`);
+                process.exit(1);
+            }
             const buildOptions = {
                 baseDir: options?.baseDir,
                 outDir: options?.outDir,
@@ -475,6 +481,7 @@ baseDir: "."
                 force: options?.force,
                 dryRun: options?.dryRun || options?.plan,
                 reportOut: options?.reportOut,
+                securityMode: securityMode as 'review' | 'enforce' | undefined,
             };
             if (entry) {
                 try {

@@ -20,6 +20,7 @@ export interface ResolvedCatalogDependency {
     name: string;
     version: string;
     format: VasmCatalogExport['format'];
+    appliesTo?: string[];
     hash: string;
 }
 
@@ -116,6 +117,12 @@ export async function resolveCatalogDependency(dependency: NormalizedDependency,
     if (!entry.file || !entry.hash || !entry.name || !entry.version || !entry.format) {
         throw new Error(`Catalog export '${exportName}' is incomplete.`);
     }
+    if (entry.appliesTo !== undefined && (
+        !Array.isArray(entry.appliesTo)
+        || !entry.appliesTo.every(item => typeof item === 'string' && Boolean(normalizeHash(item)))
+    )) {
+        throw new Error(`Catalog export '${exportName}' has invalid appliesTo metadata. Expected artifact hash strings.`);
+    }
     if (isAbsoluteReference(entry.file) || entry.file.startsWith('../') || entry.file.includes('/../')) {
         throw new Error(`Catalog export '${exportName}' file must stay relative to the catalog.`);
     }
@@ -129,6 +136,7 @@ export async function resolveCatalogDependency(dependency: NormalizedDependency,
         name: entry.name,
         version: entry.version,
         format: entry.format,
+        appliesTo: entry.appliesTo,
         hash: entry.hash,
     };
 }

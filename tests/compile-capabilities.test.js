@@ -21,6 +21,14 @@ function run(args) {
     });
 }
 
+function runIn(cwd, args) {
+    return execFileSync(process.execPath, [CLI, ...args], {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, NO_COLOR: '1' },
+    });
+}
+
 function runConsole(args) {
     return execFileSync(process.execPath, [CONSOLE, ...args], {
         cwd: workspace,
@@ -35,8 +43,18 @@ function write(relPath, content) {
     fs.writeFileSync(filePath, content, 'utf8');
 }
 
+function writeIn(cwd, relPath, content) {
+    const filePath = path.join(cwd, relPath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, 'utf8');
+}
+
 function read(relPath) {
     return fs.readFileSync(path.join(workspace, relPath), 'utf8');
+}
+
+function readIn(cwd, relPath) {
+    return fs.readFileSync(path.join(cwd, relPath), 'utf8');
 }
 
 function readReport() {
@@ -175,8 +193,7 @@ before(() => {
         '    format: integrative',
         '  integration:',
         '    appliesTo:',
-        '      - vasm:capability-skill',
-        '      - src/skill.vasm.md',
+        '      - capabilitySkill',
         '---',
         '# Integration Guide',
         '',
@@ -204,7 +221,11 @@ describe('Compilation capability matrix', () => {
 
         assert.ok(fs.existsSync(path.join(workspace, 'out', 'skill.en.md')), 'AI executable build must write source-language variant');
         assert.ok(!fs.existsSync(path.join(workspace, 'out', 'skill.zh-CN.md')), 'AI executable build must not write untranslated target variant');
-        assert.ok(!fs.existsSync(path.join(workspace, 'guides', 'integration.md')), 'integrative source must not produce a compiled output');
+        assert.ok(fs.existsSync(path.join(workspace, 'guides', 'integration.md')), 'integrative source must produce a compiled guide artifact');
+        const integrationOutput = read('guides/integration.md');
+        assert.ok(integrationOutput.includes('Use this only as composition guidance.'), 'integrative output must include guide content');
+        assert.ok(integrationOutput.includes('Shared fragment content.'), 'integrative output must expand inline imports');
+        assert.ok(!integrationOutput.includes('vasm:'), 'integrative output must not expose source frontmatter');
 
         const catalog = yaml.parse(read('catalog/vasmc-catalog.yaml'));
         assert.strictEqual(catalog.catalogVersion, 1);
@@ -230,7 +251,7 @@ describe('Compilation capability matrix', () => {
         assert.strictEqual(catalog.exports.capabilityIntegration.format, 'integrative');
         assert.strictEqual(catalog.exports.capabilityIntegration.file, 'capability-integration.md');
         assert.strictEqual(catalog.exports.capabilityIntegration.hash, hash(catalogIntegration));
-        assert.deepStrictEqual(catalog.exports.capabilityIntegration.appliesTo, ['capabilitySkill']);
+        assert.deepStrictEqual(catalog.exports.capabilityIntegration.appliesTo, [catalog.exports.capabilitySkill.hash]);
 
         const report = readReport();
         assert.strictEqual(report.version, 2);
@@ -266,21 +287,177 @@ describe('Compilation capability matrix', () => {
         const guidance = skillEntry.actions.find(action => action.type === 'integration_guidance');
         assert.strictEqual(guidance.target, 'out/skill.en.md');
         assert.deepStrictEqual(guidance.guides.map(guide => guide.source), ['src/integration.vasm.md']);
-        assert.deepStrictEqual(guidance.guides[0].appliesTo, ['vasm:capability-skill', 'src/skill.vasm.md']);
-        assert.strictEqual(guidance.guides[0].output, undefined);
+        assert.deepStrictEqual(guidance.guides.map(guide => guide.output), ['guides/integration.md']);
+        assert.deepStrictEqual(guidance.guides[0].appliesTo, ['capabilitySkill']);
 
         const translate = skillEntry.actions.find(action => action.type === 'translate');
         assert.deepStrictEqual(translate.targets, ['out/skill.zh-CN.md']);
 
         const integrationEntry = entryBySource(report, 'src/integration.vasm.md');
         assert.strictEqual(integrationEntry.format, 'integrative');
-        assert.strictEqual(integrationEntry.status, 'indexed');
-        assert.strictEqual(integrationEntry.output, 'src/integration.vasm.md');
-        assert.strictEqual(integrationEntry.sourceOnly, true);
-        assert.strictEqual(integrationEntry.compiledFiles, undefined);
+        assert.strictEqual(integrationEntry.status, 'built');
+        assert.strictEqual(integrationEntry.output, 'guides/integration.md');
+        assert.strictEqual(integrationEntry.sourceOnly, undefined);
+        assert.deepStrictEqual(integrationEntry.compiledFiles, ['guides/integration.md']);
         assert.deepStrictEqual(integrationEntry.targetLangs, []);
         assert.deepStrictEqual(actionTypes(integrationEntry), ['integration_review']);
-        assert.strictEqual(integrationEntry.actions[0].target, 'src/integration.vasm.md');
+        assert.strictEqual(integrationEntry.actions[0].target, 'guides/integration.md');
+    });
+
+    it('catalog integrative artifacts can guide a consumer executable', () => {
+        const flowRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vasmc-catalog-flow-'));
+        try {
+            const producer = path.join(flowRoot, 'producer');
+            const consumer = path.join(flowRoot, 'consumer');
+            fs.mkdirSync(producer, { recursive: true });
+            fs.mkdirSync(consumer, { recursive: true });
+
+            writeIn(producer, 'vasmc-build.yaml', [
+                'includes:',
+                '  - "src/**/*.vasm.md"',
+                'excludes:',
+                '  - "src/fragments/*.vasm.md"',
+                'output:',
+                '  dir: "./out"',
+                'baseDir: "./src"',
+                'compile:',
+                '  executable:',
+                '    targetLangs: ["en"]',
+                'catalog:',
+                '  outDir: "./catalog"',
+                '  exports:',
+                '    remoteSkill:',
+                '      source: "src/remote-skill.vasm.md"',
+                '      targetLang: "en"',
+                '    remoteGuide:',
+                '      source: "src/remote-guide.vasm.md"',
+                ''
+            ].join('\n'));
+
+            writeIn(producer, 'src/fragments/rule.vasm.md', [
+                '# Producer Rule',
+                '',
+                'Producer catalog guide says to verify dependency boundaries.',
+                ''
+            ].join('\n'));
+
+            writeIn(producer, 'src/remote-skill.vasm.md', [
+                '---',
+                'vasm:',
+                '  alias: producer-skill',
+                '  version: "1.0.0"',
+                '  compile:',
+                '    format: executable',
+                '    targetLangs: ["en"]',
+                '---',
+                '# Producer Skill',
+                '',
+                '<!-- lang:en -->',
+                'Run the producer skill steps.',
+                '<!-- /lang -->',
+                ''
+            ].join('\n'));
+
+            writeIn(producer, 'src/remote-guide.vasm.md', [
+                '---',
+                'vasm:',
+                '  alias: producer-guide',
+                '  version: "1.0.0"',
+                '  intent: Guide consumers when they compose the producer skill.',
+                '  compile:',
+                '    format: integrative',
+                '  integration:',
+                '    appliesTo:',
+                '      - remoteSkill',
+                '---',
+                '# Producer Integration Guide',
+                '',
+                'Guide from producer catalog.',
+                '',
+                '[Rule](./fragments/rule.vasm.md "@import:inline")',
+                ''
+            ].join('\n'));
+
+            runIn(producer, ['build', '--force']);
+
+            const catalogPath = path.join(producer, 'catalog', 'vasmc-catalog.yaml').replace(/\\/g, '/');
+            const producerCatalog = yaml.parse(readIn(producer, 'catalog/vasmc-catalog.yaml'));
+            assert.strictEqual(producerCatalog.exports.remoteGuide.format, 'integrative');
+            assert.deepStrictEqual(producerCatalog.exports.remoteGuide.appliesTo, [producerCatalog.exports.remoteSkill.hash]);
+            const producerGuideArtifact = readIn(producer, 'catalog/producer-guide.md');
+            assert.ok(producerGuideArtifact.includes('Guide from producer catalog.'), 'producer guide artifact must include guide body');
+            assert.ok(producerGuideArtifact.includes('Producer catalog guide says to verify dependency boundaries.'), 'producer guide artifact must expand imports');
+            assert.ok(!producerGuideArtifact.includes('vasm:'), 'producer guide artifact must not expose source frontmatter');
+
+            writeIn(consumer, 'vasmc.yaml', [
+                'dependencies:',
+                '  producer-skill:',
+                `    catalog: "${catalogPath}"`,
+                '    export: remoteSkill',
+                '  producer-guide:',
+                `    catalog: "${catalogPath}"`,
+                '    export: remoteGuide',
+                ''
+            ].join('\n'));
+
+            writeIn(consumer, 'vasmc-build.yaml', [
+                'includes:',
+                '  - "src/*.vasm.md"',
+                'output:',
+                '  dir: "./out"',
+                'baseDir: "./src"',
+                'compile:',
+                '  executable:',
+                '    targetLangs: ["en"]',
+                ''
+            ].join('\n'));
+
+            writeIn(consumer, 'src/use-producer.vasm.md', [
+                '---',
+                'vasm:',
+                '  alias: consumer-composer',
+                '  version: "1.0.0"',
+                '  intent: Compose a producer catalog executable with its guide.',
+                '  compile:',
+                '    format: executable',
+                '    targetLangs: ["en"]',
+                '---',
+                '# Consumer Composer',
+                '',
+                '<!-- lang:en -->',
+                'Use the producer skill below.',
+                '',
+                '[Producer Skill](vasm:producer-skill "@import:inline")',
+                '<!-- /lang -->',
+                ''
+            ].join('\n'));
+
+            runIn(consumer, ['sync']);
+            runIn(consumer, ['build', '--force']);
+
+            const consumerLock = yaml.parse(readIn(consumer, 'vasmc-lock.yaml'));
+            assert.strictEqual(consumerLock.dependencies['producer-guide'].source, 'catalog');
+            assert.strictEqual(consumerLock.dependencies['producer-guide'].format, 'integrative');
+            assert.deepStrictEqual(consumerLock.dependencies['producer-guide'].appliesTo, [consumerLock.dependencies['producer-skill'].hash]);
+            assert.ok(fs.existsSync(path.join(consumer, '.vasmc', 'producer-guide.md')), 'consumer must sync the integrative guide artifact');
+
+            const consumerOutput = readIn(consumer, 'out/use-producer.md');
+            assert.ok(consumerOutput.includes('Run the producer skill steps.'), 'consumer output must inline the executable dependency');
+            assert.ok(!consumerOutput.includes('Guide from producer catalog.'), 'consumer output must not inline integrative guidance by default');
+
+            const consumerReport = yaml.parse(readIn(consumer, '.vasmc/build-report.yaml'));
+            const entry = consumerReport.entries.find(item => item.source === 'src/use-producer.vasm.md');
+            assert.ok(entry, 'consumer build report must include composed entry');
+            const guidance = entry.actions.find(action => action.type === 'integration_guidance');
+            assert.ok(guidance, 'consumer executable must receive integration guidance from catalog integrative artifact');
+            assert.deepStrictEqual(guidance.guides.map(guide => guide.source), ['.vasmc/producer-guide.md']);
+            assert.deepStrictEqual(guidance.guides.map(guide => guide.output), ['.vasmc/producer-guide.md']);
+            assert.strictEqual(guidance.guides[0].dependencyAlias, 'producer-guide');
+            assert.strictEqual(guidance.guides[0].export, 'remoteGuide');
+            assert.deepStrictEqual(guidance.guides[0].appliesTo, [consumerLock.dependencies['producer-skill'].hash]);
+        } finally {
+            fs.rmSync(flowRoot, { recursive: true, force: true });
+        }
     });
 
     it('single-entry AI build uses the same report flow as workspace build', () => {
@@ -419,6 +596,37 @@ describe('Compilation capability matrix', () => {
         const entry = entryBySource(readReport(), 'src/preserved-docs.vasm.md');
         assert.ok(actionTypes(entry).includes('refresh_translation'), 'preserved translations must request refresh review');
         assert.ok(!actionTypes(entry).includes('translate'), 'preserved target languages must not be reported as missing');
+    });
+
+    it('--security enforce blocks unsafe executable outputs without changing project config', () => {
+        write('src/security-override.vasm.md', [
+            '---',
+            'vasm:',
+            '  kind: skill',
+            '  alias: security-override',
+            '  version: "1.0.0"',
+            '  compile:',
+            '    format: executable',
+            '    targetLangs: ["en"]',
+            '---',
+            '# Security Override',
+            '',
+            '<!-- lang:en -->',
+            'This file intentionally carries removed manifest metadata.',
+            '<!-- /lang -->',
+            ''
+        ].join('\n'));
+
+        run(['build', 'src/security-override.vasm.md', '-o', 'security-review-out', '--force']);
+        assert.ok(fs.existsSync(path.join(workspace, 'security-review-out', 'security-override.md')), 'review mode should still write the output');
+
+        run(['build', 'src/security-override.vasm.md', '-o', 'security-enforce-out', '--force', '--security', 'enforce']);
+        assert.ok(!fs.existsSync(path.join(workspace, 'security-enforce-out', 'security-override.md')), 'enforce override must block the output');
+
+        const entry = entryBySource(readReport(), 'src/security-override.vasm.md');
+        assert.strictEqual(entry.status, 'blocked');
+        assert.strictEqual(entry.policy.status, 'blocked');
+        assert.ok(actionTypes(entry).includes('policy_gate'), 'enforce override must emit policy_gate');
     });
 
     it('deterministic single-entry profile compiles all configured language variants', () => {

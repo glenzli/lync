@@ -39,10 +39,10 @@ vasm:
    - **有 Intent**：在 4 维标准基础上，额外对照 Intent 检查产物是否达成用途。若发现偏差，以 diff 形式列出**source-level 建议修改**（具体 `.vasm.md` 或 fragment 位置 + 建议内容），不直接修改产物文件，等待用户确认。
 
 2. **Integration Review**（`type: integration_review`）：
-   读取 action 的 `target` source 文件，把它当作组合指导，而不是最终可执行 prompt。`integrative` 不生成自己的 compiled output；检查 source 是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
+   读取 action 的 `target` artifact，把它当作组合指导，而不是最终可执行 prompt。检查 guide 是否清楚说明哪些 VASM 模块应组合、组合顺序/边界是什么、哪些内容不应进入最终 prompt；若存在歧义，给出源文件级建议。
 
 3. **Integration Guidance**（`type: integration_guidance`）：
-   在组合 action 的 `target` 产物与其他 VASM 产物前，读取 action 的 `guides`。每个 guide 都会包含 `source` 和 `appliesTo`，可能还包含 `alias` 和 `intent`。读取 guide `source`，只把它当作整合决策依据，不要把 guide 内容内联进最终 executable，除非用户明确要求。
+   在组合 action 的 `target` 产物与其他 VASM 产物前，读取 action 的 `guides`。每个 guide 都会包含 `source` 和 `appliesTo`，可能还包含 `alias` 和 `intent`；来自 catalog 的 `appliesTo` 是目标 artifact hash。读取 guide `source`，只把它当作整合决策依据，不要把 guide 内容内联进最终 executable，除非用户明确要求。
 
 4. **Translate**（`type: translate`）：
    将 action 的 `target` 文件翻译到 `targets` 指定的目标语言文件。
@@ -59,7 +59,7 @@ vasm:
    读取 `.vasmc/build-report.yaml`，检查对应 entry 的 `policy.status`、manifest 摘要、依赖声明、diagnostics 和 contentSignals。若状态为 `review` 或存在 contentSignals，向用户说明需要人工或 AI 判断的风险，不要把它当成安全阻断。contentSignals 是词面线索，必须判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 
 8. **Policy Gate**（`type: policy_gate`）：
-   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，blocked executable 输出不会被更新；integrative 是 source-only，仍只报告 policy。你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
+   读取 `.vasmc/build-report.yaml`，定位 `status: blocked` 的 entry 和 diagnostics。若项目启用了 `security.mode: enforce`，blocked executable 输出不会被更新；integrative artifact 仍需要按 report 做 policy review。你只能解释阻断原因并建议修改源文件或 manifest，不能绕过 gate 直接使用被阻断产物。
 
 9. **Project Review**（顶层 `type: project_review`）：
    读取 `.vasmc/project-review-context.yaml` 和 `.vasmc/build-report.yaml`，再按 context index 读取相关项目文件。结合项目实际命令、目录、文档术语、配置和 VASM 源文件，提出源文件级改写建议；除非用户明确要求，否则不要直接编辑源文件，且永远不要直接编辑生成物。

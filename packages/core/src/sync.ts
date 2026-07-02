@@ -11,6 +11,12 @@ import {
     resolveDependencyTargetPath,
 } from './dependencies';
 
+function sameStringArray(a?: string[], b?: string[]): boolean {
+    const left = a || [];
+    const right = b || [];
+    return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
 export async function syncDependencies(cwd: string = process.cwd()): Promise<void> {
     const config = loadConfig(cwd);
     const lock = loadLockfile(cwd);
@@ -29,19 +35,6 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
         let catalogExport: Awaited<ReturnType<typeof resolveCatalogDependency>> | undefined;
         const lockedDep = lock.dependencies[alias];
         const targetPath = resolveDependencyTargetPath(cwd, alias, dependency);
-
-        if (
-            dependency.kind === 'catalog' &&
-            lockedDep?.source === 'catalog' &&
-            lockedDep.catalog === dependency.catalog &&
-            lockedDep.export === dependency.exportName &&
-            (lockedDep.dest || undefined) === (dest || undefined) &&
-            fs.existsSync(targetPath) &&
-            hashMatches(fs.readFileSync(targetPath, 'utf8'), lockedDep.hash)
-        ) {
-            console.log(t('SYNC_UP_TO_DATE_ALIAS', alias));
-            continue;
-        }
 
         try {
             if (dependency.kind === 'catalog') {
@@ -69,6 +62,10 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
         } else if (dependency.kind === 'catalog' && (
             lockedDep.catalog !== dependency.catalog ||
             lockedDep.export !== dependency.exportName ||
+            lockedDep.name !== catalogExport?.name ||
+            lockedDep.version !== catalogExport?.version ||
+            lockedDep.format !== catalogExport?.format ||
+            !sameStringArray(lockedDep.appliesTo, catalogExport?.appliesTo) ||
             normalizeHash(lockedDep.hash) !== normalizeHash(catalogExport?.hash)
         )) {
             needsFetch = true;
@@ -134,6 +131,7 @@ export async function syncDependencies(cwd: string = process.cwd()): Promise<voi
                         name: catalogExport.name,
                         version: catalogExport.version,
                         format: catalogExport.format,
+                        ...(catalogExport.appliesTo ? { appliesTo: catalogExport.appliesTo } : {}),
                         hash: catalogExport.hash,
                         fetchedAt: new Date().toISOString()
                     }

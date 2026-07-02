@@ -47,13 +47,13 @@ vasm:
   compile:
     format: executable      # ← 如果是 AI 消费的 Skill/Prompt 文件
     # format: informational # ← 如果是 README/HELP/DESIGN 等信息文档
-    # format: integrative   # ← 如果是组合多个 VASM 模块的 source-only 整合指导
+    # format: integrative   # ← 如果是组合多个 VASM 模块的整合指导 artifact
     targetLangs: ["zh-CN"]  # ← 确认语种，必要时添加 "en" 等目标语种
 ```
 
 * `informational` 格式：多语种内容合并到**单一文件**（如 `README.md` 中文英文都有）；如果旧输出已有目标语种段，AI build 会保留它们并生成 `refresh_translation` action
 * `executable` 格式：每种语种输出**独立文件**（如 `skill.zh-CN.md`, `skill.en.md`）
-* `integrative` 格式：**不生成输出文件**，AI 直接读取 source，把它当组合指导
+* `integrative` 格式：生成一个展开后的组合指导 artifact，AI 读取 artifact 做组合判断
 
 `vasmc seal` 的 `--format` 参数可以显式指定，不要依赖启发式猜测。
 

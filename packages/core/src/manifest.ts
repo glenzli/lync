@@ -151,7 +151,7 @@ export function validateVasmManifest(manifest: VasmFrontmatter['vasm'] | undefin
                     diagnostics,
                     'warn',
                     'manifest.compile.targetLangs.integrative_ignored',
-                    'vasm.compile.targetLangs is ignored for integrative files because they are source-only.'
+                    'vasm.compile.targetLangs is ignored for integrative files because they produce one composition guide artifact.'
                 );
             }
         }

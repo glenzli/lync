@@ -45,8 +45,12 @@ npm run build
 - `format`
 - `source`
 - `buildSources`（如果存在，按顺序编译）
+- `commands`（如果存在，按指定 CLI 参数执行，用于 `expand`、`dry-run` 等非标准 build case）
 - `workspaceBuild` 与 `cwd`（如果存在，在该目录执行 workspace build）
 - `setupCommands`（如果存在，先按顺序执行，用于准备 producer catalog、sync lockfile 等前置状态）
+- `seedFiles`（如果存在，在清理 case outDir 后写入，用于预置旧译文、lockfile 或本地依赖 artifact）
+- `buildReport`（如果存在，覆盖默认 `.vasmc/build-report.yaml`；如果是 `false`，该 case 不读取 build report）
+- `reportEntryRequired`（如果是 `false`，该 case 可以没有 build report entry）
 - `expectedFailure`（如果存在，编译失败才是通过条件之一）
 - `outDir`
 - `hardChecks`
@@ -88,10 +92,16 @@ self-eval-reports/latest.md
 - `report_format`：build report entry 的 `format` 必须匹配。
 - `report_status`：build report entry 的 `status` 必须匹配。
 - `report_action`：build report entry 的 `actions[].type` 必须包含指定值。
+- `report_action_missing`：build report entry 的 `actions[].type` 必须不包含指定值。
+- `top_level_action`：build report 顶层 `actions[].type` 必须包含指定值。
+- `report_dry_run`：build report 的 `dryRun` 必须匹配。
+- `report_compiled_file`：build report entry 的 `compiledFiles` 必须包含指定路径。
 - `translate_target`：`translate.targets` 必须包含指定目标文件。
 - `policy_status`：build report entry 的 `policy.status` 必须匹配。
 - `report_diagnostic`：entry、policy 或 dependency diagnostics 中必须包含指定 code。
 - `yaml_value`：指定 YAML 文件中的点路径字段必须等于预期值。
+- `yaml_array_contains`：指定 YAML 文件中的点路径字段必须是数组且包含预期值。
+- `yaml_array_contains_field`：指定 YAML 文件中的数组字段必须包含同一文件中的另一个字段值。
 
 若 hard check 失败，case verdict 直接为 `fail`，但仍继续查看后续 case 的报告，并在最终报告中记录失败证据。
 
@@ -101,7 +111,7 @@ self-eval-reports/latest.md
 
 - `intentFaithfulness`：产物是否忠实体现 source intent。
 - `structuralIntegrity`：import、语言块、format 边界是否形成连贯结构。
-- `safetyBoundary`：是否存在 prompt injection、隐藏指令、scope drift、source-only 内容泄露。
+- `safetyBoundary`：是否存在 prompt injection、隐藏指令、scope drift、未发布内容泄露。
 - `clarity`：AI 或人类读者能否直接理解如何使用。
 - `concision`：是否有明显冗余、重复或无效上下文。
 
@@ -127,7 +137,11 @@ Judge 结论默认用中文表达；如需保留机器可读字段，可同时�
 至少对 workspace / policy cases 做额外复核：
 
 - `workspace-link-targets` 必须证明同一次 workspace build 生成 link entry 和 link target，且输出链接指向 generated Markdown。
-- `catalog-export-import` 必须证明 producer 生成 catalog 和 artifact，consumer 通过 `vasmc sync` 写入 lockfile，再由 `@import` 读取本地锁定 artifact。
+- `expand-pure-command` 必须证明 `vasmc expand` 只做展开和语言筛选，不依赖 workspace routing、build-state 或 build report。
+- `dry-run-report-plan` 必须证明 dry-run 只写计划 report，不写目标产物。
+- `catalog-export-import` 必须证明 producer 生成 catalog 和 artifact，integrative `appliesTo` 被解析为目标 artifact hash，consumer 通过 `vasmc sync` 写入 lockfile，再由 `@import` 读取本地锁定 artifact。
+- `deprecated-format-compat` 和 `deprecated-prompt-format-compat` 必须证明旧 `doc`/`prompt` 格式仍可迁移到新 `informational`/`executable`，并暴露 deprecation diagnostic。
+- `lock-hash-mismatch` 必须证明 lockfile hash mismatch 进入阻断级 policy diagnostics。
 - `enforce-policy-gate` 必须证明 `security.mode: enforce` 下 blocked executable 不写出产物，并暴露 `policy_gate` action。
 
 至少对 `complex-skill-composition` 做额外复核：

@@ -107,7 +107,7 @@ vasmc expand main.vasm.md --target-lang zh-CN --stdout
 cat .vasmc/build-report.yaml
 ```
 
-After every `vasmc build`, an AI editor should immediately read `.vasmc/build-report.yaml`; the VASM skill interprets `entries[].actions` and top-level `actions`. The report records entries, outputs, compiled files, minimal-token variants, manifest summaries, dependencies, source-only integrative guides, `policy.status`, policy diagnostics, and content signals. If `ai.projectReview` is enabled, `.vasmc/project-review-context.yaml` lists files the AI can inspect for project-aware suggestions.
+After every `vasmc build`, an AI editor should immediately read `.vasmc/build-report.yaml`; the VASM skill interprets `entries[].actions` and top-level `actions`. The report records entries, outputs, compiled files, minimal-token variants, manifest summaries, dependencies, integrative guide artifacts, `policy.status`, policy diagnostics, and content signals. If `ai.projectReview` is enabled, `.vasmc/project-review-context.yaml` lists files the AI can inspect for project-aware suggestions.
 
 ### 5. Other Deterministic Commands
 
@@ -117,7 +117,7 @@ vasmc seal my-prompt.md --alias my-custom-name
 vasmc seal "prompts/**/*.md" --format executable
 ```
 
-`seal` injects VASM frontmatter into ordinary Markdown and renames files to `.vasm.md`. Use `--format informational` for documents such as README, HELP, and DESIGN. Use `--format executable` for system prompts and skills consumed by AI. Use `--format integrative` for source-only composition guidance.
+`seal` injects VASM frontmatter into ordinary Markdown and renames files to `.vasm.md`. Use `--format informational` for documents such as README, HELP, and DESIGN. Use `--format executable` for system prompts and skills consumed by AI. Use `--format integrative` for composition guidance that should compile into a guide artifact.
 
 ### Workspace Builds
 
@@ -154,9 +154,10 @@ CLI overrides are also supported:
 
 ```bash
 vasmc build --out-dir ./doc --base-dir ./src
+vasmc build --security enforce
 ```
 
-When `catalog.exports` is configured, workspace builds also emit `catalog.outDir/vasmc-catalog.yaml` and exported artifacts. The catalog is a release index: `executable`/`informational` exports are compiled Markdown, `integrative` exports are expanded guidance artifacts, and external consumers should lock artifacts through `dependencies.<alias>.catalog` / `export` before importing them.
+When `catalog.exports` is configured, workspace builds also emit `catalog.outDir/vasmc-catalog.yaml` and exported artifacts. The catalog is a release index: `executable`/`informational` exports are compiled Markdown, `integrative` exports are expanded guidance artifacts, and catalog `appliesTo` relationships are emitted as target artifact hashes. External consumers should lock artifacts through `dependencies.<alias>.catalog` / `export` before importing them.
 <!-- /lang -->
 
 <!-- lang:zh-CN -->

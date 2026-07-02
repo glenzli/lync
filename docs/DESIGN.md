@@ -68,7 +68,7 @@ Stable fields:
 | --- | --- | --- |
 | `informational` | Documentation, knowledge, or explanatory material, not direct instructions | Multiple languages are merged into one `.md`. |
 | `executable` | Prompt, skill, system instruction, or similar AI execution-surface content | Multiple languages become separate files, such as `skill.en.md`. |
-| `integrative` | Guidance for composing multiple VASM modules | Source-only; indexed into the build report without compiled output. |
+| `integrative` | Guidance for composing multiple VASM modules | Produces one expanded guide artifact and is not split into language variants. |
 
 Deprecated values are narrow: `doc` maps to `informational`, and `prompt` maps to `executable`, with diagnostics. Other format values are invalid.
 
@@ -138,9 +138,9 @@ catalog:
       source: "src/integrations/release-workflow.vasm.md"
 ```
 
-Workspace builds write `vasmc-catalog.yaml` plus artifacts. `executable`/`informational` exports are compiled Markdown; `integrative` exports are expanded guidance artifacts with their relationships lifted into the catalog. The catalog does not write package name or generated timestamp; artifact `hash` is the identity.
+Workspace builds write `vasmc-catalog.yaml` plus artifacts. `executable`/`informational` exports are compiled Markdown; `integrative` exports are expanded guidance artifacts, and source `integration.appliesTo` is resolved to target artifact hashes in the catalog. Source files do not write hashes; hashes only belong to generated catalogs and consumer lockfiles. The catalog does not write package name or generated timestamp; artifact `hash` is the identity.
 
-When consuming a catalog, the consumer still declares `dependencies.<alias>` and runs `vasmc sync` to generate the lockfile. `@import` does not understand catalogs directly and does not scan remote repositories; it only resolves `vasm:<alias>` to the local artifact fixed by the lockfile. This keeps direct URLs, catalog exports, and future dependency sources on one locking and import path.
+When consuming a catalog, the consumer still declares `dependencies.<alias>` and runs `vasmc sync` to generate the lockfile. The lockfile records both artifact hashes and integrative guide `appliesTo` hashes. `@import` does not understand catalogs directly and does not scan remote repositories; it only resolves `vasm:<alias>` to the local artifact fixed by the lockfile. This keeps direct URLs, catalog exports, and future dependency sources on one locking and import path.
 
 ## 7. AI Build Report
 
@@ -212,7 +212,7 @@ policy:
       confidence: low
 ```
 
-`security.mode: review` reports risk without blocking. `security.mode: enforce` only uses deterministic blocked diagnostics to prevent `executable` outputs from being updated; `contentSignals` never trigger enforce blocking by themselves. Integrative entries are source-only, so there is no output to block, but policy diagnostics are still reported.
+`security.mode: review` reports risk without blocking. `security.mode: enforce` only uses deterministic blocked diagnostics to prevent `executable` outputs from being updated; `contentSignals` never trigger enforce blocking by themselves. Integrative artifacts are still composition guidance and their policy diagnostics remain review inputs.
 
 This does not defend against runtime prompt injection from user input, tool output, or RAG content. Those require host isolation, tool mediation, permission boundaries, or separate reviewers. VASMC only governs the input path you control.
 
@@ -342,7 +342,7 @@ vasm:
 | --- | --- | --- |
 | `informational` | 文档、知识、说明材料，不作为直接执行指令 | 多语种合并到同一个 `.md`。 |
 | `executable` | prompt、skill、system instruction 等会作为 AI 指令读取的内容 | 多语种输出为独立文件，例如 `skill.en.md`。 |
-| `integrative` | 指导一组 VASM 模块如何组合 | source-only，只进入 build report，不生成自己的 compiled output。 |
+| `integrative` | 指导一组 VASM 模块如何组合 | 生成一个展开后的组合指导 artifact，不做多语种拆分。 |
 
 旧值 `doc` 会映射为 `informational`，`prompt` 会映射为 `executable`，并输出 deprecated diagnostics。其他格式值非法。
 
@@ -359,7 +359,7 @@ vasm:
       - skill-src/reviewer/**/*.vasm.md
 ```
 
-`integration.appliesTo` 是 AI 整合关系，不是内容依赖。它支持 `vasm:<alias>` 和 source/output 路径 glob。命中某个 `executable` entry 时，build report 会增加 `integration_guidance` action，提醒 AI 在组合该产物前读取对应 source guide。integrative source 本身不会经过语言输出或 routing 输出。
+`integration.appliesTo` 是 AI 整合关系，不是内容依赖。source 中写的是稳定引用：`vasm:<alias>`、catalog export key，或 source/output 路径 glob。命中某个 `executable` entry 时，build report 会增加 `integration_guidance` action，提醒 AI 在组合该产物前读取对应 integrative guide。integrative 会按普通 routing/output 生成一个 artifact，但不会按 `targetLangs` 生成多语种变体。
 
 早期尝试过的 `kind`、`scope`、`capabilities`、`activation`、`trust`、`vision`、`fix` 等字段已经移除。这些自然语言说明字段很难稳定定义，容易占用 AI 注意力，却不能提供可靠校验。
 
@@ -427,9 +427,9 @@ catalog:
       source: "src/integrations/release-workflow.vasm.md"
 ```
 
-workspace build 会生成 `vasmc-catalog.yaml` 和对应 artifact。`executable`/`informational` 导出编译后的 Markdown；`integrative` 导出展开后的组合指导，并把适用关系提升到 catalog。catalog 不写 package name 或 generatedAt，身份由 artifact `hash` 承担。
+workspace build 会生成 `vasmc-catalog.yaml` 和对应 artifact。`executable`/`informational` 导出编译后的 Markdown；`integrative` 导出展开后的组合指导，并把 source 中的 `integration.appliesTo` 解析为目标 artifact 的 `hash` 写入 catalog。source 不写 hash；hash 只属于生成的 catalog 和 consumer lockfile。catalog 不写 package name 或 generatedAt，身份由 artifact `hash` 承担。
 
-消费 catalog 时，使用方仍然只声明 `dependencies.<alias>`，再执行 `vasmc sync` 生成 lockfile。`@import` 不直接理解 catalog，也不扫描远端仓库；它只通过 `vasm:<alias>` 找到 lockfile 中固定下来的本地 artifact。这让直接 URL、catalog export 和未来依赖来源共用一套锁定与导入机制。
+消费 catalog 时，使用方仍然只声明 `dependencies.<alias>`，再执行 `vasmc sync` 生成 lockfile。lockfile 会同时固定 artifact hash 和 integrative guide 的 `appliesTo` hash。`@import` 不直接理解 catalog，也不扫描远端仓库；它只通过 `vasm:<alias>` 找到 lockfile 中固定下来的本地 artifact。这让直接 URL、catalog export 和未来依赖来源共用一套锁定与导入机制。
 
 ## 7. AI Build Report
 
@@ -472,7 +472,7 @@ actions:
 | action | 作用 |
 | --- | --- |
 | `verify` | 检查 executable 产物是否符合 `intent`。 |
-| `integration_review` | 检查 integrative source 的组合边界是否清楚。 |
+| `integration_review` | 检查 integrative artifact 的组合边界是否清楚。 |
 | `integration_guidance` | 在组合 executable 前，提醒 AI 读取匹配的 integrative guides。 |
 | `translate` | 补齐缺失目标语种。 |
 | `refresh_translation` | 检查被保留的旧目标语种段是否需要更新。 |
@@ -507,7 +507,7 @@ policy:
       confidence: low
 ```
 
-`security.mode: review` 只报告风险。`security.mode: enforce` 只根据确定性 blocked diagnostics 阻止 `executable` 产物被更新，不会因为 `contentSignals` 阻断输出。integrative 是 source-only，因此没有产物需要阻断，但仍会报告 policy diagnostics。
+`security.mode: review` 只报告风险。`security.mode: enforce` 只根据确定性 blocked diagnostics 阻止 `executable` 产物被更新，不会因为 `contentSignals` 阻断输出。integrative 会生成组合指导 artifact；它的 policy diagnostics 仍用于审阅，而不是把 guide 当成最终 executable prompt。
 
 这不能防御用户输入、工具输出或 RAG 内容中的运行时 prompt injection。那些需要宿主环境、工具代理、权限隔离或独立 reviewer 处理。VASMC 只负责你能控制的输入路径。
 

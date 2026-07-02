@@ -39,7 +39,7 @@ project-root/
 |------|------|------|
 | `informational` | README、HELP、DESIGN 等信息/文档 | 多语种合并输出 |
 | `executable` | System Prompt、技能文件等 AI 指令内容 | 多语种时每种语种独立输出，产物纯净无元数据 |
-| `integrative` | 指导一组 VASM 模块如何组合 | source-only，不生成自己的 compiled output；用 `integration.appliesTo` 声明适用对象 |
+| `integrative` | 指导一组 VASM 模块如何组合 | 生成展开后的组合指导 artifact；用 `integration.appliesTo` 声明适用对象 |
 
 ***
 
@@ -145,13 +145,14 @@ vasm:
 * `--out-dir` 不是 dry-run；命中 `routing` 时，最终路径仍由 `routing.dest` 决定。
 * 需要无副作用检查时，使用 `vasmc build --dry-run`；需要临时展开稿时，使用 `vasmc expand ... --stdout`。
 * `executable` 格式文件内部所有内联素材必须与目标编译语种一致，避免混杂多语言。
-* `integrative` 只用于组合指导，是 source-only 文件；不要把它直接当最终可执行 prompt，也不要期待它生成独立产物。
+* `integrative` 只用于组合指导，会生成独立 guide artifact；不要把它直接当最终可执行 prompt。
 * 创建 integrative source 时，如果它是为某个 prompt/skill 或一组 VASM 文件服务的，必须写 `vasm.integration.appliesTo`；不要通过 `@import:inline` 把整合指导塞进最终 executable。
-* 如果项目配置了 `catalog.exports`，workspace build 会生成 `vasmc-catalog.yaml` 和 release artifact。catalog 中的 hash 是 artifact 身份；`executable`/`informational` export 是编译后 Markdown，`integrative` export 是展开后的组合指导 artifact。
+* 如果项目配置了 `catalog.exports`，workspace build 会生成 `vasmc-catalog.yaml` 和 release artifact。catalog 中的 hash 是 artifact 身份；`executable`/`informational` export 是编译后 Markdown，`integrative` export 是展开后的组合指导 artifact，并把 source 中的 `integration.appliesTo` 解析为目标 artifact hash。
+* consumer 如果同时锁定同一 catalog 的 executable 和 integrative export，并在本地 executable 中引用该 executable artifact，build report 会把匹配的 integrative artifact 放到 `integration_guidance.guides`。
 * catalog artifact 被外部项目使用时，在 `vasmc.yaml` 中声明 `dependencies.<alias>.catalog` 与 `export`，执行 `vasmc sync` 后进入 `vasmc-lock.yaml`，再由 `@import` 读取本地锁定文件。
 * `@import` 只解析本地相对路径和 `vasm:<alias>`；不要让 `@import` 直接扫描远端仓库、catalog 或未锁定路径。
 * 如果 `.vasmc/build-report.yaml` 的 actions 出现 `integration_guidance`，在组合目标产物前必须读取 action 中的 `guides[].source`。
-* `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，blocked executable 输出不会被更新。integrative source 不产生输出，只报告 policy。
+* `.vasmc/build-report.yaml` 中的 `policy.status` 可为 `pass`、`review`、`blocked`。若出现 Policy Gate，说明确定性 policy 已发现阻断风险；在 `security.mode: enforce` 下，blocked executable 输出不会被更新。integrative artifact 仍作为组合指导接受 policy review。
 * 如果 `.vasmc/build-report.yaml` 的 actions 出现 `policy_review` 或 `policy_gate`，必须重点检查 manifest、lockfile、format 边界 diagnostics。若存在 `policy.contentSignals`，把它们当作词面线索，判断 evidence 是 active instruction、prohibition、example 还是 documentation。
 * 若启用 `ai.projectReview`，必须读取 `.vasmc/project-review-context.yaml`，结合项目 README、docs、package 配置和 VASM 源文件提出源文件级建议，不要直接编辑生成物。
 * `tree_shake` 是条件性 action；只有用户明确要求优化或精简 Prompt 时才执行，并且应裁剪 source 或 fragment 后重新 build。

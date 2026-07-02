@@ -34,6 +34,10 @@ function readText(relativePath) {
     return fs.readFileSync(absPath(relativePath), 'utf8');
 }
 
+function readPathValue(value, fieldPath) {
+    return String(fieldPath).split('.').reduce((current, key) => current?.[key], value);
+}
+
 function result(ok, message, evidence) {
     return {
         ok,
@@ -61,7 +65,9 @@ function commandOutput(error) {
 
 function runBuildSource(buildSource, defaultCwd) {
     const cwd = absPath(buildSource.cwd || defaultCwd || '.');
-    const args = buildSource.workspace
+    const args = Array.isArray(buildSource.args)
+        ? [cliPath, ...buildSource.args]
+        : buildSource.workspace
         ? [cliPath, 'build']
         : [cliPath, 'build', buildSource.source, '-o', buildSource.outDir];
     try {
@@ -121,10 +127,14 @@ function normalizeBuildSource(source, defaultOutDir) {
         outDir: source.outDir || defaultOutDir,
         cwd: source.cwd,
         workspace: source.workspace,
+        args: source.args,
     };
 }
 
 function buildSourcesForCase(testCase) {
+    if (Array.isArray(testCase.commands)) {
+        return testCase.commands.map(source => normalizeBuildSource(source, testCase.outDir));
+    }
     if (testCase.workspaceBuild) {
         return [{
             workspace: true,
@@ -138,6 +148,17 @@ function buildSourcesForCase(testCase) {
         sources.push({ source: testCase.source, outDir: testCase.outDir });
     }
     return sources;
+}
+
+function writeSeedFiles(seedFiles) {
+    for (const seed of seedFiles || []) {
+        if (!seed.path || typeof seed.content !== 'string') {
+            throw new Error('seedFiles entries must declare path and content.');
+        }
+        const targetPath = absPath(seed.path);
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.writeFileSync(targetPath, seed.content, 'utf8');
+    }
 }
 
 function checkHardBoundary(check, entry, buildResult) {
@@ -185,6 +206,21 @@ function checkHardBoundary(check, entry, buildResult) {
             const actions = (entry?.actions || []).map(action => action.type);
             return result(actions.includes(check.value), `build report action 包含 ${check.value}`, actions);
         }
+        case 'report_action_missing': {
+            const actions = (entry?.actions || []).map(action => action.type);
+            return result(!actions.includes(check.value), `build report action 不包含 ${check.value}`, actions);
+        }
+        case 'top_level_action': {
+            const actions = (buildResult.buildReport?.actions || []).map(action => action.type);
+            return result(actions.includes(check.value), `top-level build report action 包含 ${check.value}`, actions);
+        }
+        case 'report_dry_run': {
+            return result(Boolean(buildResult.buildReport?.dryRun) === Boolean(check.value), `build report dryRun 为 ${Boolean(check.value)}`, buildResult.buildReport?.dryRun);
+        }
+        case 'report_compiled_file': {
+            const compiledFiles = entry?.compiledFiles || [];
+            return result(compiledFiles.includes(check.value), `compiledFiles 包含 ${check.value}`, compiledFiles);
+        }
         case 'translate_target': {
             const targets = (entry?.actions || [])
                 .filter(action => action.type === 'translate')
@@ -215,11 +251,36 @@ function checkHardBoundary(check, entry, buildResult) {
                 return result(false, `YAML 文件缺失，无法检查字段：${check.path}`);
             }
             const content = readYaml(absPath(check.path));
-            const actual = String(check.field).split('.').reduce((value, key) => value?.[key], content);
+            const actual = readPathValue(content, check.field);
             return result(
                 actual === check.value,
                 `${check.path} 中 ${check.field} 为 ${check.value}`,
                 actual
+            );
+        }
+        case 'yaml_array_contains': {
+            if (!fs.existsSync(absPath(check.path))) {
+                return result(false, `YAML 文件缺失，无法检查数组字段：${check.path}`);
+            }
+            const content = readYaml(absPath(check.path));
+            const actual = readPathValue(content, check.field);
+            return result(
+                Array.isArray(actual) && actual.includes(check.value),
+                `${check.path} 中 ${check.field} 包含 ${check.value}`,
+                actual
+            );
+        }
+        case 'yaml_array_contains_field': {
+            if (!fs.existsSync(absPath(check.path))) {
+                return result(false, `YAML 文件缺失，无法检查数组字段：${check.path}`);
+            }
+            const content = readYaml(absPath(check.path));
+            const actual = readPathValue(content, check.field);
+            const expected = readPathValue(content, check.valueField);
+            return result(
+                Array.isArray(actual) && actual.includes(expected),
+                `${check.path} 中 ${check.field} 包含 ${check.valueField}`,
+                { actual, expected }
             );
         }
         default:
@@ -349,6 +410,7 @@ function main() {
     for (const testCase of suite.cases || []) {
         console.log(`[SELF-EVAL] build ${testCase.id}`);
         cleanCaseOutDir(outputRoot, testCase.outDir);
+        writeSeedFiles(testCase.seedFiles);
         const buildSources = buildSourcesForCase(testCase);
         const caseCwd = testCase.cwd || '.';
         const buildResult = {
@@ -379,11 +441,14 @@ function main() {
             }
         }
 
-        const buildReportPath = path.resolve(absPath(testCase.cwd || '.'), suite.defaults?.buildReport || '.vasmc/build-report.yaml');
+        const buildReportPath = testCase.buildReport === false
+            ? undefined
+            : path.resolve(absPath(testCase.cwd || '.'), testCase.buildReport || suite.defaults?.buildReport || '.vasmc/build-report.yaml');
         let buildReport;
         let buildReportSnapshot;
-        if (buildResult.ok && fs.existsSync(buildReportPath)) {
+        if (buildResult.ok && buildReportPath && fs.existsSync(buildReportPath)) {
             buildReport = readYaml(buildReportPath);
+            buildResult.buildReport = buildReport;
             buildReportSnapshot = path.join(reportsDir, `${testCase.id}.build-report.yaml`);
             writeYaml(buildReportSnapshot, buildReport);
         }
@@ -395,7 +460,8 @@ function main() {
             ...checkHardBoundary(check, entry, buildResult),
         }));
         const expectsFailure = Boolean(testCase.expectedFailure);
-        const ok = (expectsFailure ? !buildResult.ok : buildResult.ok && !!entry) && checks.every(check => check.ok);
+        const requiresReportEntry = testCase.reportEntryRequired !== false;
+        const ok = (expectsFailure ? !buildResult.ok : buildResult.ok && (!requiresReportEntry || !!entry)) && checks.every(check => check.ok);
         if (!ok) failed = true;
 
         report.cases.push({

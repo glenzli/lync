@@ -2,3 +2,6 @@ dependencies:
   catalog-reviewer:
     catalog: "../../../../.vasmc/self-eval/out/catalog-import/catalog/vasmc-catalog.yaml"
     export: reviewSkill
+  catalog-review-guide:
+    catalog: "../../../../.vasmc/self-eval/out/catalog-import/catalog/vasmc-catalog.yaml"
+    export: reviewGuide

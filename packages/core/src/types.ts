@@ -46,6 +46,8 @@ export interface LockDependency {
     export?: string;
     name?: string;
     format?: RawCompileFormat;
+    /** Catalog artifact hashes that an integrative dependency applies to. */
+    appliesTo?: string[];
     hash: string;
     fetchedAt: string;
 }
@@ -77,6 +79,7 @@ export interface VasmCatalogExport {
     format: RawCompileFormat;
     file: string;
     hash: string;
+    /** Artifact hashes that an integrative export applies to. */
     appliesTo?: string[];
 }
 
@@ -116,7 +119,7 @@ export interface VasmBuild {
         executable?: {
             targetLangs?: string[];
         };
-        /** @deprecated integrative sources are source-only and are not cross-compiled */
+        /** Integrative outputs are single composition guide artifacts and are not cross-compiled. */
         integrative?: {
             targetLangs?: string[];
         };

@@ -14,3 +14,5 @@ catalog:
     reviewSkill:
       source: "src/catalog-reviewer.vasm.md"
       targetLang: "en"
+    reviewGuide:
+      source: "src/catalog-integration.vasm.md"

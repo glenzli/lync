@@ -107,7 +107,7 @@ actions:
 
 ### `integration_review`
 
-用于 `integrative` format。integrative 是 source-only，不生成自己的 compiled output。
+用于 `integrative` format。integrative 会生成一个展开后的组合指导 artifact，不是最终 executable prompt。
 
 检查：
 
@@ -124,7 +124,7 @@ actions:
 
 要求：
 
-- 读取 action `guides` 中列出的 `source`。
+- 优先读取 action `guides` 中列出的 `output`；如果没有 `output`，再读取 `source`。
 - 把 guide 当作组合决策依据，不当作最终 prompt 内容。
 - 不要通过 `@import:inline` 把 guide 塞进 executable，除非用户明确要求生成一个包含整合说明的 workflow。
 - 如果 guide 不清楚或与目标产物冲突，修改 integrative source 或目标 source 后重新 build。
@@ -196,7 +196,7 @@ actions:
 
 `policy_gate` 是阻断级信号。
 
-如果 `security.mode: enforce`，blocked executable 不会更新产物。integrative 是 source-only，只报告 policy。AI 不能绕过 gate 直接使用旧产物，也不能手工写生成物替代 build。
+如果 `security.mode: enforce`，blocked executable 不会更新产物。integrative artifact 仍需要按 report 做 policy review。AI 不能绕过 gate 直接使用旧产物，也不能手工写生成物替代 build。
 
 应做：
 

@@ -71,7 +71,7 @@ severity: error
 | --- | --- | --- |
 | `informational` | README、HELP、DESIGN、知识文档、说明材料 | 多语种合并到一个 `.md` |
 | `executable` | system prompt、skill、workflow instruction | 多语种时每个语种独立输出 |
-| `integrative` | 指导一批 VASM 模块如何组合 | source-only，不生成 compiled output，AI 只当组合指导 |
+| `integrative` | 指导一批 VASM 模块如何组合 | 生成一个展开后的组合指导 artifact，不做多语种拆分 |
 
 Deprecated 兼容值：
 
@@ -107,7 +107,7 @@ vasm:
 - `vasm:<alias>` 匹配目标文件的 `vasm.alias`。
 - 普通字符串按 source 路径或 output 路径做精确匹配或 glob 匹配。
 
-这不是内容依赖。它不会把 integrative guide inline 到目标 prompt，也不会为 guide 生成 output；只会在 build report 中为命中的 executable entry 生成 `integration_guidance` action。
+这不是内容依赖。它不会把 integrative guide inline 到目标 prompt；guide 自身会编译成一个展开后的 artifact，并在 build report 中为命中的 executable entry 生成 `integration_guidance` action。
 
 ## 5. `compile.targetLangs`
 
@@ -126,7 +126,7 @@ vasm:
 
 工程项目通常把统一语种放在 `vasmc-build.yaml`。对外发布的独立模块可以在文件 frontmatter 中声明。
 
-`integrative` 是 source-only，不产生语言产物；它会忽略 `compile.targetLangs`，并在 report diagnostics 中提示该字段无效用。
+`integrative` 只产生一个组合指导 artifact，不产生语言变体；它会忽略 `compile.targetLangs`，并在 report diagnostics 中提示该字段无效用。
 
 ## 6. Import 指令
 
@@ -248,7 +248,7 @@ output.dir + path.relative(baseDir, source).replace(".vasm.md", ".md")
 
 `catalog` 是 release 约束，不影响普通 workspace routing。配置存在时，workspace `vasmc build` 会额外生成 `catalog.outDir/vasmc-catalog.yaml` 和导出 artifact。单文件 build 不生成 catalog。
 
-`executable` 与 `informational` export 输出编译后的 Markdown artifact；`integrative` export 输出展开后的组合指导 artifact。catalog 阶段会消除内部 `@import:inline`，并把 `integration.appliesTo` 提升为 catalog 内的 export key 列表。
+`executable` 与 `informational` export 输出编译后的 Markdown artifact；`integrative` export 输出展开后的组合指导 artifact。catalog 阶段会消除内部 `@import:inline`，并把 source 中的 `integration.appliesTo` 解析为目标 artifact hash。source 不写 hash；hash 只出现在生成的 catalog 和 consumer lockfile 中。
 
 生成的 `vasmc-catalog.yaml` 只保留协议版本和 exports，不写 package name 或 generated timestamp，减少无意义 diff：
 
@@ -268,10 +268,10 @@ exports:
     file: release-workflow-guide.md
     hash: sha256:...
     appliesTo:
-      - releaseReviewer
+      - sha256:...
 ```
 
-`hash` 是 artifact 内容 hash，是去中心化引用中的稳定身份。`name` 和 `version` 来自 source frontmatter，只用于人类和 AI 判断语义兼容性。
+`hash` 是 artifact 内容 hash，是去中心化引用中的稳定身份。integrative export 的 `appliesTo` 同样使用目标 artifact hash，避免 consumer 依赖 producer 的内部 source 路径或 export 命名。`name` 和 `version` 来自 source frontmatter，只用于人类和 AI 判断语义兼容性。
 
 外部引用 catalog export 时，在 `vasmc.yaml` 中声明 catalog dependency：
 
@@ -282,11 +282,13 @@ dependencies:
     export: releaseReviewer
 ```
 
-`vasmc sync` 会读取 catalog、校验 artifact hash、把 artifact 写入本地 `.vasmc/` 或显式 `dest`，并在 `vasmc-lock.yaml` 中记录 `source: catalog`、`catalog`、`export`、`name`、`version`、`format`、`hash` 和实际 artifact URL。之后 `@import` 仍然只通过 `vasm:<alias>` + lockfile 解析本地文件，不直接扫描远端仓库：
+`vasmc sync` 会读取 catalog、校验 artifact hash、把 artifact 写入本地 `.vasmc/` 或显式 `dest`，并在 `vasmc-lock.yaml` 中记录 `source: catalog`、`catalog`、`export`、`name`、`version`、`format`、`hash`、实际 artifact URL，以及 integrative export 的 `appliesTo`。之后 `@import` 仍然只通过 `vasm:<alias>` + lockfile 解析本地文件，不直接扫描远端仓库：
 
 ```markdown
 [Release Reviewer](vasm:release-reviewer "@import:inline")
 ```
+
+如果 consumer 同时锁定同一 catalog 中的 executable export 和 integrative export，且本地 executable entry 引用了这个 executable artifact，build report 会把匹配的 integrative artifact 放入 `integration_guidance.guides`。最终 prompt 不会自动 inline guide，AI 需要先读 guide 再做组合判断。
 
 ### `expand`
 
@@ -301,7 +303,7 @@ vasmc expand src/main.vasm.md --target-lang zh-CN --stdout
 | mode | 行为 |
 | --- | --- |
 | `review` | 报告风险，但不阻断输出。 |
-| `enforce` | 当 executable entry 被 policy 标记为 `blocked` 时，不更新产物；integrative source 只报告 policy。 |
+| `enforce` | 当 executable entry 被 policy 标记为 `blocked` 时，不更新产物；integrative artifact 仍作为组合指导接受 policy review。 |
 
 ## 9. Build report
 
@@ -352,7 +354,6 @@ actions:
 | `skipped` | 增量缓存判断 source 未变化，跳过写入。 |
 | `blocked` | policy gate 阻断输出。 |
 | `planned` | dry-run 计划写入，但没有实际写文件。 |
-| `indexed` | source-only entry 已进入 report，不产生输出。 |
 
 ### Policy status
 
@@ -367,8 +368,8 @@ actions:
 | action | 层级 | 说明 |
 | --- | --- | --- |
 | `verify` | entry | AI 检查产物是否符合 intent 和基础质量标准。 |
-| `integration_review` | entry | AI 检查 integrative source 是否清楚表达组合边界。 |
-| `integration_guidance` | entry | AI 在组合 executable 前读取匹配的 integrative source guides。 |
+| `integration_review` | entry | AI 检查 integrative artifact 是否清楚表达组合边界。 |
+| `integration_guidance` | entry | AI 在组合 executable 前读取匹配的 integrative guides。 |
 | `translate` | entry | AI 按 `targets` 写目标语种产物。 |
 | `refresh_translation` | entry | informational 输出复用旧目标语种段后，AI 检查并更新过期译文。 |
 | `diff` | entry | AI 对比历史备份和新产物，总结语义变化。 |
@@ -386,7 +387,7 @@ actions:
 | `manifest.*.removed` | manifest | block | 使用了已移除 manifest 字段。 |
 | `manifest.compile.format.invalid` | manifest | block | `compile.format` 非法。 |
 | `manifest.compile.format.deprecated` | manifest | review | 使用了 deprecated format。 |
-| `manifest.compile.targetLangs.integrative_ignored` | manifest | review | integrative source 声明了不会生效的 `targetLangs`。 |
+| `manifest.compile.targetLangs.integrative_ignored` | manifest | review | integrative 声明了不会生效的 `targetLangs`。 |
 | `manifest.integration.appliesTo.invalid` | manifest | block | `integration.appliesTo` 不是字符串数组。 |
 | `manifest.integration.appliesTo.non_integrative` | manifest | review | 非 integrative 文件声明了 `integration.appliesTo`。 |
 | `policy.lockfile.missing` | lockfile | block | lockfile 指向的依赖不存在。 |
