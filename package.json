@@ -1,6 +1,6 @@
 {
   "name": "vasmc-workspace",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Vibe Assembly Compiler monorepo.",
   "workspaces": [
