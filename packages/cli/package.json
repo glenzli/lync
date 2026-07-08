@@ -24,7 +24,7 @@
   "author": "glenzli",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/glenzli/vasmc.git"
+    "url": "git+https://gitlab.com/glenzli/vasmc.git"
   },
   "license": "MIT",
   "type": "commonjs"
