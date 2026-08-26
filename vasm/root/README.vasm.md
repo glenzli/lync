@@ -2,16 +2,16 @@
 vasm:
   compile:
     format: "informational"
-    targetLangs: ["en", "zh-CN"]
+    targetLangs: ["zh-CN", "en"]
 ---
 
 # VASMC
 
-![VASMC 编译流程图](docs/assets/vasmc-banner.png)
+![VASMC 编译流程](docs/assets/vasmc-banner.png)
 
-面向 LLM skill、prompt 和 AI 文档的去中心化 Markdown prompt 编译器。
+VASMC 是用于 prompt、skill 和 AI 项目文档的 Markdown 编译器。它把 `.vasm.md` 源文件展开为 `.md` 产物，并把需要继续处理的事项写入 `.vasmc/build-report.yaml`。
 
-VASMC 把 Markdown prompt、skill 和文档当作 source code 维护。你编辑 `.vasm.md`，声明 import 和输出用途，然后运行 `vasmc build` 生成纯净 `.md` 产物，并生成 `.vasmc/build-report.yaml`，交给当前 AI 编辑器继续校验、翻译、精简或阻断。
+`@vasm/cli` 负责 import 展开、依赖锁定、语言过滤、输出路由和策略诊断等确定性工作，不调用模型。翻译、语义审查和项目上下文检查由执行构建的 AI 编辑器或开发者根据报告完成。
 
 ## 快速开始
 
@@ -21,7 +21,7 @@ vasmc init
 vasmc build
 ```
 
-最小 source：
+最小源文件：
 
 ```markdown
 ---
@@ -38,40 +38,45 @@ vasm:
 [Rules](./fragments/release-rules.vasm.md "@import:inline")
 ```
 
-构建后得到：
+构建会生成：
 
-- 给目标 AI 直接读取的纯净 Markdown 产物。
-- `.vasmc/build-report.yaml`，包含 `verify`、`integration_guidance`、`translate`、`refresh_translation`、`tree_shake`、`policy_review`、`policy_gate`、`project_review` 等结构化 actions。
-- 源文件优先：生成的 `.md` 是审查证据，修复通常回到 `.vasm.md` source。
+- 编译后的 Markdown；
+- `.vasmc/build-report.yaml`，按需列出校验、翻译、策略审查等后续事项。
 
-## 文档入口
+`.vasm.md` 是维护入口，生成的 `.md` 是构建产物。除报告明确要求更新译文外，内容修改应回到源文件后重新构建。
 
-| 文档 | 用途 |
+## 能力边界
+
+- `vasmc build` 不调用模型，报告中的 action 也不表示相关任务已经完成。
+- 策略检查覆盖 manifest、依赖、格式边界和内容信号，不是运行时安全沙箱。
+- `vasm-console` 提供可选的外部模型语义检查，与确定性编译链分开。
+
+## 文档
+
+| 文档 | 内容 |
 | --- | --- |
-| [使用手册](docs/USAGE.vasm.md) | 带完整 source 到 output 示例的主教程。 |
-| [AI 工作流](docs/AI-WORKFLOW.vasm.md) | AI 编辑器如何执行 build report actions。 |
-| [协议参考](docs/REFERENCE.vasm.md) | Manifest、import、build config、report actions、policy diagnostics 和 content signals。 |
-| [CLI 帮助](HELP.vasm.md) | `vasmc` 与 `vasm-console` 命令参考。 |
-| [设计文档](DESIGN.vasm.md) | 设计哲学与编译器模型。 |
+| [使用手册](docs/USAGE.vasm.md) | 项目配置、构建流程和示例。 |
+| [AI 工作流](docs/AI-WORKFLOW.vasm.md) | 如何处理 build report 中的 action。 |
+| [协议参考](docs/REFERENCE.vasm.md) | Manifest、import、构建配置、报告和策略诊断。 |
+| [CLI 帮助](HELP.vasm.md) | `vasmc` 与 `vasm-console` 命令。 |
+| [设计文档](DESIGN.vasm.md) | 编译模型与设计边界。 |
 
-## 包边界
+## 包
 
 | 包 | 命令 | 职责 |
 | --- | --- | --- |
-| `@vasm/core` | 无 | 共享确定性编译核心。 |
-| `@vasm/cli` | `vasmc` | 面向 AI 的 build、依赖管理和结构化 report actions。 |
-| `@vasm/console` | `vasm-console` | 面向人类的可选外部模型控制台工具。 |
+| `@vasm/core` | 无 | 编译器与协议实现。 |
+| `@vasm/cli` | `vasmc` | 构建、依赖管理和报告生成。 |
+| `@vasm/console` | `vasm-console` | 可选的外部模型 lint 与 diff。 |
 
-## 发布
-
-本仓库使用 Changesets。发布前运行 `npm run release:check`。统一发布入口是：
+## 开发与发布
 
 ```bash
-npm run release
-npm run release -- --only npm
-npm run release -- --only gitlab,npm
-npm run release -- --skip github
+npm install
+npm test
+npm run build
+npm run release:check
 npm run release -- --dry-run
 ```
 
-默认目标是 npmjs、GitHub 和 GitLab。`--only` 用于只选择部分目标，`--skip` 用于从默认目标中排除部分目标；脚本会创建 `v<version>` 聚合 tag 和 package tags，并按目标发布 npm 包、推送 tag、创建 GitHub/GitLab release。
+`npm run release` 默认发布到 npmjs、GitHub 和 GitLab。可使用 `--only` 选择目标，或使用 `--skip` 排除目标。
